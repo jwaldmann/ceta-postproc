@@ -66,11 +66,16 @@ handle on_star_exec outfile benchfile = do
               "YES" -> Just True
               "NO"  -> Just False
               _     -> Nothing
-        problemString = unlines proof
+        problemString = unlines 
+                      $ takeWhile ( /= "EOF" ) -- FIXME (issue #1)
+                      $ proof
 
         (cert, msg) = certify False $ problemString
 
-    [ p ] <- CPF.readCP problemString
+    ps <- CPF.readCP problemString
+    when (length ps /= 1) $ whine on_star_exec PARSE_ERROR $ pretty $ length ps
+
+    let [ p ] = ps
 
     -- claim conforms to proof
     when ( bench /= CPF.trsinput_trs ( CPF.input p ) )
@@ -96,7 +101,8 @@ whine on_star_exec status doc = do
         CERTIFIED -> print doc
         _ -> error $ show doc
 
-data Status = INPUT_MISMATCH
+data Status = PARSE_ERROR
+            | INPUT_MISMATCH
             | CLAIM_MISMATCH
             | CERTIFIED | REJECTED | UNSUPPORTED | UNKNOWN_ERROR
   deriving (Eq, Show )
