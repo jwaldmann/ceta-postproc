@@ -56,11 +56,11 @@ main = do
         [ outfile, benchfile ] -> handle True outfile benchfile
         [ "-n", outfile, benchfile ] -> handle False outfile benchfile
 
-handle remove_stamps outfile benchfile = do
+handle on_star_exec outfile benchfile = do
     bench <- TPDB.Input.get_trs benchfile
     
     out <- readFile outfile
-    let process = if remove_stamps then remove_timestamp else id
+    let process = if on_star_exec then remove_timestamp else id
         claim_string : proof = map process $ lines out
         claim = case claim_string of
               "YES" -> Just True
@@ -74,7 +74,7 @@ handle remove_stamps outfile benchfile = do
 
     -- claim conforms to proof
     when ( bench /= CPF.trsinput_trs ( CPF.input p ) )
-         $ whine INPUT_MISMATCH 
+         $ whine on_star_exec INPUT_MISMATCH 
          $ vcat [ "benchmark:" <+> pretty bench
                 , "proof.input:" <+> pretty ( CPF.trsinput_trs $ CPF.input p ) ]
 
@@ -82,17 +82,17 @@ handle remove_stamps outfile benchfile = do
     case (claim, CPF.proof p) of
          (Just True , CPF.TrsTerminationProof {} ) -> return ()
          (Just False, CPF.TrsNonterminationProof {} ) -> return ()
-         _ -> whine CLAIM_MISMATCH $ pretty claim
+         _ -> whine on_star_exec CLAIM_MISMATCH $ pretty claim
     
-    whine cert $ text msg     
+    whine on_star_exec cert $ text msg     
 
 remove_timestamp :: String -> String
 remove_timestamp = unwords . drop 1 . words
 
-whine :: Status -> Doc -> IO ()
-whine status doc = do
-    putStrLn $ show status
-    case status of
+whine :: Bool -> Status -> Doc -> IO ()
+whine on_star_exec status doc = do
+    putStrLn $ "starexec-result=" ++ show status
+    when (not on_star_exec) $ case status of
         CERTIFIED -> print doc
         _ -> error $ show doc
 
