@@ -56,6 +56,14 @@ main = do
         [ outfile, benchfile ] -> handle True outfile benchfile
         [ "-n", outfile, benchfile ] -> handle False outfile benchfile
 
+data Starexec_Result = CERTIFIED | REJECTED | IGNORED
+     deriving (Eq, Show)
+data Original_Result = YES | NO | MAYBE 
+     deriving (Eq, Show)
+data Consistency = CONSISTENT | INPUT_MISMATCH | CLAIM_MISMATCH | PARSE_ERROR
+     deriving (Eq, Show)
+
+
 handle on_star_exec outfile benchfile = do
     bench <- TPDB.Input.get_trs benchfile
     
@@ -63,60 +71,68 @@ handle on_star_exec outfile benchfile = do
     let process = if on_star_exec then remove_timestamp else id
         claim_string : proof = map process $ lines out
         claim = case claim_string of
-              "YES" -> Just True
-              "NO"  -> Just False
-              _     -> Nothing
+              "YES" -> YES
+              "NO"  -> NO
+              _     -> MAYBE
         problemString = unlines 
                       $ takeWhile ( /= "EOF" ) -- FIXME (issue #1)
                       $ proof
 
         (cert, msg) = certify False $ problemString
 
+    when (claim == MAYBE) $ whine on_star_exec [("starexec-result", show claim)] empty
+
     ps <- CPF.readCP problemString
-    when (length ps /= 1) $ whine on_star_exec PARSE_ERROR $ pretty $ length ps
+    when (length ps /= 1) 
+        $ whine on_star_exec [("starexec-result", "postproc-parse-error")
+                             ,("original-result", show claim) ] empty
 
     let [ p ] = ps
 
-    -- claim conforms to proof
     when ( bench /= CPF.trsinput_trs ( CPF.input p ) )
-         $ whine on_star_exec INPUT_MISMATCH 
+         $ whine on_star_exec [("starexec-result", "REJECTED")
+                              ,("original-result", show claim)
+                              ,("consistency", "INPUT_MISMATCH")
+                              ]
          $ vcat [ "benchmark:" <+> pretty bench
                 , "proof.input:" <+> pretty ( CPF.trsinput_trs $ CPF.input p ) ]
 
-    -- input from benchfile conforms to input from proof
     case (claim, CPF.proof p) of
-         (Just True , CPF.TrsTerminationProof {} ) -> return ()
-         (Just False, CPF.TrsNonterminationProof {} ) -> return ()
-         _ -> whine on_star_exec CLAIM_MISMATCH $ pretty claim
-    
-    whine on_star_exec cert $ text msg     
+         (YES , CPF.TrsTerminationProof {} ) -> return ()
+         (NO, CPF.TrsNonterminationProof {} ) -> return ()
+         _ -> whine on_star_exec [("starexec-result", "REJECTED")
+                                 ,("original-result", show claim)
+                                 ,("consistency", "CLAIM_MISMATCH")] empty
+
+    case cert of
+        Left reason -> whine on_star_exec [("starexec-result", "REJECTED")
+                                          ,("original-result", show claim)
+                                          ,("consistency", "CONSISTENT")
+                                          ,("certification-result", reason)] $ text msg
+        Right reason -> whine on_star_exec [("starexec-result", "CERTIFIED")
+                                          ,("original-result", show claim)
+                                          ,("consistency", "CONSISTENT")
+                                          ,("certification-result", reason)] $ text msg
+
 
 remove_timestamp :: String -> String
 remove_timestamp = unwords . drop 1 . words
 
-whine :: Bool -> Status -> Doc -> IO ()
-whine on_star_exec status doc = do
-    putStrLn $ "starexec-result=" ++ show status
-    when (not on_star_exec) $ case status of
-        CERTIFIED -> print doc
-        _ -> error $ show doc
+whine :: Bool -> [(String,String)] -> Doc -> IO ()
+whine on_star_exec keyvals doc = do
+    putStrLn $ unlines $ map (\(k,v) -> k ++ "=" ++ v) keyvals
+    error $ if on_star_exec then "" else show doc
 
-data Status = PARSE_ERROR
-            | INPUT_MISMATCH
-            | CLAIM_MISMATCH
-            | CERTIFIED | REJECTED | UNSUPPORTED | UNKNOWN_ERROR
-  deriving (Eq, Show )
-            
 certify a problemString = 
     case Ceta.certify_proof a problemString of
          Ceta.Sumbot (Ceta.Inr (Ceta.Certified prf)) -> 
-             ( CERTIFIED, prf )
+             ( Right "CERTIFIED", prf )
          Ceta.Sumbot (Ceta.Inr (Ceta.Error message)) -> 
-             ( REJECTED, message )
+             ( Left "REJECTED", message )
          Ceta.Sumbot (Ceta.Inr (Ceta.Unsupported message)) -> 
-             ( UNSUPPORTED,  message )
+             ( Left "UNSUPPORTED",  message )
          Ceta.Sumbot (Ceta.Inl message) -> 
-             ( UNKNOWN_ERROR,  message )
+             ( Left "UNKNOWN_ERROR",  message )
 
 
 
