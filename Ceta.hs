@@ -1,6 +1,9 @@
 {-# LANGUAGE EmptyDataDecls, RankNTypes, ScopedTypeVariables #-}
 
-module Ceta where {
+module
+  Ceta(Nat, Nibble, Sum(..), Lab, Xml, Sum_bot(..), Cert_result(..),
+        Cert_problem, Tp, Dpp, Tp_ops_ext, Dpp_ops_ext, certify_proof)
+  where {
 
 import Prelude ((==), (/=), (<), (<=), (>=), (>), (+), (-), (*), (/), (**),
   (>>=), (>>), (=<<), (&&), (||), (^), (^^), (.), ($), ($!), (++), (!!), Eq,
@@ -11,65 +14,33 @@ import qualified Prelude;
 
 data Num = One | Bit0 Num | Bit1 Num;
 
+equal_num :: Num -> Num -> Bool;
+equal_num (Bit0 numa) (Bit1 num) = False;
+equal_num (Bit1 numa) (Bit0 num) = False;
+equal_num One (Bit1 num) = False;
+equal_num (Bit1 num) One = False;
+equal_num One (Bit0 num) = False;
+equal_num (Bit0 num) One = False;
+equal_num (Bit1 numa) (Bit1 num) = equal_num numa num;
+equal_num (Bit0 numa) (Bit0 num) = equal_num numa num;
+equal_num One One = True;
+
 data Int = Zero_int | Pos Num | Neg Num;
 
-data Nat = Zero_nat | Nat_of_num Num;
+equal_int :: Int -> Int -> Bool;
+equal_int (Neg k) (Neg l) = equal_num k l;
+equal_int (Neg k) (Pos l) = False;
+equal_int (Neg k) Zero_int = False;
+equal_int (Pos k) (Neg l) = False;
+equal_int (Pos k) (Pos l) = equal_num k l;
+equal_int (Pos k) Zero_int = False;
+equal_int Zero_int (Neg l) = False;
+equal_int Zero_int (Pos l) = False;
+equal_int Zero_int Zero_int = True;
 
-class Ord a where {
-  less_eq :: a -> a -> Bool;
-  less :: a -> a -> Bool;
+instance Eq Int where {
+  a == b = equal_int a b;
 };
-
-class (Ord a) => Preorder a where {
-};
-
-class (Preorder a) => Order a where {
-};
-
-class (Order a) => Linorder a where {
-};
-
-data Color = R | B;
-
-data Rbta a b = Emptya | Branch Color (Rbta a b) a b (Rbta a b);
-
-newtype Rbt a b = Rbt (Rbta a b);
-
-newtype Rat = Frct (Int, Int);
-
-class Corder a where {
-  corder :: Maybe (a -> a -> Bool, a -> a -> Bool);
-};
-
-newtype Mapping_rbt a b = Mapping_RBTa (Rbta a b);
-
-class Ceq a where {
-  ceq :: Maybe (a -> a -> Bool);
-};
-
-newtype Set_dlist a = Abs_dlist [a];
-
-data Set a = Collect_set (a -> Bool) | DList_set (Set_dlist a)
-  | RBT_set (Mapping_rbt a ()) | Set_Monad [a] | Complement (Set a);
-
-data Xml =
-  Xml [Prelude.Char] [([Prelude.Char], [Prelude.Char])] [Xml]
-    (Maybe [Prelude.Char]);
-
-dup :: Int -> Int;
-dup (Neg n) = Neg (Bit0 n);
-dup (Pos n) = Pos (Bit0 n);
-dup Zero_int = Zero_int;
-
-nat :: Int -> Nat;
-nat (Pos k) = Nat_of_num k;
-nat Zero_int = Zero_nat;
-nat (Neg k) = Zero_nat;
-
-uminus_int :: Int -> Int;
-uminus_int (Neg m) = Pos m;
-uminus_int (Pos m) = Neg m;
-uminus_int Zero_int = Zero_int;
 
 plus_num :: Num -> Num -> Num;
 plus_num (Bit1 m) (Bit1 n) = Bit0 (plus_num (plus_num m n) One);
@@ -82,10 +53,661 @@ plus_num One (Bit1 n) = Bit0 (plus_num n One);
 plus_num One (Bit0 n) = Bit1 n;
 plus_num One One = Bit0 One;
 
+times_num :: Num -> Num -> Num;
+times_num (Bit1 m) (Bit1 n) =
+  Bit1 (plus_num (plus_num m n) (Bit0 (times_num m n)));
+times_num (Bit1 m) (Bit0 n) = Bit0 (times_num (Bit1 m) n);
+times_num (Bit0 m) (Bit1 n) = Bit0 (times_num m (Bit1 n));
+times_num (Bit0 m) (Bit0 n) = Bit0 (Bit0 (times_num m n));
+times_num One n = n;
+times_num m One = m;
+
+times_int :: Int -> Int -> Int;
+times_int (Neg m) (Neg n) = Pos (times_num m n);
+times_int (Neg m) (Pos n) = Neg (times_num m n);
+times_int (Pos m) (Neg n) = Neg (times_num m n);
+times_int (Pos m) (Pos n) = Pos (times_num m n);
+times_int Zero_int l = Zero_int;
+times_int k Zero_int = Zero_int;
+
+class Times a where {
+  times :: a -> a -> a;
+};
+
+class (Times a) => Dvd a where {
+};
+
+instance Times Int where {
+  times = times_int;
+};
+
+instance Dvd Int where {
+};
+
+class Ord a where {
+  less_eq :: a -> a -> Bool;
+  less :: a -> a -> Bool;
+};
+
+class Plus a where {
+  plus :: a -> a -> a;
+};
+
+class One a where {
+  onea :: a;
+};
+
+class (Plus a) => Semigroup_add a where {
+};
+
+class (One a, Semigroup_add a) => Numeral a where {
+};
+
+numeral :: forall a. (Numeral a) => Num -> a;
+numeral (Bit1 n) = let {
+                     m = numeral n;
+                   } in plus (plus m m) onea;
+numeral (Bit0 n) = let {
+                     m = numeral n;
+                   } in plus m m;
+numeral One = onea;
+
+class Minus a where {
+  minus :: a -> a -> a;
+};
+
+class (Semigroup_add a) => Cancel_semigroup_add a where {
+};
+
+class (Semigroup_add a) => Ab_semigroup_add a where {
+};
+
+class (Ab_semigroup_add a,
+        Cancel_semigroup_add a) => Cancel_ab_semigroup_add a where {
+};
+
+class Zero a where {
+  zeroa :: a;
+};
+
+class (Semigroup_add a, Zero a) => Monoid_add a where {
+};
+
+class (Ab_semigroup_add a, Monoid_add a) => Comm_monoid_add a where {
+};
+
+class (Cancel_ab_semigroup_add a,
+        Comm_monoid_add a) => Cancel_comm_monoid_add a where {
+};
+
+class (Times a, Zero a) => Mult_zero a where {
+};
+
+class (Times a) => Semigroup_mult a where {
+};
+
+class (Ab_semigroup_add a, Semigroup_mult a) => Semiring a where {
+};
+
+class (Comm_monoid_add a, Mult_zero a, Semiring a) => Semiring_0 a where {
+};
+
+class (Cancel_comm_monoid_add a, Semiring_0 a) => Semiring_0_cancel a where {
+};
+
+class (Semigroup_mult a) => Ab_semigroup_mult a where {
+};
+
+class (Ab_semigroup_mult a, Semiring a) => Comm_semiring a where {
+};
+
+class (Comm_semiring a, Semiring_0 a) => Comm_semiring_0 a where {
+};
+
+class (Comm_semiring_0 a,
+        Semiring_0_cancel a) => Comm_semiring_0_cancel a where {
+};
+
+class (One a, Times a) => Power a where {
+};
+
+class (Semigroup_mult a, Power a) => Monoid_mult a where {
+};
+
+class (Monoid_mult a, Numeral a, Semiring a) => Semiring_numeral a where {
+};
+
+class (One a, Zero a) => Zero_neq_one a where {
+};
+
+class (Semiring_numeral a, Semiring_0 a, Zero_neq_one a) => Semiring_1 a where {
+};
+
+class (Semiring_0_cancel a, Semiring_1 a) => Semiring_1_cancel a where {
+};
+
+class (Ab_semigroup_mult a, Monoid_mult a) => Comm_monoid_mult a where {
+};
+
+class (Comm_monoid_mult a, Comm_semiring_0 a, Dvd a,
+        Semiring_1 a) => Comm_semiring_1 a where {
+};
+
+class (Comm_semiring_0_cancel a, Comm_semiring_1 a,
+        Semiring_1_cancel a) => Comm_semiring_1_cancel a where {
+};
+
+class (Times a, Zero a) => No_zero_divisors a where {
+};
+
+class (Dvd a) => Div a where {
+  div :: a -> a -> a;
+  mod :: a -> a -> a;
+};
+
+class (Div a, Comm_semiring_1_cancel a,
+        No_zero_divisors a) => Semiring_div a where {
+};
+
+class (Semiring_div a) => Semiring_div_parity a where {
+};
+
+class (Ord a) => Preorder a where {
+};
+
+class (Preorder a) => Order a where {
+};
+
+class (Ab_semigroup_add a, Order a) => Ordered_ab_semigroup_add a where {
+};
+
+class (Comm_monoid_add a, Ordered_ab_semigroup_add a,
+        Semiring a) => Ordered_semiring a where {
+};
+
+class (Ordered_semiring a,
+        Semiring_0_cancel a) => Ordered_cancel_semiring a where {
+};
+
+class (Comm_semiring_0 a, Ordered_semiring a) => Ordered_comm_semiring a where {
+};
+
+class (Comm_semiring_0_cancel a, Ordered_cancel_semiring a,
+        Ordered_comm_semiring a) => Ordered_cancel_comm_semiring a where {
+};
+
+class (Cancel_ab_semigroup_add a,
+        Ordered_ab_semigroup_add a) => Ordered_cancel_ab_semigroup_add a where {
+};
+
+class (Ordered_cancel_ab_semigroup_add a) => Ordered_ab_semigroup_add_imp_le a where {
+};
+
+class (Order a) => Linorder a where {
+};
+
+class (Ordered_ab_semigroup_add a,
+        Linorder a) => Linordered_ab_semigroup_add a where {
+};
+
+class (Linordered_ab_semigroup_add a,
+        Ordered_ab_semigroup_add_imp_le a) => Linordered_cancel_ab_semigroup_add a where {
+};
+
+class (Comm_monoid_add a,
+        Ordered_cancel_ab_semigroup_add a) => Ordered_comm_monoid_add a where {
+};
+
+class (Linordered_cancel_ab_semigroup_add a, Ordered_comm_monoid_add a,
+        Ordered_cancel_semiring a) => Linordered_semiring a where {
+};
+
+class (Linordered_semiring a) => Linordered_semiring_strict a where {
+};
+
+class (Linordered_semiring_strict a,
+        Ordered_cancel_comm_semiring a) => Linordered_comm_semiring_strict a where {
+};
+
+class (Semiring_1 a) => Semiring_char_0 a where {
+};
+
+class (Semiring_char_0 a, Comm_semiring_1_cancel a,
+        Linordered_comm_semiring_strict a) => Linordered_semidom a where {
+};
+
+class (Semiring_div_parity a, Minus a,
+        Linordered_semidom a) => Semiring_numeral_div a where {
+};
+
+divmod_step :: forall a. (Semiring_numeral_div a) => Num -> (a, a) -> (a, a);
+divmod_step l (q, r) =
+  (if less_eq (numeral l) r
+    then (plus (times (numeral (Bit0 One)) q) onea, minus r (numeral l))
+    else (times (numeral (Bit0 One)) q, r));
+
+less_num :: Num -> Num -> Bool;
+less_num (Bit1 m) (Bit0 n) = less_num m n;
+less_num (Bit1 m) (Bit1 n) = less_num m n;
+less_num (Bit0 m) (Bit1 n) = less_eq_num m n;
+less_num (Bit0 m) (Bit0 n) = less_num m n;
+less_num One (Bit1 n) = True;
+less_num One (Bit0 n) = True;
+less_num m One = False;
+
+less_eq_num :: Num -> Num -> Bool;
+less_eq_num (Bit1 m) (Bit0 n) = less_num m n;
+less_eq_num (Bit1 m) (Bit1 n) = less_eq_num m n;
+less_eq_num (Bit0 m) (Bit1 n) = less_eq_num m n;
+less_eq_num (Bit0 m) (Bit0 n) = less_eq_num m n;
+less_eq_num (Bit1 m) One = False;
+less_eq_num (Bit0 m) One = False;
+less_eq_num One n = True;
+
+divmod :: forall a. (Semiring_numeral_div a) => Num -> Num -> (a, a);
+divmod (Bit1 m) (Bit0 n) =
+  let {
+    (q, r) = divmod m n;
+  } in (q, plus (times (numeral (Bit0 One)) r) onea);
+divmod (Bit0 m) (Bit0 n) =
+  let {
+    (q, r) = divmod m n;
+  } in (q, times (numeral (Bit0 One)) r);
+divmod m n =
+  (if less_num m n then (zeroa, numeral m)
+    else divmod_step n (divmod m (Bit0 n)));
+
+data Nat = Zero_nat | Nat_of_num Num;
+
+times_nat :: Nat -> Nat -> Nat;
+times_nat Zero_nat n = Zero_nat;
+times_nat m Zero_nat = Zero_nat;
+times_nat (Nat_of_num k) (Nat_of_num l) = Nat_of_num (times_num k l);
+
+less_eq_nat :: Nat -> Nat -> Bool;
+less_eq_nat (Nat_of_num k) (Nat_of_num l) = less_eq_num k l;
+less_eq_nat (Nat_of_num k) Zero_nat = False;
+less_eq_nat Zero_nat n = True;
+
+equal_nat :: Nat -> Nat -> Bool;
+equal_nat (Nat_of_num k) (Nat_of_num l) = equal_num k l;
+equal_nat (Nat_of_num k) Zero_nat = False;
+equal_nat Zero_nat (Nat_of_num l) = False;
+equal_nat Zero_nat Zero_nat = True;
+
+plus_nat :: Nat -> Nat -> Nat;
+plus_nat Zero_nat n = n;
+plus_nat m Zero_nat = m;
+plus_nat (Nat_of_num k) (Nat_of_num l) = Nat_of_num (plus_num k l);
+
+map_option :: forall a b. (a -> b) -> Maybe a -> Maybe b;
+map_option fi Nothing = Nothing;
+map_option fi (Just x2a) = Just (fi x2a);
+
+dupa :: Nat -> Nat;
+dupa (Nat_of_num k) = Nat_of_num (Bit0 k);
+dupa Zero_nat = Zero_nat;
+
 bitM :: Num -> Num;
 bitM One = One;
 bitM (Bit0 n) = Bit1 (bitM n);
 bitM (Bit1 n) = Bit1 (Bit0 n);
+
+minus_nat :: Nat -> Nat -> Nat;
+minus_nat Zero_nat n = Zero_nat;
+minus_nat m Zero_nat = m;
+minus_nat (Nat_of_num k) (Nat_of_num l) =
+  (case suba k l of {
+    Nothing -> Zero_nat;
+    Just j -> j;
+  });
+
+suba :: Num -> Num -> Maybe Nat;
+suba (Bit0 m) (Bit1 n) =
+  (case suba m n of {
+    Nothing -> Nothing;
+    Just q ->
+      (if equal_nat q Zero_nat then Nothing
+        else Just (minus_nat (dupa q) (Nat_of_num One)));
+  });
+suba (Bit1 m) (Bit0 n) =
+  map_option (\ q -> plus_nat (dupa q) (Nat_of_num One)) (suba m n);
+suba (Bit1 m) (Bit1 n) = map_option dupa (suba m n);
+suba (Bit0 m) (Bit0 n) = map_option dupa (suba m n);
+suba One (Bit1 n) = Nothing;
+suba One (Bit0 n) = Nothing;
+suba (Bit1 m) One = Just (Nat_of_num (Bit0 m));
+suba (Bit0 m) One = Just (Nat_of_num (bitM m));
+suba One One = Just Zero_nat;
+
+less_nat :: Nat -> Nat -> Bool;
+less_nat (Nat_of_num k) (Nat_of_num l) = less_num k l;
+less_nat Zero_nat (Nat_of_num l) = True;
+less_nat m Zero_nat = False;
+
+one_nat :: Nat;
+one_nat = Nat_of_num One;
+
+instance Plus Nat where {
+  plus = plus_nat;
+};
+
+instance Semigroup_add Nat where {
+};
+
+instance Cancel_semigroup_add Nat where {
+};
+
+instance Ab_semigroup_add Nat where {
+};
+
+instance Cancel_ab_semigroup_add Nat where {
+};
+
+instance Zero Nat where {
+  zeroa = Zero_nat;
+};
+
+instance Monoid_add Nat where {
+};
+
+instance Comm_monoid_add Nat where {
+};
+
+instance Cancel_comm_monoid_add Nat where {
+};
+
+instance Times Nat where {
+  times = times_nat;
+};
+
+instance Mult_zero Nat where {
+};
+
+instance Semigroup_mult Nat where {
+};
+
+instance Semiring Nat where {
+};
+
+instance Semiring_0 Nat where {
+};
+
+instance Semiring_0_cancel Nat where {
+};
+
+instance Ab_semigroup_mult Nat where {
+};
+
+instance Comm_semiring Nat where {
+};
+
+instance Comm_semiring_0 Nat where {
+};
+
+instance Comm_semiring_0_cancel Nat where {
+};
+
+instance One Nat where {
+  onea = one_nat;
+};
+
+instance Power Nat where {
+};
+
+instance Monoid_mult Nat where {
+};
+
+instance Numeral Nat where {
+};
+
+instance Semiring_numeral Nat where {
+};
+
+instance Zero_neq_one Nat where {
+};
+
+instance Semiring_1 Nat where {
+};
+
+instance Semiring_1_cancel Nat where {
+};
+
+instance Comm_monoid_mult Nat where {
+};
+
+instance Dvd Nat where {
+};
+
+instance Comm_semiring_1 Nat where {
+};
+
+instance Comm_semiring_1_cancel Nat where {
+};
+
+instance No_zero_divisors Nat where {
+};
+
+instance Ord Nat where {
+  less_eq = less_eq_nat;
+  less = less_nat;
+};
+
+instance Preorder Nat where {
+};
+
+instance Order Nat where {
+};
+
+instance Ordered_ab_semigroup_add Nat where {
+};
+
+instance Ordered_semiring Nat where {
+};
+
+instance Ordered_cancel_semiring Nat where {
+};
+
+instance Ordered_comm_semiring Nat where {
+};
+
+instance Ordered_cancel_comm_semiring Nat where {
+};
+
+instance Ordered_cancel_ab_semigroup_add Nat where {
+};
+
+instance Ordered_ab_semigroup_add_imp_le Nat where {
+};
+
+instance Linorder Nat where {
+};
+
+instance Linordered_ab_semigroup_add Nat where {
+};
+
+instance Linordered_cancel_ab_semigroup_add Nat where {
+};
+
+instance Ordered_comm_monoid_add Nat where {
+};
+
+instance Linordered_semiring Nat where {
+};
+
+instance Linordered_semiring_strict Nat where {
+};
+
+instance Linordered_comm_semiring_strict Nat where {
+};
+
+instance Semiring_char_0 Nat where {
+};
+
+instance Linordered_semidom Nat where {
+};
+
+instance Minus Nat where {
+  minus = minus_nat;
+};
+
+mod_nat :: Nat -> Nat -> Nat;
+mod_nat m n = snd (divmod_nat m n);
+
+instance Semiring_numeral_div Nat where {
+};
+
+divmod_nat :: Nat -> Nat -> (Nat, Nat);
+divmod_nat Zero_nat n = (Zero_nat, Zero_nat);
+divmod_nat m Zero_nat = (Zero_nat, m);
+divmod_nat (Nat_of_num k) (Nat_of_num l) = divmod k l;
+
+div_nat :: Nat -> Nat -> Nat;
+div_nat m n = fst (divmod_nat m n);
+
+instance Div Nat where {
+  div = div_nat;
+  mod = mod_nat;
+};
+
+instance Semiring_div Nat where {
+};
+
+instance Semiring_div_parity Nat where {
+};
+
+data Nibble = Nibble0 | Nibble1 | Nibble2 | Nibble3 | Nibble4 | Nibble5
+  | Nibble6 | Nibble7 | Nibble8 | Nibble9 | NibbleA | NibbleB | NibbleC
+  | NibbleD | NibbleE | NibbleF;
+
+digit2string :: Nat -> [Prelude.Char];
+digit2string n =
+  (if equal_nat n Zero_nat then ['0']
+    else (if equal_nat n (Nat_of_num One) then ['1']
+           else (if equal_nat n (Nat_of_num (Bit0 One)) then ['2']
+                  else (if equal_nat n (Nat_of_num (Bit1 One)) then ['3']
+                         else (if equal_nat n (Nat_of_num (Bit0 (Bit0 One)))
+                                then ['4']
+                                else (if equal_nat n
+   (Nat_of_num (Bit1 (Bit0 One)))
+                                       then ['5']
+                                       else (if equal_nat n
+          (Nat_of_num (Bit0 (Bit1 One)))
+      then ['6']
+      else (if equal_nat n (Nat_of_num (Bit1 (Bit1 One))) then ['7']
+             else (if equal_nat n (Nat_of_num (Bit0 (Bit0 (Bit0 One))))
+                    then ['8'] else ['9'])))))))));
+
+shows_string :: [Prelude.Char] -> [Prelude.Char] -> [Prelude.Char];
+shows_string = (\ a b -> a ++ b);
+
+shows_nat :: Nat -> [Prelude.Char] -> [Prelude.Char];
+shows_nat n =
+  (if less_nat n (Nat_of_num (Bit0 (Bit1 (Bit0 One))))
+    then shows_string (digit2string n)
+    else shows_nat (div_nat n (Nat_of_num (Bit0 (Bit1 (Bit0 One))))) .
+           shows_string
+             (digit2string (mod_nat n (Nat_of_num (Bit0 (Bit1 (Bit0 One)))))));
+
+shows_prec_nat :: Nat -> Nat -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_nat d n = shows_nat n;
+
+shows_prec_char :: Nat -> Prelude.Char -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_char d c = (\ a -> c : a);
+
+uminus_int :: Int -> Int;
+uminus_int (Neg m) = Pos m;
+uminus_int (Pos m) = Neg m;
+uminus_int Zero_int = Zero_int;
+
+less_int :: Int -> Int -> Bool;
+less_int (Neg k) (Neg l) = less_num l k;
+less_int (Neg k) (Pos l) = True;
+less_int (Neg k) Zero_int = True;
+less_int (Pos k) (Neg l) = False;
+less_int (Pos k) (Pos l) = less_num k l;
+less_int (Pos k) Zero_int = False;
+less_int Zero_int (Neg l) = False;
+less_int Zero_int (Pos l) = True;
+less_int Zero_int Zero_int = False;
+
+nat :: Int -> Nat;
+nat (Pos k) = Nat_of_num k;
+nat Zero_int = Zero_nat;
+nat (Neg k) = Zero_nat;
+
+shows_prec_int :: Nat -> Int -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_int d i =
+  (if less_int i Zero_int
+    then shows_prec_char Zero_nat '-' .
+           shows_prec_nat Zero_nat (nat (uminus_int i))
+    else shows_prec_nat Zero_nat (nat i));
+
+shows_between ::
+  ([Prelude.Char] -> [Prelude.Char]) ->
+    ([Prelude.Char] -> [Prelude.Char]) ->
+      ([Prelude.Char] -> [Prelude.Char]) -> [Prelude.Char] -> [Prelude.Char];
+shows_between l p r = l . p . r;
+
+shows_sep ::
+  forall a.
+    (a -> [Prelude.Char] -> [Prelude.Char]) ->
+      ([Prelude.Char] -> [Prelude.Char]) ->
+        [a] -> [Prelude.Char] -> [Prelude.Char];
+shows_sep s sep [] = shows_string [];
+shows_sep s sep [x] = s x;
+shows_sep s sep (x : v : va) = s x . sep . shows_sep s sep (v : va);
+
+shows_list_gen ::
+  forall a.
+    (a -> [Prelude.Char] -> [Prelude.Char]) ->
+      [Prelude.Char] ->
+        [Prelude.Char] ->
+          [Prelude.Char] ->
+            [Prelude.Char] -> [a] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_gen elt e l s r xs =
+  (if null xs then shows_string e
+    else shows_between (shows_string l) (shows_sep elt (shows_string s) xs)
+           (shows_string r));
+
+shows_list_aux ::
+  forall a.
+    (a -> [Prelude.Char] -> [Prelude.Char]) ->
+      [a] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_aux s xs = shows_list_gen s ['[', ']'] ['['] [',', ' '] [']'] xs;
+
+shows_list_int :: [Int] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_int = shows_list_aux (shows_prec_int Zero_nat);
+
+class Showa a where {
+  shows_prec :: Nat -> a -> [Prelude.Char] -> [Prelude.Char];
+  shows_list :: [a] -> [Prelude.Char] -> [Prelude.Char];
+};
+
+instance Showa Int where {
+  shows_prec = shows_prec_int;
+  shows_list = shows_list_int;
+};
+
+one_int :: Int;
+one_int = Pos One;
+
+instance One Int where {
+  onea = one_int;
+};
+
+dup :: Int -> Int;
+dup (Neg n) = Neg (Bit0 n);
+dup (Pos n) = Pos (Bit0 n);
+dup Zero_int = Zero_int;
+
+minus_int :: Int -> Int -> Int;
+minus_int (Neg m) (Neg n) = sub n m;
+minus_int (Neg m) (Pos n) = Neg (plus_num m n);
+minus_int (Pos m) (Neg n) = Pos (plus_num m n);
+minus_int (Pos m) (Pos n) = sub m n;
+minus_int Zero_int l = uminus_int l;
+minus_int k Zero_int = k;
 
 sub :: Num -> Num -> Int;
 sub (Bit0 m) (Bit1 n) = minus_int (dup (sub m n)) (Pos One);
@@ -106,140 +728,1205 @@ plus_int (Pos m) (Pos n) = Pos (plus_num m n);
 plus_int Zero_int l = l;
 plus_int k Zero_int = k;
 
-minus_int :: Int -> Int -> Int;
-minus_int (Neg m) (Neg n) = sub n m;
-minus_int (Neg m) (Pos n) = Neg (plus_num m n);
-minus_int (Pos m) (Neg n) = Pos (plus_num m n);
-minus_int (Pos m) (Pos n) = sub m n;
-minus_int Zero_int l = uminus_int l;
-minus_int k Zero_int = k;
+sgn_int :: Int -> Int;
+sgn_int i =
+  (if equal_int i Zero_int then Zero_int
+    else (if less_int Zero_int i then Pos One else Neg One));
 
-hd :: forall a. [a] -> a;
-hd (x : xs) = x;
+abs_int :: Int -> Int;
+abs_int i = (if less_int i Zero_int then uminus_int i else i);
 
-tl :: forall a. [a] -> [a];
-tl [] = [];
-tl (x : xs) = xs;
+apsnd :: forall a b c. (a -> b) -> (c, a) -> (c, b);
+apsnd f (x, y) = (x, f y);
 
-plus_nat :: Nat -> Nat -> Nat;
-plus_nat Zero_nat n = n;
-plus_nat m Zero_nat = m;
-plus_nat (Nat_of_num k) (Nat_of_num l) = Nat_of_num (plus_num k l);
+less_eq_int :: Int -> Int -> Bool;
+less_eq_int (Neg k) (Neg l) = less_eq_num l k;
+less_eq_int (Neg k) (Pos l) = True;
+less_eq_int (Neg k) Zero_int = True;
+less_eq_int (Pos k) (Neg l) = False;
+less_eq_int (Pos k) (Pos l) = less_eq_num k l;
+less_eq_int (Pos k) Zero_int = False;
+less_eq_int Zero_int (Neg l) = False;
+less_eq_int Zero_int (Pos l) = True;
+less_eq_int Zero_int Zero_int = True;
 
-suc :: Nat -> Nat;
-suc n = plus_nat n (Nat_of_num One);
+instance Plus Int where {
+  plus = plus_int;
+};
 
-data Order_tag = Lex | Mul;
+instance Semigroup_add Int where {
+};
+
+instance Cancel_semigroup_add Int where {
+};
+
+instance Ab_semigroup_add Int where {
+};
+
+instance Cancel_ab_semigroup_add Int where {
+};
+
+instance Zero Int where {
+  zeroa = Zero_int;
+};
+
+instance Monoid_add Int where {
+};
+
+instance Comm_monoid_add Int where {
+};
+
+instance Cancel_comm_monoid_add Int where {
+};
+
+instance Mult_zero Int where {
+};
+
+instance Semigroup_mult Int where {
+};
+
+instance Semiring Int where {
+};
+
+instance Semiring_0 Int where {
+};
+
+instance Semiring_0_cancel Int where {
+};
+
+instance Ab_semigroup_mult Int where {
+};
+
+instance Comm_semiring Int where {
+};
+
+instance Comm_semiring_0 Int where {
+};
+
+instance Comm_semiring_0_cancel Int where {
+};
+
+instance Power Int where {
+};
+
+instance Monoid_mult Int where {
+};
+
+instance Numeral Int where {
+};
+
+instance Semiring_numeral Int where {
+};
+
+instance Zero_neq_one Int where {
+};
+
+instance Semiring_1 Int where {
+};
+
+instance Semiring_1_cancel Int where {
+};
+
+instance Comm_monoid_mult Int where {
+};
+
+instance Comm_semiring_1 Int where {
+};
+
+instance Comm_semiring_1_cancel Int where {
+};
+
+instance No_zero_divisors Int where {
+};
+
+instance Ord Int where {
+  less_eq = less_eq_int;
+  less = less_int;
+};
+
+instance Preorder Int where {
+};
+
+instance Order Int where {
+};
+
+instance Ordered_ab_semigroup_add Int where {
+};
+
+instance Ordered_semiring Int where {
+};
+
+instance Ordered_cancel_semiring Int where {
+};
+
+instance Ordered_comm_semiring Int where {
+};
+
+instance Ordered_cancel_comm_semiring Int where {
+};
+
+instance Ordered_cancel_ab_semigroup_add Int where {
+};
+
+instance Ordered_ab_semigroup_add_imp_le Int where {
+};
+
+instance Linorder Int where {
+};
+
+instance Linordered_ab_semigroup_add Int where {
+};
+
+instance Linordered_cancel_ab_semigroup_add Int where {
+};
+
+instance Ordered_comm_monoid_add Int where {
+};
+
+instance Linordered_semiring Int where {
+};
+
+instance Linordered_semiring_strict Int where {
+};
+
+instance Linordered_comm_semiring_strict Int where {
+};
+
+instance Semiring_char_0 Int where {
+};
+
+instance Linordered_semidom Int where {
+};
+
+instance Minus Int where {
+  minus = minus_int;
+};
+
+instance Div Int where {
+  div = div_int;
+  mod = mod_int;
+};
+
+instance Semiring_div Int where {
+};
+
+instance Semiring_div_parity Int where {
+};
+
+instance Semiring_numeral_div Int where {
+};
+
+divmod_abs :: Int -> Int -> (Int, Int);
+divmod_abs Zero_int j = (Zero_int, Zero_int);
+divmod_abs j Zero_int = (Zero_int, abs_int j);
+divmod_abs (Pos k) (Neg l) = divmod k l;
+divmod_abs (Neg k) (Pos l) = divmod k l;
+divmod_abs (Neg k) (Neg l) = divmod k l;
+divmod_abs (Pos k) (Pos l) = divmod k l;
+
+divmod_int :: Int -> Int -> (Int, Int);
+divmod_int k l =
+  (if equal_int k Zero_int then (Zero_int, Zero_int)
+    else (if equal_int l Zero_int then (Zero_int, k)
+           else apsnd (times_int (sgn_int l))
+                  (if equal_int (sgn_int k) (sgn_int l) then divmod_abs k l
+                    else let {
+                           (r, s) = divmod_abs k l;
+                         } in (if equal_int s Zero_int
+                                then (uminus_int r, Zero_int)
+                                else (minus_int (uminus_int r) (Pos One),
+                                       minus_int (abs_int l) s)))));
+
+div_int :: Int -> Int -> Int;
+div_int a b = fst (divmod_int a b);
+
+mod_int :: Int -> Int -> Int;
+mod_int a b = snd (divmod_int a b);
+
+ceq_int :: Maybe (Int -> Int -> Bool);
+ceq_int = Just equal_int;
+
+class Ceq a where {
+  ceq :: Maybe (a -> a -> Bool);
+};
+
+instance Ceq Int where {
+  ceq = ceq_int;
+};
+
+newtype Phantom a b = Phantom b;
+
+data Set_impla = Set_Choose | Set_Collect | Set_DList | Set_RBT | Set_Monada;
+
+set_impl_int :: Phantom Int Set_impla;
+set_impl_int = Phantom Set_RBT;
+
+class Set_impl a where {
+  set_impl :: Phantom a Set_impla;
+};
+
+instance Set_impl Int where {
+  set_impl = set_impl_int;
+};
+
+cEnum_int :: Maybe ([Int], ((Int -> Bool) -> Bool, (Int -> Bool) -> Bool));
+cEnum_int = Nothing;
+
+class Cenum a where {
+  cEnum :: Maybe ([a], ((a -> Bool) -> Bool, (a -> Bool) -> Bool));
+};
+
+instance Cenum Int where {
+  cEnum = cEnum_int;
+};
+
+class (Ord a) => Non_strict_order a where {
+};
+
+class (Ab_semigroup_add a, Monoid_add a,
+        Non_strict_order a) => Ordered_ab_semigroup a where {
+};
+
+class (Semiring_0 a, Ordered_ab_semigroup a) => Ordered_semiring_0 a where {
+};
+
+class (Semiring_1 a, Ordered_semiring_0 a) => Ordered_semiring_1 a where {
+};
+
+class (Comm_semiring_1 a, Ordered_semiring_1 a) => Poly_carrier a where {
+};
+
+instance Non_strict_order Int where {
+};
+
+instance Ordered_ab_semigroup Int where {
+};
+
+instance Ordered_semiring_0 Int where {
+};
+
+instance Ordered_semiring_1 Int where {
+};
+
+instance Poly_carrier Int where {
+};
+
+corder_int :: Maybe (Int -> Int -> Bool, Int -> Int -> Bool);
+corder_int = Just (less_eq_int, less_int);
+
+class Corder a where {
+  corder :: Maybe (a -> a -> Bool, a -> a -> Bool);
+};
+
+instance Corder Int where {
+  corder = corder_int;
+};
+
+instance Eq Nat where {
+  a == b = equal_nat a b;
+};
+
+shows_list_nat :: [Nat] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_nat = shows_list_aux (shows_prec_nat Zero_nat);
+
+instance Showa Nat where {
+  shows_prec = shows_prec_nat;
+  shows_list = shows_list_nat;
+};
+
+class (Linorder a) => Key a where {
+};
+
+instance Key Nat where {
+};
+
+ceq_nat :: Maybe (Nat -> Nat -> Bool);
+ceq_nat = Just equal_nat;
+
+instance Ceq Nat where {
+  ceq = ceq_nat;
+};
+
+set_impl_nat :: Phantom Nat Set_impla;
+set_impl_nat = Phantom Set_RBT;
+
+instance Set_impl Nat where {
+  set_impl = set_impl_nat;
+};
+
+finite_UNIV_nat :: Phantom Nat Bool;
+finite_UNIV_nat = Phantom False;
+
+card_UNIV_nat :: Phantom Nat Nat;
+card_UNIV_nat = Phantom Zero_nat;
+
+class Finite_UNIV a where {
+  finite_UNIV :: Phantom a Bool;
+};
+
+class (Finite_UNIV a) => Card_UNIV a where {
+  card_UNIVa :: Phantom a Nat;
+};
+
+instance Finite_UNIV Nat where {
+  finite_UNIV = finite_UNIV_nat;
+};
+
+instance Card_UNIV Nat where {
+  card_UNIVa = card_UNIV_nat;
+};
+
+cEnum_nat :: Maybe ([Nat], ((Nat -> Bool) -> Bool, (Nat -> Bool) -> Bool));
+cEnum_nat = Nothing;
+
+instance Cenum Nat where {
+  cEnum = cEnum_nat;
+};
+
+corder_nat :: Maybe (Nat -> Nat -> Bool, Nat -> Nat -> Bool);
+corder_nat = Just (less_eq_nat, less_nat);
+
+instance Corder Nat where {
+  corder = corder_nat;
+};
+
+data Mapping_impla = Mapping_Choose | Mapping_Assoc_List | Mapping_RBT
+  | Mapping_Mapping;
+
+mapping_impl_nat :: Phantom Nat Mapping_impla;
+mapping_impl_nat = Phantom Mapping_RBT;
+
+class Mapping_impl a where {
+  mapping_impl :: Phantom a Mapping_impla;
+};
+
+instance Mapping_impl Nat where {
+  mapping_impl = mapping_impl_nat;
+};
+
+newtype Rat = Frct (Int, Int);
+
+quotient_of :: Rat -> (Int, Int);
+quotient_of (Frct x) = x;
+
+equal_rat :: Rat -> Rat -> Bool;
+equal_rat a b = quotient_of a == quotient_of b;
+
+instance Eq Rat where {
+  a == b = equal_rat a b;
+};
+
+gcd_int :: Int -> Int -> Int;
+gcd_int k l =
+  abs_int
+    (if equal_int l Zero_int then k
+      else gcd_int l (mod_int (abs_int k) (abs_int l)));
+
+normalize :: (Int, Int) -> (Int, Int);
+normalize p =
+  (if less_int Zero_int (snd p)
+    then let {
+           a = gcd_int (fst p) (snd p);
+         } in (div_int (fst p) a, div_int (snd p) a)
+    else (if equal_int (snd p) Zero_int then (Zero_int, Pos One)
+           else let {
+                  a = uminus_int (gcd_int (fst p) (snd p));
+                } in (div_int (fst p) a, div_int (snd p) a)));
+
+times_rat :: Rat -> Rat -> Rat;
+times_rat p q =
+  Frct (let {
+          (a, c) = quotient_of p;
+          (b, d) = quotient_of q;
+        } in normalize (times_int a b, times_int c d));
+
+instance Times Rat where {
+  times = times_rat;
+};
+
+instance Dvd Rat where {
+};
+
+show_rat :: Rat -> [Prelude.Char];
+show_rat x =
+  let {
+    (den, num) = quotient_of x;
+  } in (if equal_int num (Pos One) then shows_prec_int Zero_nat den []
+         else ((shows_prec_int Zero_nat den . shows_prec_char Zero_nat '/') .
+                shows_prec_int Zero_nat num)
+                []);
+
+shows_prec_rat :: Nat -> Rat -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_rat d x = shows_string (show_rat x);
+
+shows_list_rat :: [Rat] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_rat = shows_list_aux (shows_prec_rat Zero_nat);
+
+instance Showa Rat where {
+  shows_prec = shows_prec_rat;
+  shows_list = shows_list_rat;
+};
+
+abs_rat :: Rat -> Rat;
+abs_rat p = Frct (let {
+                    (a, b) = quotient_of p;
+                  } in (abs_int a, b));
+
+class Abs a where {
+  absa :: a -> a;
+};
+
+instance Abs Rat where {
+  absa = abs_rat;
+};
+
+one_rat :: Rat;
+one_rat = Frct (Pos One, Pos One);
+
+instance One Rat where {
+  onea = one_rat;
+};
+
+sgn_rat :: Rat -> Rat;
+sgn_rat p = Frct (sgn_int (fst (quotient_of p)), Pos One);
+
+class Sgn a where {
+  sgn :: a -> a;
+};
+
+instance Sgn Rat where {
+  sgn = sgn_rat;
+};
+
+uminus_rat :: Rat -> Rat;
+uminus_rat p = Frct (let {
+                       (a, b) = quotient_of p;
+                     } in (uminus_int a, b));
+
+minus_rat :: Rat -> Rat -> Rat;
+minus_rat p q =
+  Frct (let {
+          (a, c) = quotient_of p;
+          (b, d) = quotient_of q;
+        } in normalize
+               (minus_int (times_int a d) (times_int b c), times_int c d));
+
+zero_rat :: Rat;
+zero_rat = Frct (Zero_int, Pos One);
+
+plus_rat :: Rat -> Rat -> Rat;
+plus_rat p q =
+  Frct (let {
+          (a, c) = quotient_of p;
+          (b, d) = quotient_of q;
+        } in normalize
+               (plus_int (times_int a d) (times_int b c), times_int c d));
+
+class Uminus a where {
+  uminus :: a -> a;
+};
+
+class (Comm_semiring_1_cancel a) => Comm_semiring_1_cancel_crossproduct a where {
+};
+
+class (Cancel_semigroup_add a, Minus a, Monoid_add a,
+        Uminus a) => Group_add a where {
+};
+
+class (Cancel_comm_monoid_add a, Group_add a) => Ab_group_add a where {
+};
+
+class (Ab_group_add a, Semiring_0_cancel a) => Ring a where {
+};
+
+class (No_zero_divisors a, Ring a) => Ring_no_zero_divisors a where {
+};
+
+class (Group_add a, Numeral a) => Neg_numeral a where {
+};
+
+class (Neg_numeral a, Ring a, Semiring_1_cancel a) => Ring_1 a where {
+};
+
+class (Ring_1 a, Ring_no_zero_divisors a) => Ring_1_no_zero_divisors a where {
+};
+
+class (Comm_semiring_0_cancel a, Ring a) => Comm_ring a where {
+};
+
+class (Comm_ring a, Comm_semiring_1_cancel a, Ring_1 a) => Comm_ring_1 a where {
+};
+
+class (Comm_ring_1 a, Ring_1_no_zero_divisors a,
+        Comm_semiring_1_cancel_crossproduct a) => Idom a where {
+};
+
+instance Plus Rat where {
+  plus = plus_rat;
+};
+
+instance Semigroup_add Rat where {
+};
+
+instance Cancel_semigroup_add Rat where {
+};
+
+instance Ab_semigroup_add Rat where {
+};
+
+instance Cancel_ab_semigroup_add Rat where {
+};
+
+instance Zero Rat where {
+  zeroa = zero_rat;
+};
+
+instance Monoid_add Rat where {
+};
+
+instance Comm_monoid_add Rat where {
+};
+
+instance Cancel_comm_monoid_add Rat where {
+};
+
+instance Mult_zero Rat where {
+};
+
+instance Semigroup_mult Rat where {
+};
+
+instance Semiring Rat where {
+};
+
+instance Semiring_0 Rat where {
+};
+
+instance Semiring_0_cancel Rat where {
+};
+
+instance Ab_semigroup_mult Rat where {
+};
+
+instance Comm_semiring Rat where {
+};
+
+instance Comm_semiring_0 Rat where {
+};
+
+instance Comm_semiring_0_cancel Rat where {
+};
+
+instance Power Rat where {
+};
+
+instance Monoid_mult Rat where {
+};
+
+instance Numeral Rat where {
+};
+
+instance Semiring_numeral Rat where {
+};
+
+instance Zero_neq_one Rat where {
+};
+
+instance Semiring_1 Rat where {
+};
+
+instance Semiring_1_cancel Rat where {
+};
+
+instance Comm_monoid_mult Rat where {
+};
+
+instance Comm_semiring_1 Rat where {
+};
+
+instance Comm_semiring_1_cancel Rat where {
+};
+
+instance Comm_semiring_1_cancel_crossproduct Rat where {
+};
+
+instance No_zero_divisors Rat where {
+};
+
+instance Uminus Rat where {
+  uminus = uminus_rat;
+};
+
+instance Minus Rat where {
+  minus = minus_rat;
+};
+
+instance Group_add Rat where {
+};
+
+instance Ab_group_add Rat where {
+};
+
+instance Ring Rat where {
+};
+
+instance Ring_no_zero_divisors Rat where {
+};
+
+instance Neg_numeral Rat where {
+};
+
+instance Ring_1 Rat where {
+};
+
+instance Ring_1_no_zero_divisors Rat where {
+};
+
+instance Comm_ring Rat where {
+};
+
+instance Comm_ring_1 Rat where {
+};
+
+instance Idom Rat where {
+};
+
+inverse_rat :: Rat -> Rat;
+inverse_rat p =
+  Frct (let {
+          (a, b) = quotient_of p;
+        } in (if equal_int a Zero_int then (Zero_int, Pos One)
+               else (times_int (sgn_int a) b, abs_int a)));
+
+divide_rat :: Rat -> Rat -> Rat;
+divide_rat p q =
+  Frct (let {
+          (a, c) = quotient_of p;
+          (b, d) = quotient_of q;
+        } in normalize (times_int a d, times_int c b));
+
+class Inverse a where {
+  inverse :: a -> a;
+  divide :: a -> a -> a;
+};
+
+class (Inverse a, Ring_1_no_zero_divisors a) => Division_ring a where {
+};
+
+class (Division_ring a, Idom a) => Field a where {
+};
+
+instance Inverse Rat where {
+  inverse = inverse_rat;
+  divide = divide_rat;
+};
+
+instance Division_ring Rat where {
+};
+
+instance Field Rat where {
+};
+
+less_eq_rat :: Rat -> Rat -> Bool;
+less_eq_rat p q =
+  let {
+    (a, c) = quotient_of p;
+    (b, d) = quotient_of q;
+  } in less_eq_int (times_int a d) (times_int c b);
+
+less_rat :: Rat -> Rat -> Bool;
+less_rat p q =
+  let {
+    (a, c) = quotient_of p;
+    (b, d) = quotient_of q;
+  } in less_int (times_int a d) (times_int c b);
+
+class (Abs a, Minus a, Uminus a, Zero a, Ord a) => Abs_if a where {
+};
+
+instance Ord Rat where {
+  less_eq = less_eq_rat;
+  less = less_rat;
+};
+
+instance Abs_if Rat where {
+};
+
+class (Minus a, One a, Sgn a, Uminus a, Zero a, Ord a) => Sgn_if a where {
+};
+
+instance Sgn_if Rat where {
+};
+
+class (Semiring_char_0 a, Ring_1 a) => Ring_char_0 a where {
+};
+
+instance Semiring_char_0 Rat where {
+};
+
+instance Ring_char_0 Rat where {
+};
+
+instance Preorder Rat where {
+};
+
+instance Order Rat where {
+};
+
+class (Order a) => No_bot a where {
+};
+
+instance No_bot Rat where {
+};
+
+class (Order a) => No_top a where {
+};
+
+instance No_top Rat where {
+};
+
+class (Field a, Ring_char_0 a) => Field_char_0 a where {
+};
+
+instance Field_char_0 Rat where {
+};
+
+ceq_rat :: Maybe (Rat -> Rat -> Bool);
+ceq_rat = Just equal_rat;
+
+instance Ceq Rat where {
+  ceq = ceq_rat;
+};
+
+set_impl_rat :: Phantom Rat Set_impla;
+set_impl_rat = Phantom Set_RBT;
+
+instance Set_impl Rat where {
+  set_impl = set_impl_rat;
+};
+
+instance Linorder Rat where {
+};
+
+class (Ab_group_add a, Ordered_ab_semigroup_add_imp_le a,
+        Ordered_comm_monoid_add a) => Ordered_ab_group_add a where {
+};
+
+class (Ordered_ab_group_add a, Ordered_cancel_semiring a,
+        Ring a) => Ordered_ring a where {
+};
+
+instance Ordered_ab_semigroup_add Rat where {
+};
+
+instance Ordered_semiring Rat where {
+};
+
+instance Ordered_cancel_semiring Rat where {
+};
+
+instance Ordered_cancel_ab_semigroup_add Rat where {
+};
+
+instance Ordered_ab_semigroup_add_imp_le Rat where {
+};
+
+instance Ordered_comm_monoid_add Rat where {
+};
+
+instance Ordered_ab_group_add Rat where {
+};
+
+instance Ordered_ring Rat where {
+};
+
+cEnum_rat :: Maybe ([Rat], ((Rat -> Bool) -> Bool, (Rat -> Bool) -> Bool));
+cEnum_rat = Nothing;
+
+instance Cenum Rat where {
+  cEnum = cEnum_rat;
+};
+
+class (Order a) => Dense_order a where {
+};
+
+instance Dense_order Rat where {
+};
+
+class (Linordered_semiring a, Semiring_1 a) => Linordered_semiring_1 a where {
+};
+
+class (Linordered_semiring_1 a,
+        Linordered_semiring_strict a) => Linordered_semiring_1_strict a where {
+};
+
+class (Abs a, Ordered_ab_group_add a) => Ordered_ab_group_add_abs a where {
+};
+
+class (Linordered_cancel_ab_semigroup_add a,
+        Ordered_ab_group_add a) => Linordered_ab_group_add a where {
+};
+
+class (Abs_if a, Linordered_ab_group_add a, Ordered_ab_group_add_abs a,
+        Linordered_semiring a, Ordered_ring a) => Linordered_ring a where {
+};
+
+class (Linordered_ring a, Linordered_semiring_strict a,
+        Ring_no_zero_divisors a) => Linordered_ring_strict a where {
+};
+
+class (Comm_ring a, Ordered_cancel_comm_semiring a,
+        Ordered_ring a) => Ordered_comm_ring a where {
+};
+
+class (Ordered_ab_group_add_abs a, Ordered_ring a) => Ordered_ring_abs a where {
+};
+
+class (Sgn_if a, Ring_char_0 a, Idom a, Linordered_ring_strict a,
+        Linordered_semidom a, Linordered_semiring_1_strict a,
+        Ordered_comm_ring a, Ordered_ring_abs a) => Linordered_idom a where {
+};
+
+instance Linordered_ab_semigroup_add Rat where {
+};
+
+instance Linordered_cancel_ab_semigroup_add Rat where {
+};
+
+instance Linordered_semiring Rat where {
+};
+
+instance Linordered_semiring_strict Rat where {
+};
+
+instance Linordered_semiring_1 Rat where {
+};
+
+instance Linordered_semiring_1_strict Rat where {
+};
+
+instance Ordered_ab_group_add_abs Rat where {
+};
+
+instance Linordered_ab_group_add Rat where {
+};
+
+instance Linordered_ring Rat where {
+};
+
+instance Linordered_ring_strict Rat where {
+};
+
+instance Ordered_comm_semiring Rat where {
+};
+
+instance Ordered_cancel_comm_semiring Rat where {
+};
+
+instance Linordered_comm_semiring_strict Rat where {
+};
+
+instance Linordered_semidom Rat where {
+};
+
+instance Ordered_comm_ring Rat where {
+};
+
+instance Ordered_ring_abs Rat where {
+};
+
+instance Linordered_idom Rat where {
+};
+
+instance Non_strict_order Rat where {
+};
+
+instance Ordered_ab_semigroup Rat where {
+};
+
+instance Ordered_semiring_0 Rat where {
+};
+
+instance Ordered_semiring_1 Rat where {
+};
+
+instance Poly_carrier Rat where {
+};
+
+corder_rat :: Maybe (Rat -> Rat -> Bool, Rat -> Rat -> Bool);
+corder_rat = Just (less_eq_rat, less_rat);
+
+instance Corder Rat where {
+  corder = corder_rat;
+};
+
+class (Dense_order a, Linorder a) => Dense_linorder a where {
+};
+
+class (Dense_linorder a, No_bot a,
+        No_top a) => Unbounded_dense_linorder a where {
+};
+
+class (Unbounded_dense_linorder a, Field_char_0 a,
+        Linordered_idom a) => Linordered_field a where {
+};
+
+instance Dense_linorder Rat where {
+};
+
+instance Unbounded_dense_linorder Rat where {
+};
+
+instance Linordered_field Rat where {
+};
+
+class (Linordered_field a) => Archimedean_field a where {
+};
+
+class (Poly_carrier a) => Large_ordered_semiring_1 a where {
+};
+
+class (Archimedean_field a,
+        Large_ordered_semiring_1 a) => Floor_ceiling a where {
+  floor :: a -> Int;
+};
+
+floor_rat :: Rat -> Int;
+floor_rat p = let {
+                (a, b) = quotient_of p;
+              } in div_int a b;
+
+instance Archimedean_field Rat where {
+};
+
+instance Large_ordered_semiring_1 Rat where {
+};
+
+instance Floor_ceiling Rat where {
+  floor = floor_rat;
+};
+
+newtype Generator a b = Generator (b -> Bool, b -> (a, b));
+
+generator :: forall a b. Generator a b -> (b -> Bool, b -> (a, b));
+generator (Generator x) = x;
+
+has_next :: forall a b. Generator a b -> b -> Bool;
+has_next g = fst (generator g);
+
+next :: forall a b. Generator a b -> b -> (a, b);
+next g = snd (generator g);
+
+sorted_list_subset_fusion ::
+  forall a b c.
+    (a -> a -> Bool) ->
+      (a -> a -> Bool) -> Generator a b -> Generator a c -> b -> c -> Bool;
+sorted_list_subset_fusion less eq g1 g2 s1 s2 =
+  (if has_next g1 s1
+    then let {
+           (x, s1a) = next g1 s1;
+         } in has_next g2 s2 &&
+                let {
+                  (y, s2a) = next g2 s2;
+                } in (if eq x y
+                       then sorted_list_subset_fusion less eq g1 g2 s1a s2a
+                       else less y x &&
+                              sorted_list_subset_fusion less eq g1 g2 s1 s2a)
+    else True);
+
+list_all_fusion :: forall a b. Generator a b -> (a -> Bool) -> b -> Bool;
+list_all_fusion g p s =
+  (if has_next g s
+    then let {
+           (x, sa) = next g s;
+         } in p x && list_all_fusion g p sa
+    else True);
+
+data Color = R | B;
+
+data Rbta a b = Emptya | Branch Color (Rbta a b) a b (Rbta a b);
+
+rbt_keys_next ::
+  forall a b. ([(a, Rbta a b)], Rbta a b) -> (a, ([(a, Rbta a b)], Rbta a b));
+rbt_keys_next ((k, t) : kts, Emptya) = (k, (kts, t));
+rbt_keys_next (kts, Branch c l k v r) = rbt_keys_next ((k, r) : kts, l);
+
+rbt_has_next :: forall a b c. ([(a, Rbta b c)], Rbta b c) -> Bool;
+rbt_has_next ([], Emptya) = False;
+rbt_has_next (vb : vc, va) = True;
+rbt_has_next (v, Branch vb vc vd ve vf) = True;
+
+rbt_keys_generator :: forall a b. Generator a ([(a, Rbta a b)], Rbta a b);
+rbt_keys_generator = Generator (rbt_has_next, rbt_keys_next);
+
+newtype Mapping_rbt b a = Mapping_RBTa (Rbta b a);
+
+newtype Set_dlist a = Abs_dlist [a];
+
+data Set a = Collect_set (a -> Bool) | DList_set (Set_dlist a)
+  | RBT_set (Mapping_rbt a ()) | Set_Monad [a] | Complement (Set a);
 
 list_of_dlist :: forall a. (Ceq a) => Set_dlist a -> [a];
 list_of_dlist (Abs_dlist x) = x;
 
-dlist_ex :: forall a. (Ceq a) => (a -> Bool) -> Set_dlist a -> Bool;
-dlist_ex x xa = any x (list_of_dlist xa);
+dlist_all :: forall a. (Ceq a) => (a -> Bool) -> Set_dlist a -> Bool;
+dlist_all x xc = all x (list_of_dlist xc);
 
-rBT_Impl_rbt_ex :: forall a b. (a -> b -> Bool) -> Rbta a b -> Bool;
-rBT_Impl_rbt_ex p (Branch c l k v r) =
-  p k v || (rBT_Impl_rbt_ex p l || rBT_Impl_rbt_ex p r);
-rBT_Impl_rbt_ex p Emptya = False;
-
-impl_ofb :: forall a b. (Corder a) => Mapping_rbt a b -> Rbta a b;
+impl_ofb :: forall b a. (Corder b) => Mapping_rbt b a -> Rbta b a;
 impl_ofb (Mapping_RBTa x) = x;
 
-ex :: forall a b. (Corder a) => (a -> b -> Bool) -> Mapping_rbt a b -> Bool;
-ex x xa = rBT_Impl_rbt_ex x (impl_ofb xa);
+rbt_init :: forall a b c. Rbta a b -> ([(c, Rbta a b)], Rbta a b);
+rbt_init = (\ a -> ([], a));
 
-data Nibble = Nibble0 | Nibble1 | Nibble2 | Nibble3 | Nibble4 | Nibble5
-  | Nibble6 | Nibble7 | Nibble8 | Nibble9 | NibbleA | NibbleB | NibbleC
-  | NibbleD | NibbleE | NibbleF;
+init ::
+  forall a b c. (Corder a) => Mapping_rbt a b -> ([(c, Rbta a b)], Rbta a b);
+init xa = rbt_init (impl_ofb xa);
 
-bex :: forall a. (Ceq a, Corder a) => Set a -> (a -> Bool) -> Bool;
-bex (RBT_set rbt) p =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
-    Nothing -> error "Bex RBT_set: corder = None" (\ _ -> bex (RBT_set rbt) p);
-    Just _ -> ex (\ k _ -> p k) rbt;
+mk_eq :: forall a. (a -> a -> Bool) -> a -> a -> Bool;
+mk_eq le x y = le x y && le y x;
+
+collect :: forall a. (Cenum a) => (a -> Bool) -> Set a;
+collect p =
+  (case cEnum of {
+    Nothing -> Collect_set p;
+    Just (enum, _) -> Set_Monad (filter p enum);
   });
-bex (DList_set dxs) p =
+
+list_member :: forall a. (a -> a -> Bool) -> [a] -> a -> Bool;
+list_member equal (x : xs) y = equal x y || list_member equal xs y;
+list_member equal [] y = False;
+
+the :: forall a. Maybe a -> a;
+the (Just x2) = x2;
+
+memberc :: forall a. (Ceq a) => Set_dlist a -> a -> Bool;
+memberc xa = list_member (the ceq) (list_of_dlist xa);
+
+rbt_lookup :: forall a b. (a -> a -> Bool) -> Rbta a b -> a -> Maybe b;
+rbt_lookup less (Branch uu l x y r) k =
+  (if less k x then rbt_lookup less l k
+    else (if less x k then rbt_lookup less r k else Just y));
+rbt_lookup less Emptya k = Nothing;
+
+lookupc :: forall a b. (Corder a) => Mapping_rbt a b -> a -> Maybe b;
+lookupc xa = rbt_lookup (snd (the corder)) (impl_ofb xa);
+
+memberb :: forall a. (Corder a) => Mapping_rbt a () -> a -> Bool;
+memberb t x = lookupc t x == Just ();
+
+member :: forall a. (Ceq a, Corder a) => a -> Set a -> Bool;
+member x (Set_Monad xs) =
+  (case ceq of {
+    Nothing ->
+      error "member Set_Monad: ceq = None" (\ _ -> member x (Set_Monad xs));
+    Just eq -> list_member eq xs x;
+  });
+member xa (Complement x) = not (member xa x);
+member x (RBT_set rbt) = memberb rbt x;
+member x (DList_set dxs) = memberc dxs x;
+member x (Collect_set a) = a x;
+
+subset_eq :: forall a. (Cenum a, Ceq a, Corder a) => Set a -> Set a -> Bool;
+subset_eq (RBT_set rbt1) (RBT_set rbt2) =
+  (case corder of {
+    Nothing ->
+      error "subset RBT_set RBT_set: corder = None"
+        (\ _ -> subset_eq (RBT_set rbt1) (RBT_set rbt2));
+    Just (le, lt) ->
+      (case ceq of {
+        Nothing ->
+          sorted_list_subset_fusion lt (mk_eq le) rbt_keys_generator
+            rbt_keys_generator (init rbt1) (init rbt2);
+        Just eq ->
+          sorted_list_subset_fusion lt eq rbt_keys_generator rbt_keys_generator
+            (init rbt1) (init rbt2);
+      });
+  });
+subset_eq (Complement a1) (Complement a2) = subset_eq a2 a1;
+subset_eq (Collect_set p) (Complement a) =
+  subset_eq a (collect (\ x -> not (p x)));
+subset_eq (Set_Monad xs) c = all (\ x -> member x c) xs;
+subset_eq (DList_set dxs) c =
   (case (ceq :: Maybe (a -> a -> Bool)) of {
-    Nothing -> error "Bex DList_set: ceq = None" (\ _ -> bex (DList_set dxs) p);
-    Just _ -> dlist_ex p dxs;
+    Nothing ->
+      error "subset DList_set1: ceq = None"
+        (\ _ -> subset_eq (DList_set dxs) c);
+    Just _ -> dlist_all (\ x -> member x c) dxs;
   });
-bex (Set_Monad xs) p = any p xs;
-
-tag :: Xml -> [Prelude.Char];
-tag (Xml name uu uv uw) = name;
-
-dupa :: Nat -> Nat;
-dupa (Nat_of_num k) = Nat_of_num (Bit0 k);
-dupa Zero_nat = Zero_nat;
-
-equal_num :: Num -> Num -> Bool;
-equal_num (Bit1 numa) (Bit0 num) = False;
-equal_num (Bit0 numa) (Bit1 num) = False;
-equal_num (Bit1 num) One = False;
-equal_num One (Bit1 num) = False;
-equal_num (Bit0 num) One = False;
-equal_num One (Bit0 num) = False;
-equal_num (Bit1 numa) (Bit1 num) = equal_num numa num;
-equal_num (Bit0 numa) (Bit0 num) = equal_num numa num;
-equal_num One One = True;
-
-equal_nat :: Nat -> Nat -> Bool;
-equal_nat (Nat_of_num k) (Nat_of_num l) = equal_num k l;
-equal_nat (Nat_of_num k) Zero_nat = False;
-equal_nat Zero_nat (Nat_of_num l) = False;
-equal_nat Zero_nat Zero_nat = True;
-
-mapa :: forall a b. (a -> b) -> Maybe a -> Maybe b;
-mapa f (Just x) = Just (f x);
-mapa f Nothing = Nothing;
-
-minus_nat :: Nat -> Nat -> Nat;
-minus_nat Zero_nat n = Zero_nat;
-minus_nat m Zero_nat = m;
-minus_nat (Nat_of_num k) (Nat_of_num l) =
-  (case suba k l of {
-    Nothing -> Zero_nat;
-    Just j -> j;
+subset_eq (RBT_set rbt) b =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing ->
+      error "subset RBT_set1: corder = None" (\ _ -> subset_eq (RBT_set rbt) b);
+    Just _ -> list_all_fusion rbt_keys_generator (\ x -> member x b) (init rbt);
   });
 
-suba :: Num -> Num -> Maybe Nat;
-suba (Bit0 m) (Bit1 n) =
-  (case suba m n of {
+less_eq_set :: forall a. (Cenum a, Ceq a, Corder a) => Set a -> Set a -> Bool;
+less_eq_set = subset_eq;
+
+list_all2_fusion ::
+  forall a b c d.
+    (a -> b -> Bool) -> Generator a c -> Generator b d -> c -> d -> Bool;
+list_all2_fusion p g1 g2 s1 s2 =
+  (if has_next g1 s1
+    then has_next g2 s2 &&
+           let {
+             (x, s1a) = next g1 s1;
+             (y, s2a) = next g2 s2;
+           } in p x y && list_all2_fusion p g1 g2 s1a s2a
+    else not (has_next g2 s2));
+
+set_eq :: forall a. (Cenum a, Ceq a, Corder a) => Set a -> Set a -> Bool;
+set_eq (RBT_set rbt1) (RBT_set rbt2) =
+  (case corder of {
+    Nothing ->
+      error "set_eq RBT_set RBT_set: corder = None"
+        (\ _ -> set_eq (RBT_set rbt1) (RBT_set rbt2));
+    Just (le, _) ->
+      (case ceq of {
+        Nothing ->
+          list_all2_fusion (mk_eq le) rbt_keys_generator rbt_keys_generator
+            (init rbt1) (init rbt2);
+        Just eq ->
+          list_all2_fusion eq rbt_keys_generator rbt_keys_generator (init rbt1)
+            (init rbt2);
+      });
+  });
+set_eq (Complement a) (Complement b) = set_eq a b;
+set_eq a b = less_eq_set a b && less_eq_set b a;
+
+ceq_set ::
+  forall a. (Cenum a, Ceq a, Corder a) => Maybe (Set a -> Set a -> Bool);
+ceq_set =
+  (case (ceq :: Maybe (a -> a -> Bool)) of {
     Nothing -> Nothing;
-    Just q ->
-      (if equal_nat q Zero_nat then Nothing
-        else Just (minus_nat (dupa q) (Nat_of_num One)));
+    Just _ -> Just set_eq;
   });
-suba (Bit1 m) (Bit0 n) =
-  mapa (\ q -> plus_nat (dupa q) (Nat_of_num One)) (suba m n);
-suba (Bit1 m) (Bit1 n) = mapa dupa (suba m n);
-suba (Bit0 m) (Bit0 n) = mapa dupa (suba m n);
-suba One (Bit1 n) = Nothing;
-suba One (Bit0 n) = Nothing;
-suba (Bit1 m) One = Just (Nat_of_num (Bit0 m));
-suba (Bit0 m) One = Just (Nat_of_num (bitM m));
-suba One One = Just Zero_nat;
 
-nth :: forall a. [a] -> Nat -> a;
-nth (x : xs) n =
-  (if equal_nat n Zero_nat then x else nth xs (minus_nat n (Nat_of_num One)));
-
-newtype Phantom a b = Phantom b;
-
-data Set_impl = Set_Choose | Set_Collect | Set_DList | Set_RBT | Set_Monada;
-
-class Set_impla a where {
-  set_impl :: Phantom a Set_impl;
+instance (Cenum a, Ceq a, Corder a) => Ceq (Set a) where {
+  ceq = ceq_set;
 };
+
+set_impl_set :: forall a. Phantom (Set a) Set_impla;
+set_impl_set = Phantom Set_Choose;
+
+instance Set_impl (Set a) where {
+  set_impl = set_impl_set;
+};
+
+sublists :: forall a. [a] -> [[a]];
+sublists [] = [[]];
+sublists (x : xs) = let {
+                      xss = sublists xs;
+                    } in map (\ a -> x : a) xss ++ xss;
 
 of_phantom :: forall a b. Phantom a b -> b;
 of_phantom (Phantom x) = x;
 
-emptye :: forall a b. (Corder a) => Mapping_rbt a b;
-emptye = Mapping_RBTa Emptya;
+emptyd :: forall a b. (Corder a) => Mapping_rbt a b;
+emptyd = Mapping_RBTa Emptya;
 
-emptyd :: forall a. (Ceq a) => Set_dlist a;
-emptyd = Abs_dlist [];
+emptyc :: forall a. (Ceq a) => Set_dlist a;
+emptyc = Abs_dlist [];
 
 set_empty_choose :: forall a. (Ceq a, Corder a) => Set a;
 set_empty_choose =
@@ -247,20 +1934,20 @@ set_empty_choose =
     Nothing ->
       (case (ceq :: Maybe (a -> a -> Bool)) of {
         Nothing -> Set_Monad [];
-        Just _ -> DList_set emptyd;
+        Just _ -> DList_set emptyc;
       });
-    Just _ -> RBT_set emptye;
+    Just _ -> RBT_set emptyd;
   });
 
-set_empty :: forall a. (Ceq a, Corder a) => Set_impl -> Set a;
+set_empty :: forall a. (Ceq a, Corder a) => Set_impla -> Set a;
 set_empty Set_Choose = set_empty_choose;
 set_empty Set_Monada = Set_Monad [];
-set_empty Set_RBT = RBT_set emptye;
-set_empty Set_DList = DList_set emptyd;
+set_empty Set_RBT = RBT_set emptyd;
+set_empty Set_DList = DList_set emptyc;
 set_empty Set_Collect = Collect_set (\ _ -> False);
 
-bot_set :: forall a. (Ceq a, Corder a, Set_impla a) => Set a;
-bot_set = set_empty (of_phantom (set_impl :: Phantom a Set_impl));
+fun_upda :: forall a b. (a -> a -> Bool) -> (a -> b) -> a -> b -> a -> b;
+fun_upda equal f aa b a = (if equal aa a then b else f a);
 
 balance :: forall a b. Rbta a b -> a -> b -> Rbta a b -> Rbta a b;
 balance (Branch R a w x b) s t (Branch R c y z d) =
@@ -349,51 +2036,41 @@ balance (Branch v (Branch B vj vk vl vm) vf vg (Branch B vi vn vo vp)) s t
   Branch B (Branch v (Branch B vj vk vl vm) vf vg (Branch B vi vn vo vp)) s t
     (Branch B va vb vc vd);
 
-rbt_insa ::
+rbt_ins ::
   forall a b.
     (a -> a -> Bool) -> (a -> b -> b -> b) -> a -> b -> Rbta a b -> Rbta a b;
-rbt_insa less f k v (Branch R l x y r) =
-  (if less k x then Branch R (rbt_insa less f k v l) x y r
-    else (if less x k then Branch R l x y (rbt_insa less f k v r)
+rbt_ins less f k v (Branch R l x y r) =
+  (if less k x then Branch R (rbt_ins less f k v l) x y r
+    else (if less x k then Branch R l x y (rbt_ins less f k v r)
            else Branch R l x (f k y v) r));
-rbt_insa less f k v (Branch B l x y r) =
-  (if less k x then balance (rbt_insa less f k v l) x y r
-    else (if less x k then balance l x y (rbt_insa less f k v r)
+rbt_ins less f k v (Branch B l x y r) =
+  (if less k x then balance (rbt_ins less f k v l) x y r
+    else (if less x k then balance l x y (rbt_ins less f k v r)
            else Branch B l x (f k y v) r));
-rbt_insa less f k v Emptya = Branch R Emptya k v Emptya;
+rbt_ins less f k v Emptya = Branch R Emptya k v Emptya;
 
 paint :: forall a b. Color -> Rbta a b -> Rbta a b;
 paint c Emptya = Emptya;
 paint c (Branch uu l k v r) = Branch c l k v r;
 
-rbt_insert_with_keya ::
+rbt_insert_with_key ::
   forall a b.
     (a -> a -> Bool) -> (a -> b -> b -> b) -> a -> b -> Rbta a b -> Rbta a b;
-rbt_insert_with_keya less f k v t = paint B (rbt_insa less f k v t);
+rbt_insert_with_key less f k v t = paint B (rbt_ins less f k v t);
 
-rbt_inserta :: forall a b. (a -> a -> Bool) -> a -> b -> Rbta a b -> Rbta a b;
-rbt_inserta less = rbt_insert_with_keya less (\ _ _ nv -> nv);
-
-the :: forall a. Maybe a -> a;
-the (Just x) = x;
+rbt_insert :: forall a b. (a -> a -> Bool) -> a -> b -> Rbta a b -> Rbta a b;
+rbt_insert less = rbt_insert_with_key less (\ _ _ nv -> nv);
 
 insertd ::
   forall a b. (Corder a) => a -> b -> Mapping_rbt a b -> Mapping_rbt a b;
-insertd x xa xb =
-  Mapping_RBTa (rbt_inserta (snd (the corder)) x xa (impl_ofb xb));
-
-fun_upda :: forall a b. (a -> a -> Bool) -> (a -> b) -> a -> b -> a -> b;
-fun_upda equal f aa b a = (if equal aa a then b else f a);
-
-list_member :: forall a. (a -> a -> Bool) -> [a] -> a -> Bool;
-list_member equal (x : xs) y = equal x y || list_member equal xs y;
-list_member equal [] y = False;
+insertd xc xd xe =
+  Mapping_RBTa (rbt_insert (snd (the corder)) xc xd (impl_ofb xe));
 
 list_insert :: forall a. (a -> a -> Bool) -> a -> [a] -> [a];
 list_insert equal x xs = (if list_member equal xs x then xs else x : xs);
 
 insertc :: forall a. (Ceq a) => a -> Set_dlist a -> Set_dlist a;
-insertc x xa = Abs_dlist (list_insert (the ceq) x (list_of_dlist xa));
+insertc xb xc = Abs_dlist (list_insert (the ceq) xb (list_of_dlist xc));
 
 balance_right :: forall a b. Rbta a b -> a -> b -> Rbta a b -> Rbta a b;
 balance_right a k x (Branch R b s y c) = Branch R a k x (Branch B b s y c);
@@ -454,38 +2131,35 @@ combine (Branch B va vb vc vd) (Branch R b k x c) =
 combine (Branch R a k x b) (Branch B va vb vc vd) =
   Branch R a k x (combine b (Branch B va vb vc vd));
 
-rbt_dela :: forall a b. (a -> a -> Bool) -> a -> Rbta a b -> Rbta a b;
-rbt_dela less x (Branch c a y s b) =
-  (if less x y then rbt_del_from_lefta less x a y s b
-    else (if less y x then rbt_del_from_righta less x a y s b
-           else combine a b));
-rbt_dela less x Emptya = Emptya;
+rbt_del :: forall a b. (a -> a -> Bool) -> a -> Rbta a b -> Rbta a b;
+rbt_del less x (Branch c a y s b) =
+  (if less x y then rbt_del_from_left less x a y s b
+    else (if less y x then rbt_del_from_right less x a y s b else combine a b));
+rbt_del less x Emptya = Emptya;
 
-rbt_del_from_lefta ::
+rbt_del_from_left ::
   forall a b.
     (a -> a -> Bool) -> a -> Rbta a b -> a -> b -> Rbta a b -> Rbta a b;
-rbt_del_from_lefta less x (Branch R va vb vc vd) y s b =
-  Branch R (rbt_dela less x (Branch R va vb vc vd)) y s b;
-rbt_del_from_lefta less x Emptya y s b =
-  Branch R (rbt_dela less x Emptya) y s b;
-rbt_del_from_lefta less x (Branch B lt z v rt) y s b =
-  balance_left (rbt_dela less x (Branch B lt z v rt)) y s b;
+rbt_del_from_left less x (Branch R va vb vc vd) y s b =
+  Branch R (rbt_del less x (Branch R va vb vc vd)) y s b;
+rbt_del_from_left less x Emptya y s b = Branch R (rbt_del less x Emptya) y s b;
+rbt_del_from_left less x (Branch B lt z v rt) y s b =
+  balance_left (rbt_del less x (Branch B lt z v rt)) y s b;
 
-rbt_del_from_righta ::
+rbt_del_from_right ::
   forall a b.
     (a -> a -> Bool) -> a -> Rbta a b -> a -> b -> Rbta a b -> Rbta a b;
-rbt_del_from_righta less x a y s (Branch R va vb vc vd) =
-  Branch R a y s (rbt_dela less x (Branch R va vb vc vd));
-rbt_del_from_righta less x a y s Emptya =
-  Branch R a y s (rbt_dela less x Emptya);
-rbt_del_from_righta less x a y s (Branch B lt z v rt) =
-  balance_right a y s (rbt_dela less x (Branch B lt z v rt));
+rbt_del_from_right less x a y s (Branch R va vb vc vd) =
+  Branch R a y s (rbt_del less x (Branch R va vb vc vd));
+rbt_del_from_right less x a y s Emptya = Branch R a y s (rbt_del less x Emptya);
+rbt_del_from_right less x a y s (Branch B lt z v rt) =
+  balance_right a y s (rbt_del less x (Branch B lt z v rt));
 
-rbt_deletea :: forall a b. (a -> a -> Bool) -> a -> Rbta a b -> Rbta a b;
-rbt_deletea less k t = paint B (rbt_dela less k t);
+rbt_delete :: forall a b. (a -> a -> Bool) -> a -> Rbta a b -> Rbta a b;
+rbt_delete less k t = paint B (rbt_del less k t);
 
 deletea :: forall a b. (Corder a) => a -> Mapping_rbt a b -> Mapping_rbt a b;
-deletea x xa = Mapping_RBTa (rbt_deletea (snd (the corder)) x (impl_ofb xa));
+deletea xb xc = Mapping_RBTa (rbt_delete (snd (the corder)) xb (impl_ofb xc));
 
 list_remove1 :: forall a. (a -> a -> Bool) -> a -> [a] -> [a];
 list_remove1 equal x (y : xs) =
@@ -493,27 +2167,7 @@ list_remove1 equal x (y : xs) =
 list_remove1 equal x [] = [];
 
 removea :: forall a. (Ceq a) => a -> Set_dlist a -> Set_dlist a;
-removea x xa = Abs_dlist (list_remove1 (the ceq) x (list_of_dlist xa));
-
-remove :: forall a. (Ceq a, Corder a) => a -> Set a -> Set a;
-remove x (RBT_set rbt) =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
-    Nothing ->
-      error "remove RBT_set: corder = None" (\ _ -> remove x (RBT_set rbt));
-    Just _ -> RBT_set (deletea x rbt);
-  });
-remove x (DList_set dxs) =
-  (case (ceq :: Maybe (a -> a -> Bool)) of {
-    Nothing ->
-      error "remove DList_set: ceq = None" (\ _ -> remove x (DList_set dxs));
-    Just _ -> DList_set (removea x dxs);
-  });
-remove x (Collect_set a) =
-  (case ceq of {
-    Nothing ->
-      error "remove Collect: ceq = None" (\ _ -> remove x (Collect_set a));
-    Just eq -> Collect_set (fun_upda eq a x False);
-  });
+removea xb xc = Abs_dlist (list_remove1 (the ceq) xb (list_of_dlist xc));
 
 inserta :: forall a. (Ceq a, Corder a) => a -> Set a -> Set a;
 inserta xa (Complement x) = Complement (remove xa x);
@@ -537,39 +2191,1094 @@ inserta x (Collect_set a) =
     Just eq -> Collect_set (fun_upda eq a x True);
   });
 
+remove :: forall a. (Ceq a, Corder a) => a -> Set a -> Set a;
+remove x (Complement a) = Complement (inserta x a);
+remove x (RBT_set rbt) =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing ->
+      error "remove RBT_set: corder = None" (\ _ -> remove x (RBT_set rbt));
+    Just _ -> RBT_set (deletea x rbt);
+  });
+remove x (DList_set dxs) =
+  (case (ceq :: Maybe (a -> a -> Bool)) of {
+    Nothing ->
+      error "remove DList_set: ceq = None" (\ _ -> remove x (DList_set dxs));
+    Just _ -> DList_set (removea x dxs);
+  });
+remove x (Collect_set a) =
+  (case ceq of {
+    Nothing ->
+      error "remove Collect: ceq = None" (\ _ -> remove x (Collect_set a));
+    Just eq -> Collect_set (fun_upda eq a x False);
+  });
+
 foldl :: forall a b. (a -> b -> a) -> a -> [b] -> a;
 foldl f a [] = a;
 foldl f a (x : xs) = foldl f (f a x) xs;
 
-set :: forall a. (Ceq a, Corder a, Set_impla a) => [a] -> Set a;
-set = foldl (\ s x -> inserta x s) bot_set;
+set_aux :: forall a. (Ceq a, Corder a) => Set_impla -> [a] -> Set a;
+set_aux Set_Monada = Set_Monad;
+set_aux Set_Choose =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing ->
+      (case (ceq :: Maybe (a -> a -> Bool)) of {
+        Nothing -> Set_Monad;
+        Just _ -> foldl (\ s x -> inserta x s) (DList_set emptyc);
+      });
+    Just _ -> foldl (\ s x -> inserta x s) (RBT_set emptyd);
+  });
+set_aux impl = foldl (\ s x -> inserta x s) (set_empty impl);
 
-less_num :: Num -> Num -> Bool;
-less_num (Bit1 m) (Bit0 n) = less_num m n;
-less_num (Bit1 m) (Bit1 n) = less_num m n;
-less_num (Bit0 m) (Bit1 n) = less_eq_num m n;
-less_num (Bit0 m) (Bit0 n) = less_num m n;
-less_num One (Bit1 n) = True;
-less_num One (Bit0 n) = True;
-less_num m One = False;
+set :: forall a. (Ceq a, Corder a, Set_impl a) => [a] -> Set a;
+set xs = set_aux (of_phantom (set_impl :: Phantom a Set_impla)) xs;
 
-less_eq_num :: Num -> Num -> Bool;
-less_eq_num (Bit1 m) (Bit0 n) = less_num m n;
-less_eq_num (Bit1 m) (Bit1 n) = less_eq_num m n;
-less_eq_num (Bit0 m) (Bit1 n) = less_eq_num m n;
-less_eq_num (Bit0 m) (Bit0 n) = less_eq_num m n;
-less_eq_num (Bit1 m) One = False;
-less_eq_num (Bit0 m) One = False;
-less_eq_num One n = True;
+cEnum_set ::
+  forall a.
+    (Cenum a, Ceq a, Corder a,
+      Set_impl a) => Maybe ([Set a],
+                             ((Set a -> Bool) -> Bool,
+                               (Set a -> Bool) -> Bool));
+cEnum_set =
+  (case cEnum of {
+    Nothing -> Nothing;
+    Just (enum_a, (_, _)) ->
+      Just (map set (sublists enum_a),
+             ((\ p -> all p (map set (sublists enum_a))),
+               (\ p -> any p (map set (sublists enum_a)))));
+  });
 
-less_nat :: Nat -> Nat -> Bool;
-less_nat (Nat_of_num k) (Nat_of_num l) = less_num k l;
-less_nat Zero_nat (Nat_of_num l) = True;
-less_nat m Zero_nat = False;
+instance (Cenum a, Ceq a, Corder a, Set_impl a) => Cenum (Set a) where {
+  cEnum = cEnum_set;
+};
 
-upt :: Nat -> Nat -> [Nat];
-upt i j =
-  (if less_nat i j then i : upt (plus_nat i (Nat_of_num One)) j else []);
+finite_UNIV_set :: forall a. (Finite_UNIV a) => Phantom (Set a) Bool;
+finite_UNIV_set = Phantom (of_phantom (finite_UNIV :: Phantom a Bool));
+
+instance (Finite_UNIV a) => Finite_UNIV (Set a) where {
+  finite_UNIV = finite_UNIV_set;
+};
+
+class (Corder a) => Cproper_interval a where {
+  cproper_interval :: Maybe a -> Maybe a -> Bool;
+};
+
+set_less_eq_aux_Compl_fusion ::
+  forall a b c.
+    (a -> a -> Bool) ->
+      (Maybe a -> Maybe a -> Bool) ->
+        Generator a b -> Generator a c -> Maybe a -> b -> c -> Bool;
+set_less_eq_aux_Compl_fusion less proper_interval g1 g2 ao s1 s2 =
+  (if has_next g1 s1
+    then (if has_next g2 s2
+           then let {
+                  (x, s1a) = next g1 s1;
+                  (y, s2a) = next g2 s2;
+                } in (if less x y
+                       then proper_interval ao (Just x) ||
+                              set_less_eq_aux_Compl_fusion less proper_interval
+                                g1 g2 (Just x) s1a s2
+                       else (if less y x
+                              then proper_interval ao (Just y) ||
+                                     set_less_eq_aux_Compl_fusion less
+                                       proper_interval g1 g2 (Just y) s1 s2a
+                              else proper_interval ao (Just y)))
+           else True)
+    else True);
+
+compl_set_less_eq_aux_fusion ::
+  forall a b c.
+    (a -> a -> Bool) ->
+      (Maybe a -> Maybe a -> Bool) ->
+        Generator a b -> Generator a c -> Maybe a -> b -> c -> Bool;
+compl_set_less_eq_aux_fusion less proper_interval g1 g2 ao s1 s2 =
+  (if has_next g1 s1
+    then let {
+           (x, s1a) = next g1 s1;
+         } in (if has_next g2 s2
+                then let {
+                       (y, s2a) = next g2 s2;
+                     } in (if less x y
+                            then not (proper_interval ao (Just x)) &&
+                                   compl_set_less_eq_aux_fusion less
+                                     proper_interval g1 g2 (Just x) s1a s2
+                            else (if less y x
+                                   then not (proper_interval ao (Just y)) &&
+  compl_set_less_eq_aux_fusion less proper_interval g1 g2 (Just y) s1 s2a
+                                   else not (proper_interval ao (Just y))))
+                else not (proper_interval ao (Just x)) &&
+                       compl_set_less_eq_aux_fusion less proper_interval g1 g2
+                         (Just x) s1a s2)
+    else (if has_next g2 s2
+           then let {
+                  (y, s2a) = next g2 s2;
+                } in not (proper_interval ao (Just y)) &&
+                       compl_set_less_eq_aux_fusion less proper_interval g1 g2
+                         (Just y) s1 s2a
+           else not (proper_interval ao Nothing)));
+
+set_less_eq_aux_Compl ::
+  forall a.
+    (a -> a -> Bool) ->
+      (Maybe a -> Maybe a -> Bool) -> Maybe a -> [a] -> [a] -> Bool;
+set_less_eq_aux_Compl less proper_interval ao (x : xs) (y : ys) =
+  (if less x y
+    then proper_interval ao (Just x) ||
+           set_less_eq_aux_Compl less proper_interval (Just x) xs (y : ys)
+    else (if less y x
+           then proper_interval ao (Just y) ||
+                  set_less_eq_aux_Compl less proper_interval (Just y) (x : xs)
+                    ys
+           else proper_interval ao (Just y)));
+set_less_eq_aux_Compl less proper_interval ao xs [] = True;
+set_less_eq_aux_Compl less proper_interval ao [] ys = True;
+
+compl_set_less_eq_aux ::
+  forall a.
+    (a -> a -> Bool) ->
+      (Maybe a -> Maybe a -> Bool) -> Maybe a -> [a] -> [a] -> Bool;
+compl_set_less_eq_aux less proper_interval ao (x : xs) (y : ys) =
+  (if less x y
+    then not (proper_interval ao (Just x)) &&
+           compl_set_less_eq_aux less proper_interval (Just x) xs (y : ys)
+    else (if less y x
+           then not (proper_interval ao (Just y)) &&
+                  compl_set_less_eq_aux less proper_interval (Just y) (x : xs)
+                    ys
+           else not (proper_interval ao (Just y))));
+compl_set_less_eq_aux less proper_interval ao (x : xs) [] =
+  not (proper_interval ao (Just x)) &&
+    compl_set_less_eq_aux less proper_interval (Just x) xs [];
+compl_set_less_eq_aux less proper_interval ao [] (y : ys) =
+  not (proper_interval ao (Just y)) &&
+    compl_set_less_eq_aux less proper_interval (Just y) [] ys;
+compl_set_less_eq_aux less proper_interval ao [] [] =
+  not (proper_interval ao Nothing);
+
+lexord_eq_fusion ::
+  forall a b c.
+    (a -> a -> Bool) -> Generator a b -> Generator a c -> b -> c -> Bool;
+lexord_eq_fusion less g1 g2 s1 s2 =
+  (if has_next g1 s1
+    then has_next g2 s2 &&
+           let {
+             (x, s1a) = next g1 s1;
+             (y, s2a) = next g2 s2;
+           } in less x y ||
+                  not (less y x) && lexord_eq_fusion less g1 g2 s1a s2a
+    else True);
+
+remdups_sorted :: forall a. (a -> a -> Bool) -> [a] -> [a];
+remdups_sorted less (x : y : xs) =
+  (if less x y then x : remdups_sorted less (y : xs)
+    else remdups_sorted less (y : xs));
+remdups_sorted less [x] = [x];
+remdups_sorted less [] = [];
+
+quicksort_acc :: forall a. (a -> a -> Bool) -> [a] -> [a] -> [a];
+quicksort_acc less ac (x : v : va) = quicksort_part less ac x [] [] [] (v : va);
+quicksort_acc less ac [x] = x : ac;
+quicksort_acc less ac [] = ac;
+
+quicksort_part ::
+  forall a. (a -> a -> Bool) -> [a] -> a -> [a] -> [a] -> [a] -> [a] -> [a];
+quicksort_part less ac x lts eqs gts (z : zs) =
+  (if less x z then quicksort_part less ac x lts eqs (z : gts) zs
+    else (if less z x then quicksort_part less ac x (z : lts) eqs gts zs
+           else quicksort_part less ac x lts (z : eqs) gts zs));
+quicksort_part less ac x lts eqs gts [] =
+  quicksort_acc less (eqs ++ x : quicksort_acc less ac gts) lts;
+
+quicksort :: forall a. (a -> a -> Bool) -> [a] -> [a];
+quicksort less = quicksort_acc less [];
+
+gen_keys :: forall a b. [(a, Rbta a b)] -> Rbta a b -> [a];
+gen_keys kts (Branch c l k v r) = gen_keys ((k, r) : kts) l;
+gen_keys ((k, t) : kts) Emptya = k : gen_keys kts t;
+gen_keys [] Emptya = [];
+
+keys :: forall a b. Rbta a b -> [a];
+keys = gen_keys [];
+
+keysa :: forall a. (Corder a) => Mapping_rbt a () -> [a];
+keysa xa = keys (impl_ofb xa);
+
+csorted_list_of_set :: forall a. (Ceq a, Corder a) => Set a -> [a];
+csorted_list_of_set (Set_Monad xs) =
+  (case corder of {
+    Nothing ->
+      error "csorted_list_of_set Set_Monad: corder = None"
+        (\ _ -> csorted_list_of_set (Set_Monad xs));
+    Just (_, lt) -> remdups_sorted lt (quicksort lt xs);
+  });
+csorted_list_of_set (DList_set dxs) =
+  (case (ceq :: Maybe (a -> a -> Bool)) of {
+    Nothing ->
+      error "csorted_list_of_set DList_set: ceq = None"
+        (\ _ -> csorted_list_of_set (DList_set dxs));
+    Just _ ->
+      (case corder of {
+        Nothing ->
+          error "csorted_list_of_set DList_set: corder = None"
+            (\ _ -> csorted_list_of_set (DList_set dxs));
+        Just (_, lt) -> quicksort lt (list_of_dlist dxs);
+      });
+  });
+csorted_list_of_set (RBT_set rbt) =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing ->
+      error "csorted_list_of_set RBT_set: corder = None"
+        (\ _ -> csorted_list_of_set (RBT_set rbt));
+    Just _ -> keysa rbt;
+  });
+
+uminus_set :: forall a. Set a -> Set a;
+uminus_set (Complement b) = b;
+uminus_set (Collect_set p) = Collect_set (\ x -> not (p x));
+uminus_set a = Complement a;
+
+bot_set :: forall a. (Ceq a, Corder a, Set_impl a) => Set a;
+bot_set = set_empty (of_phantom (set_impl :: Phantom a Set_impla));
+
+top_set :: forall a. (Ceq a, Corder a, Set_impl a) => Set a;
+top_set = uminus_set bot_set;
+
+lexordp_eq :: forall a. (a -> a -> Bool) -> [a] -> [a] -> Bool;
+lexordp_eq less (x : xs) (y : ys) =
+  less x y || not (less y x) && lexordp_eq less xs ys;
+lexordp_eq less (x : xs) [] = False;
+lexordp_eq less xs [] = null xs;
+lexordp_eq less [] ys = True;
+
+finite :: forall a. (Finite_UNIV a, Ceq a, Corder a) => Set a -> Bool;
+finite (Collect_set p) =
+  of_phantom (finite_UNIV :: Phantom a Bool) ||
+    error "finite Collect_set" (\ _ -> finite (Collect_set p));
+finite (Set_Monad xs) = True;
+finite (Complement a) =
+  (if of_phantom (finite_UNIV :: Phantom a Bool) then True
+    else (if finite a then False
+           else error "finite Complement: infinite set"
+                  (\ _ -> finite (Complement a))));
+finite (RBT_set rbt) =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing ->
+      error "finite RBT_set: corder = None" (\ _ -> finite (RBT_set rbt));
+    Just _ -> True;
+  });
+finite (DList_set dxs) =
+  (case (ceq :: Maybe (a -> a -> Bool)) of {
+    Nothing ->
+      error "finite DList_set: ceq = None" (\ _ -> finite (DList_set dxs));
+    Just _ -> True;
+  });
+
+set_less_aux_Compl_fusion ::
+  forall a b c.
+    (a -> a -> Bool) ->
+      (Maybe a -> Maybe a -> Bool) ->
+        Generator a b -> Generator a c -> Maybe a -> b -> c -> Bool;
+set_less_aux_Compl_fusion less proper_interval g1 g2 ao s1 s2 =
+  (if has_next g1 s1
+    then let {
+           (x, s1a) = next g1 s1;
+         } in (if has_next g2 s2
+                then let {
+                       (y, s2a) = next g2 s2;
+                     } in (if less x y
+                            then proper_interval ao (Just x) ||
+                                   set_less_aux_Compl_fusion less
+                                     proper_interval g1 g2 (Just x) s1a s2
+                            else (if less y x
+                                   then proper_interval ao (Just y) ||
+  set_less_aux_Compl_fusion less proper_interval g1 g2 (Just y) s1 s2a
+                                   else proper_interval ao (Just y)))
+                else proper_interval ao (Just x) ||
+                       set_less_aux_Compl_fusion less proper_interval g1 g2
+                         (Just x) s1a s2)
+    else (if has_next g2 s2
+           then let {
+                  (y, s2a) = next g2 s2;
+                } in proper_interval ao (Just y) ||
+                       set_less_aux_Compl_fusion less proper_interval g1 g2
+                         (Just y) s1 s2a
+           else proper_interval ao Nothing));
+
+compl_set_less_aux_fusion ::
+  forall a b c.
+    (a -> a -> Bool) ->
+      (Maybe a -> Maybe a -> Bool) ->
+        Generator a b -> Generator a c -> Maybe a -> b -> c -> Bool;
+compl_set_less_aux_fusion less proper_interval g1 g2 ao s1 s2 =
+  has_next g1 s1 &&
+    has_next g2 s2 &&
+      let {
+        (x, s1a) = next g1 s1;
+        (y, s2a) = next g2 s2;
+      } in (if less x y
+             then not (proper_interval ao (Just x)) &&
+                    compl_set_less_aux_fusion less proper_interval g1 g2
+                      (Just x) s1a s2
+             else (if less y x
+                    then not (proper_interval ao (Just y)) &&
+                           compl_set_less_aux_fusion less proper_interval g1 g2
+                             (Just y) s1 s2a
+                    else not (proper_interval ao (Just y))));
+
+set_less_aux_Compl ::
+  forall a.
+    (a -> a -> Bool) ->
+      (Maybe a -> Maybe a -> Bool) -> Maybe a -> [a] -> [a] -> Bool;
+set_less_aux_Compl less proper_interval ao (x : xs) (y : ys) =
+  (if less x y
+    then proper_interval ao (Just x) ||
+           set_less_aux_Compl less proper_interval (Just x) xs (y : ys)
+    else (if less y x
+           then proper_interval ao (Just y) ||
+                  set_less_aux_Compl less proper_interval (Just y) (x : xs) ys
+           else proper_interval ao (Just y)));
+set_less_aux_Compl less proper_interval ao (x : xs) [] =
+  proper_interval ao (Just x) ||
+    set_less_aux_Compl less proper_interval (Just x) xs [];
+set_less_aux_Compl less proper_interval ao [] (y : ys) =
+  proper_interval ao (Just y) ||
+    set_less_aux_Compl less proper_interval (Just y) [] ys;
+set_less_aux_Compl less proper_interval ao [] [] = proper_interval ao Nothing;
+
+compl_set_less_aux ::
+  forall a.
+    (a -> a -> Bool) ->
+      (Maybe a -> Maybe a -> Bool) -> Maybe a -> [a] -> [a] -> Bool;
+compl_set_less_aux less proper_interval ao (x : xs) (y : ys) =
+  (if less x y
+    then not (proper_interval ao (Just x)) &&
+           compl_set_less_aux less proper_interval (Just x) xs (y : ys)
+    else (if less y x
+           then not (proper_interval ao (Just y)) &&
+                  compl_set_less_aux less proper_interval (Just y) (x : xs) ys
+           else not (proper_interval ao (Just y))));
+compl_set_less_aux less proper_interval ao xs [] = False;
+compl_set_less_aux less proper_interval ao [] ys = False;
+
+lexord_fusion ::
+  forall a b c.
+    (a -> a -> Bool) -> Generator a b -> Generator a c -> b -> c -> Bool;
+lexord_fusion less g1 g2 s1 s2 =
+  (if has_next g1 s1
+    then (if has_next g2 s2
+           then let {
+                  (x, s1a) = next g1 s1;
+                  (y, s2a) = next g2 s2;
+                } in less x y ||
+                       not (less y x) && lexord_fusion less g1 g2 s1a s2a
+           else False)
+    else has_next g2 s2);
+
+lexordp :: forall a. (a -> a -> Bool) -> [a] -> [a] -> Bool;
+lexordp less (x : xs) (y : ys) =
+  less x y || not (less y x) && lexordp less xs ys;
+lexordp less xs [] = False;
+lexordp less [] ys = not (null ys);
+
+corder_set ::
+  forall a.
+    (Finite_UNIV a, Ceq a, Cproper_interval a,
+      Set_impl a) => Maybe (Set a -> Set a -> Bool, Set a -> Set a -> Bool);
+corder_set =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing -> Nothing;
+    Just _ -> Just (cless_eq_set, cless_set);
+  });
+
+cless_set ::
+  forall a.
+    (Finite_UNIV a, Ceq a, Cproper_interval a,
+      Set_impl a) => Set a -> Set a -> Bool;
+cless_set (Complement (RBT_set rbt1)) (RBT_set rbt2) =
+  (case corder of {
+    Nothing ->
+      error "cless_set (Complement RBT_set) RBT_set: corder = None"
+        (\ _ -> cless_set (Complement (RBT_set rbt1)) (RBT_set rbt2));
+    Just (_, lt) ->
+      (finite :: Set a -> Bool) (top_set :: Set a) &&
+        compl_set_less_aux_fusion lt cproper_interval rbt_keys_generator
+          rbt_keys_generator Nothing (init rbt1) (init rbt2);
+  });
+cless_set (RBT_set rbt1) (Complement (RBT_set rbt2)) =
+  (case corder of {
+    Nothing ->
+      error "cless_set RBT_set (Complement RBT_set): corder = None"
+        (\ _ -> cless_set (RBT_set rbt1) (Complement (RBT_set rbt2)));
+    Just (_, lt) ->
+      (if (finite :: Set a -> Bool) (top_set :: Set a)
+        then set_less_aux_Compl_fusion lt cproper_interval rbt_keys_generator
+               rbt_keys_generator Nothing (init rbt1) (init rbt2)
+        else True);
+  });
+cless_set (RBT_set rbta) (RBT_set rbt) =
+  (case corder of {
+    Nothing ->
+      error "cless_set RBT_set RBT_set: corder = None"
+        (\ _ -> cless_set (RBT_set rbta) (RBT_set rbt));
+    Just (_, lt) ->
+      lexord_fusion (\ x y -> lt y x) rbt_keys_generator rbt_keys_generator
+        (init rbta) (init rbt);
+  });
+cless_set (Complement a) (Complement b) =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing ->
+      error "cless_set Complement Complement: corder = None"
+        (\ _ -> cless_set (Complement a) (Complement b));
+    Just _ -> snd (the corder_set) b a;
+  });
+cless_set (Complement a) b =
+  (case corder of {
+    Nothing ->
+      error "cless_set Complement1: corder = None"
+        (\ _ -> cless_set (Complement a) b);
+    Just (_, lt) ->
+      (if finite a && finite b
+        then (finite :: Set a -> Bool) (top_set :: Set a) &&
+               compl_set_less_aux lt cproper_interval Nothing
+                 (csorted_list_of_set a) (csorted_list_of_set b)
+        else error "cless_set Complement1: infinite set"
+               (\ _ -> cless_set (Complement a) b));
+  });
+cless_set a (Complement b) =
+  (case corder of {
+    Nothing ->
+      error "cless_set Complement2: corder = None"
+        (\ _ -> cless_set a (Complement b));
+    Just (_, lt) ->
+      (if finite a && finite b
+        then (if (finite :: Set a -> Bool) (top_set :: Set a)
+               then set_less_aux_Compl lt cproper_interval Nothing
+                      (csorted_list_of_set a) (csorted_list_of_set b)
+               else True)
+        else error "cless_set Complement2: infinite set"
+               (\ _ -> cless_set a (Complement b)));
+  });
+cless_set a b =
+  (case corder of {
+    Nothing -> error "cless_set: corder = None" (\ _ -> cless_set a b);
+    Just (_, lt) ->
+      (if finite a && finite b
+        then lexordp (\ x y -> lt y x) (csorted_list_of_set a)
+               (csorted_list_of_set b)
+        else error "cless_set: infinite set" (\ _ -> cless_set a b));
+  });
+
+cless_eq_set ::
+  forall a.
+    (Finite_UNIV a, Ceq a, Cproper_interval a,
+      Set_impl a) => Set a -> Set a -> Bool;
+cless_eq_set (Complement (RBT_set rbt1)) (RBT_set rbt2) =
+  (case corder of {
+    Nothing ->
+      error "cless_eq_set (Complement RBT_set) RBT_set: corder = None"
+        (\ _ -> cless_eq_set (Complement (RBT_set rbt1)) (RBT_set rbt2));
+    Just (_, lt) ->
+      (finite :: Set a -> Bool) (top_set :: Set a) &&
+        compl_set_less_eq_aux_fusion lt cproper_interval rbt_keys_generator
+          rbt_keys_generator Nothing (init rbt1) (init rbt2);
+  });
+cless_eq_set (RBT_set rbt1) (Complement (RBT_set rbt2)) =
+  (case corder of {
+    Nothing ->
+      error "cless_eq_set RBT_set (Complement RBT_set): corder = None"
+        (\ _ -> cless_eq_set (RBT_set rbt1) (Complement (RBT_set rbt2)));
+    Just (_, lt) ->
+      (if (finite :: Set a -> Bool) (top_set :: Set a)
+        then set_less_eq_aux_Compl_fusion lt cproper_interval rbt_keys_generator
+               rbt_keys_generator Nothing (init rbt1) (init rbt2)
+        else True);
+  });
+cless_eq_set (RBT_set rbta) (RBT_set rbt) =
+  (case corder of {
+    Nothing ->
+      error "cless_eq_set RBT_set RBT_set: corder = None"
+        (\ _ -> cless_eq_set (RBT_set rbta) (RBT_set rbt));
+    Just (_, lt) ->
+      lexord_eq_fusion (\ x y -> lt y x) rbt_keys_generator rbt_keys_generator
+        (init rbta) (init rbt);
+  });
+cless_eq_set (Complement a) (Complement b) =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing ->
+      error "cless_eq_set Complement Complement: corder = None"
+        (\ _ -> fst (the corder_set) (Complement a) (Complement b));
+    Just (_, _) -> cless_eq_set b a;
+  });
+cless_eq_set (Complement a) b =
+  (case corder of {
+    Nothing ->
+      error "cless_eq_set Complement1: corder = None"
+        (\ _ -> cless_eq_set (Complement a) b);
+    Just (_, lt) ->
+      (if finite a && finite b
+        then (finite :: Set a -> Bool) (top_set :: Set a) &&
+               compl_set_less_eq_aux lt cproper_interval Nothing
+                 (csorted_list_of_set a) (csorted_list_of_set b)
+        else error "cless_eq_set Complement1: infinite set"
+               (\ _ -> cless_eq_set (Complement a) b));
+  });
+cless_eq_set a (Complement b) =
+  (case corder of {
+    Nothing ->
+      error "cless_eq_set Complement2: corder = None"
+        (\ _ -> cless_eq_set a (Complement b));
+    Just (_, lt) ->
+      (if finite a && finite b
+        then (if (finite :: Set a -> Bool) (top_set :: Set a)
+               then set_less_eq_aux_Compl lt cproper_interval Nothing
+                      (csorted_list_of_set a) (csorted_list_of_set b)
+               else True)
+        else error "cless_eq_set Complement2: infinite set"
+               (\ _ -> cless_eq_set a (Complement b)));
+  });
+cless_eq_set a b =
+  (case corder of {
+    Nothing -> error "cless_eq_set: corder = None" (\ _ -> cless_eq_set a b);
+    Just (_, lt) ->
+      (if finite a && finite b
+        then lexordp_eq (\ x y -> lt y x) (csorted_list_of_set a)
+               (csorted_list_of_set b)
+        else error "cless_eq_set: infinite set" (\ _ -> cless_eq_set a b));
+  });
+
+instance (Finite_UNIV a, Ceq a, Cproper_interval a,
+           Set_impl a) => Corder (Set a) where {
+  corder = corder_set;
+};
+
+fold_fusion :: forall a b c. Generator a b -> (a -> c -> c) -> b -> c -> c;
+fold_fusion g f s b =
+  (if has_next g s
+    then let {
+           (x, sa) = next g s;
+         } in fold_fusion g f sa (f x b)
+    else b);
+
+length_last_fusion :: forall a b. Generator a b -> b -> (Nat, a);
+length_last_fusion g s =
+  (if has_next g s
+    then let {
+           (x, sa) = next g s;
+         } in fold_fusion g (\ xa (n, _) -> (plus_nat n (Nat_of_num One), xa))
+                sa (Nat_of_num One, x)
+    else (Zero_nat, error "undefined"));
+
+gen_length_fusion :: forall a b. Generator a b -> Nat -> b -> Nat;
+gen_length_fusion g n s =
+  (if has_next g s
+    then gen_length_fusion g (plus_nat n (Nat_of_num One)) (snd (next g s))
+    else n);
+
+length_fusion :: forall a b. Generator a b -> b -> Nat;
+length_fusion g = gen_length_fusion g Zero_nat;
+
+card_UNIV :: forall a. (Card_UNIV a) => Phantom a Nat;
+card_UNIV = card_UNIVa;
+
+proper_interval_set_Compl_aux_fusion ::
+  forall a b c.
+    (Card_UNIV a) => (a -> a -> Bool) ->
+                       (Maybe a -> Maybe a -> Bool) ->
+                         Generator a b ->
+                           Generator a c -> Maybe a -> Nat -> b -> c -> Bool;
+proper_interval_set_Compl_aux_fusion less proper_interval g1 g2 ao n s1 s2 =
+  (if has_next g1 s1
+    then let {
+           (x, s1a) = next g1 s1;
+         } in (if has_next g2 s2
+                then let {
+                       (y, s2a) = next g2 s2;
+                     } in (if less x y
+                            then proper_interval ao (Just x) ||
+                                   proper_interval_set_Compl_aux_fusion less
+                                     proper_interval g1 g2 (Just x)
+                                     (plus_nat n (Nat_of_num One)) s1a s2
+                            else (if less y x
+                                   then proper_interval ao (Just y) ||
+  proper_interval_set_Compl_aux_fusion less proper_interval g1 g2 (Just y)
+    (plus_nat n (Nat_of_num One)) s1 s2a
+                                   else proper_interval ao (Just x) &&
+  let {
+    m = minus_nat (of_phantom (card_UNIV :: Phantom a Nat)) n;
+  } in not (equal_nat (minus_nat m (length_fusion g2 s2a))
+             (Nat_of_num (Bit0 One))) ||
+         not (equal_nat (minus_nat m (length_fusion g1 s1a))
+               (Nat_of_num (Bit0 One)))))
+                else let {
+                       m = minus_nat (of_phantom (card_UNIV :: Phantom a Nat))
+                             n;
+                       (len_x, xa) = length_last_fusion g1 s1;
+                     } in not (equal_nat m len_x) &&
+                            (if equal_nat m (plus_nat len_x (Nat_of_num One))
+                              then not (proper_interval (Just xa) Nothing)
+                              else True))
+    else (if has_next g2 s2
+           then let {
+                  (_, _) = next g2 s2;
+                  m = minus_nat (of_phantom (card_UNIV :: Phantom a Nat)) n;
+                  (len_y, y) = length_last_fusion g2 s2;
+                } in not (equal_nat m len_y) &&
+                       (if equal_nat m (plus_nat len_y (Nat_of_num One))
+                         then not (proper_interval (Just y) Nothing) else True)
+           else less_nat (plus_nat n (Nat_of_num One))
+                  (of_phantom (card_UNIV :: Phantom a Nat))));
+
+proper_interval_Compl_set_aux_fusion ::
+  forall a b c.
+    (a -> a -> Bool) ->
+      (Maybe a -> Maybe a -> Bool) ->
+        Generator a b -> Generator a c -> Maybe a -> b -> c -> Bool;
+proper_interval_Compl_set_aux_fusion less proper_interval g1 g2 ao s1 s2 =
+  has_next g1 s1 &&
+    has_next g2 s2 &&
+      let {
+        (x, s1a) = next g1 s1;
+        (y, s2a) = next g2 s2;
+      } in (if less x y
+             then not (proper_interval ao (Just x)) &&
+                    proper_interval_Compl_set_aux_fusion less proper_interval g1
+                      g2 (Just x) s1a s2
+             else (if less y x
+                    then not (proper_interval ao (Just y)) &&
+                           proper_interval_Compl_set_aux_fusion less
+                             proper_interval g1 g2 (Just y) s1 s2a
+                    else not (proper_interval ao (Just x)) &&
+                           (has_next g2 s2a || has_next g1 s1a)));
+
+exhaustive_above_fusion ::
+  forall a b. (Maybe a -> Maybe a -> Bool) -> Generator a b -> a -> b -> Bool;
+exhaustive_above_fusion proper_interval g y s =
+  (if has_next g s
+    then let {
+           (x, sa) = next g s;
+         } in not (proper_interval (Just y) (Just x)) &&
+                exhaustive_above_fusion proper_interval g x sa
+    else not (proper_interval (Just y) Nothing));
+
+proper_interval_set_aux_fusion ::
+  forall a b c.
+    (a -> a -> Bool) ->
+      (Maybe a -> Maybe a -> Bool) ->
+        Generator a b -> Generator a c -> b -> c -> Bool;
+proper_interval_set_aux_fusion less proper_interval g1 g2 s1 s2 =
+  has_next g2 s2 &&
+    let {
+      (y, s2a) = next g2 s2;
+    } in (if has_next g1 s1
+           then let {
+                  (x, s1a) = next g1 s1;
+                } in (if less x y then False
+                       else (if less y x
+                              then proper_interval (Just y) (Just x) ||
+                                     (has_next g2 s2a ||
+                                       not
+ (exhaustive_above_fusion proper_interval g1 x s1a))
+                              else proper_interval_set_aux_fusion less
+                                     proper_interval g1 g2 s1a s2a))
+           else has_next g2 s2a || proper_interval (Just y) Nothing);
+
+gen_length :: forall a. Nat -> [a] -> Nat;
+gen_length n (x : xs) = gen_length (plus_nat n (Nat_of_num One)) xs;
+gen_length n [] = n;
+
+size_list :: forall a. [a] -> Nat;
+size_list = gen_length Zero_nat;
+
+fold :: forall a b. (a -> b -> b) -> [a] -> b -> b;
+fold f (x : xs) s = fold f xs (f x s);
+fold f [] s = s;
+
+length_last :: forall a. [a] -> (Nat, a);
+length_last (x : xs) =
+  fold (\ xa (n, _) -> (plus_nat n (Nat_of_num One), xa)) xs
+    (Nat_of_num One, x);
+length_last [] = (Zero_nat, error "undefined");
+
+proper_interval_set_Compl_aux ::
+  forall a.
+    (Card_UNIV a) => (a -> a -> Bool) ->
+                       (Maybe a -> Maybe a -> Bool) ->
+                         Maybe a -> Nat -> [a] -> [a] -> Bool;
+proper_interval_set_Compl_aux less proper_interval ao n (x : xs) (y : ys) =
+  (if less x y
+    then proper_interval ao (Just x) ||
+           proper_interval_set_Compl_aux less proper_interval (Just x)
+             (plus_nat n (Nat_of_num One)) xs (y : ys)
+    else (if less y x
+           then proper_interval ao (Just y) ||
+                  proper_interval_set_Compl_aux less proper_interval (Just y)
+                    (plus_nat n (Nat_of_num One)) (x : xs) ys
+           else proper_interval ao (Just x) &&
+                  let {
+                    m = minus_nat (of_phantom (card_UNIV :: Phantom a Nat)) n;
+                  } in not (equal_nat (minus_nat m (size_list ys))
+                             (Nat_of_num (Bit0 One))) ||
+                         not (equal_nat (minus_nat m (size_list xs))
+                               (Nat_of_num (Bit0 One)))));
+proper_interval_set_Compl_aux less proper_interval ao n (x : xs) [] =
+  let {
+    m = minus_nat (of_phantom (card_UNIV :: Phantom a Nat)) n;
+    (len_x, xa) = length_last (x : xs);
+  } in not (equal_nat m len_x) &&
+         (if equal_nat m (plus_nat len_x (Nat_of_num One))
+           then not (proper_interval (Just xa) Nothing) else True);
+proper_interval_set_Compl_aux less proper_interval ao n [] (y : ys) =
+  let {
+    m = minus_nat (of_phantom (card_UNIV :: Phantom a Nat)) n;
+    (len_y, ya) = length_last (y : ys);
+  } in not (equal_nat m len_y) &&
+         (if equal_nat m (plus_nat len_y (Nat_of_num One))
+           then not (proper_interval (Just ya) Nothing) else True);
+proper_interval_set_Compl_aux less proper_interval ao n [] [] =
+  less_nat (plus_nat n (Nat_of_num One))
+    (of_phantom (card_UNIV :: Phantom a Nat));
+
+proper_interval_Compl_set_aux ::
+  forall a.
+    (a -> a -> Bool) ->
+      (Maybe a -> Maybe a -> Bool) -> Maybe a -> [a] -> [a] -> Bool;
+proper_interval_Compl_set_aux less proper_interval ao uu [] = False;
+proper_interval_Compl_set_aux less proper_interval ao [] uv = False;
+proper_interval_Compl_set_aux less proper_interval ao (x : xs) (y : ys) =
+  (if less x y
+    then not (proper_interval ao (Just x)) &&
+           proper_interval_Compl_set_aux less proper_interval (Just x) xs
+             (y : ys)
+    else (if less y x
+           then not (proper_interval ao (Just y)) &&
+                  proper_interval_Compl_set_aux less proper_interval (Just y)
+                    (x : xs) ys
+           else not (proper_interval ao (Just x)) &&
+                  (if null ys then not (null xs) else True)));
+
+exhaustive_above :: forall a. (Maybe a -> Maybe a -> Bool) -> a -> [a] -> Bool;
+exhaustive_above proper_interval x (y : ys) =
+  not (proper_interval (Just x) (Just y)) &&
+    exhaustive_above proper_interval y ys;
+exhaustive_above proper_interval x [] = not (proper_interval (Just x) Nothing);
+
+proper_interval_set_aux ::
+  forall a.
+    (a -> a -> Bool) -> (Maybe a -> Maybe a -> Bool) -> [a] -> [a] -> Bool;
+proper_interval_set_aux less proper_interval (x : xs) (y : ys) =
+  (if less x y then False
+    else (if less y x
+           then proper_interval (Just y) (Just x) ||
+                  (not (null ys) || not (exhaustive_above proper_interval x xs))
+           else proper_interval_set_aux less proper_interval xs ys));
+proper_interval_set_aux less proper_interval [] (y : ys) =
+  not (null ys) || proper_interval (Just y) Nothing;
+proper_interval_set_aux less proper_interval xs [] = False;
+
+exhaustive_fusion ::
+  forall a b. (Maybe a -> Maybe a -> Bool) -> Generator a b -> b -> Bool;
+exhaustive_fusion proper_interval g s =
+  has_next g s &&
+    let {
+      (x, sa) = next g s;
+    } in not (proper_interval Nothing (Just x)) &&
+           exhaustive_above_fusion proper_interval g x sa;
+
+list_remdups :: forall a. (a -> a -> Bool) -> [a] -> [a];
+list_remdups equal (x : xs) =
+  (if list_member equal xs x then list_remdups equal xs
+    else x : list_remdups equal xs);
+list_remdups equal [] = [];
+
+length :: forall a. (Ceq a) => Set_dlist a -> Nat;
+length xa = size_list (list_of_dlist xa);
+
+card :: forall a. (Card_UNIV a, Ceq a, Corder a) => Set a -> Nat;
+card (Complement a) =
+  let {
+    aa = card a;
+    s = of_phantom (card_UNIV :: Phantom a Nat);
+  } in (if less_nat Zero_nat s then minus_nat s aa
+         else (if finite a then Zero_nat
+                else error "card Complement: infinite"
+                       (\ _ -> card (Complement a))));
+card (Set_Monad xs) =
+  (case ceq of {
+    Nothing -> error "card Set_Monad: ceq = None" (\ _ -> card (Set_Monad xs));
+    Just eq -> size_list (list_remdups eq xs);
+  });
+card (RBT_set rbt) =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing -> error "card RBT_set: corder = None" (\ _ -> card (RBT_set rbt));
+    Just _ -> size_list (keysa rbt);
+  });
+card (DList_set dxs) =
+  (case (ceq :: Maybe (a -> a -> Bool)) of {
+    Nothing -> error "card DList_set: ceq = None" (\ _ -> card (DList_set dxs));
+    Just _ -> length dxs;
+  });
+
+is_UNIV :: forall a. (Card_UNIV a, Ceq a, Cproper_interval a) => Set a -> Bool;
+is_UNIV (RBT_set rbt) =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing ->
+      error "is_UNIV RBT_set: corder = None" (\ _ -> is_UNIV (RBT_set rbt));
+    Just _ ->
+      of_phantom (finite_UNIV :: Phantom a Bool) &&
+        exhaustive_fusion cproper_interval rbt_keys_generator (init rbt);
+  });
+is_UNIV a =
+  let {
+    aa = of_phantom (card_UNIV :: Phantom a Nat);
+    b = card a;
+  } in (if less_nat Zero_nat aa then equal_nat aa b
+         else (if less_nat Zero_nat b then False
+                else error "is_UNIV called on infinite type and set"
+                       (\ _ -> is_UNIV a)));
+
+is_emptya :: forall a b. (Corder a) => Mapping_rbt a b -> Bool;
+is_emptya xa =
+  (case impl_ofb xa of {
+    Emptya -> True;
+    Branch _ _ _ _ _ -> False;
+  });
+
+nulla :: forall a. (Ceq a) => Set_dlist a -> Bool;
+nulla xa = null (list_of_dlist xa);
+
+is_empty :: forall a. (Card_UNIV a, Ceq a, Cproper_interval a) => Set a -> Bool;
+is_empty (Complement a) = is_UNIV a;
+is_empty (RBT_set rbt) =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing ->
+      error "is_empty RBT_set: corder = None" (\ _ -> is_empty (RBT_set rbt));
+    Just _ -> is_emptya rbt;
+  });
+is_empty (DList_set dxs) =
+  (case (ceq :: Maybe (a -> a -> Bool)) of {
+    Nothing ->
+      error "is_empty DList_set: ceq = None" (\ _ -> is_empty (DList_set dxs));
+    Just _ -> nulla dxs;
+  });
+is_empty (Set_Monad xs) = null xs;
+
+cproper_interval_set ::
+  forall a.
+    (Card_UNIV a, Ceq a, Cproper_interval a,
+      Set_impl a) => Maybe (Set a) -> Maybe (Set a) -> Bool;
+cproper_interval_set (Just (Complement (RBT_set rbt1))) (Just (RBT_set rbt2)) =
+  (case corder of {
+    Nothing ->
+      error "cproper_interval (Complement RBT_set) RBT_set: corder = None"
+        (\ _ ->
+          cproper_interval_set (Just (Complement (RBT_set rbt1)))
+            (Just (RBT_set rbt2)));
+    Just (_, lt) ->
+      (finite :: Set a -> Bool) (top_set :: Set a) &&
+        proper_interval_Compl_set_aux_fusion lt cproper_interval
+          rbt_keys_generator rbt_keys_generator Nothing (init rbt1) (init rbt2);
+  });
+cproper_interval_set (Just (RBT_set rbt1)) (Just (Complement (RBT_set rbt2))) =
+  (case corder of {
+    Nothing ->
+      error "cproper_interval RBT_set (Complement RBT_set): corder = None"
+        (\ _ ->
+          cproper_interval_set (Just (RBT_set rbt1))
+            (Just (Complement (RBT_set rbt2))));
+    Just (_, lt) ->
+      (finite :: Set a -> Bool) (top_set :: Set a) &&
+        proper_interval_set_Compl_aux_fusion lt cproper_interval
+          rbt_keys_generator rbt_keys_generator Nothing Zero_nat (init rbt1)
+          (init rbt2);
+  });
+cproper_interval_set (Just (RBT_set rbt1)) (Just (RBT_set rbt2)) =
+  (case corder of {
+    Nothing ->
+      error "cproper_interval RBT_set RBT_set: corder = None"
+        (\ _ ->
+          cproper_interval_set (Just (RBT_set rbt1)) (Just (RBT_set rbt2)));
+    Just (_, lt) ->
+      (finite :: Set a -> Bool) (top_set :: Set a) &&
+        proper_interval_set_aux_fusion lt cproper_interval rbt_keys_generator
+          rbt_keys_generator (init rbt1) (init rbt2);
+  });
+cproper_interval_set (Just (Complement a)) (Just (Complement b)) =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing ->
+      error "cproper_interval Complement Complement: corder = None"
+        (\ _ ->
+          cproper_interval_set (Just (Complement a)) (Just (Complement b)));
+    Just _ -> cproper_interval_set (Just b) (Just a);
+  });
+cproper_interval_set (Just (Complement a)) (Just b) =
+  (case corder of {
+    Nothing ->
+      error "cproper_interval Complement1: corder = None"
+        (\ _ -> cproper_interval_set (Just (Complement a)) (Just b));
+    Just (_, lt) ->
+      (finite :: Set a -> Bool) (top_set :: Set a) &&
+        proper_interval_Compl_set_aux lt cproper_interval Nothing
+          (csorted_list_of_set a) (csorted_list_of_set b);
+  });
+cproper_interval_set (Just a) (Just (Complement b)) =
+  (case corder of {
+    Nothing ->
+      error "cproper_interval Complement2: corder = None"
+        (\ _ -> cproper_interval_set (Just a) (Just (Complement b)));
+    Just (_, lt) ->
+      (finite :: Set a -> Bool) (top_set :: Set a) &&
+        proper_interval_set_Compl_aux lt cproper_interval Nothing Zero_nat
+          (csorted_list_of_set a) (csorted_list_of_set b);
+  });
+cproper_interval_set (Just a) (Just b) =
+  (case corder of {
+    Nothing ->
+      error "cproper_interval: corder = None"
+        (\ _ -> cproper_interval_set (Just a) (Just b));
+    Just (_, lt) ->
+      (finite :: Set a -> Bool) (top_set :: Set a) &&
+        proper_interval_set_aux lt cproper_interval (csorted_list_of_set a)
+          (csorted_list_of_set b);
+  });
+cproper_interval_set (Just a) Nothing = not (is_UNIV a);
+cproper_interval_set Nothing (Just b) = not (is_empty b);
+cproper_interval_set Nothing Nothing = True;
+
+instance (Card_UNIV a, Ceq a, Cproper_interval a,
+           Set_impl a) => Cproper_interval (Set a) where {
+  cproper_interval = cproper_interval_set;
+};
+
+shows_prec_list ::
+  forall a. (Showa a) => Nat -> [a] -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_list d l = shows_list l;
+
+shows_list_list ::
+  forall a. (Showa a) => [[a]] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_list = shows_list_aux (shows_prec_list Zero_nat);
+
+instance (Showa a) => Showa [a] where {
+  shows_prec = shows_prec_list;
+  shows_list = shows_list_list;
+};
+
+default_list :: forall a. [a];
+default_list = [];
+
+class Default a where {
+  defaulta :: a;
+};
+
+instance Default [a] where {
+  defaulta = default_list;
+};
+
+less_eq_list :: forall a. (Eq a, Order a) => [a] -> [a] -> Bool;
+less_eq_list (x : xs) (y : ys) = less x y || x == y && less_eq_list xs ys;
+less_eq_list [] xs = True;
+less_eq_list (x : xs) [] = False;
+
+less_list :: forall a. (Eq a, Order a) => [a] -> [a] -> Bool;
+less_list (x : xs) (y : ys) = less x y || x == y && less_list xs ys;
+less_list [] (x : xs) = True;
+less_list xs [] = False;
+
+instance (Eq a, Order a) => Ord [a] where {
+  less_eq = less_eq_list;
+  less = less_list;
+};
+
+instance (Eq a, Order a) => Preorder [a] where {
+};
+
+instance (Eq a, Order a) => Order [a] where {
+};
+
+instance (Eq a, Linorder a) => Linorder [a] where {
+};
+
+instance (Eq a, Key a) => Key [a] where {
+};
+
+rec_list :: forall a b. a -> (b -> [b] -> a -> a) -> [b] -> a;
+rec_list f1 f2 [] = f1;
+rec_list f1 f2 (x21 : x22) = f2 x21 x22 (rec_list f1 f2 x22);
+
+ceq_list :: forall a. (Ceq a) => Maybe ([a] -> [a] -> Bool);
+ceq_list =
+  (case ceq of {
+    Nothing -> Nothing;
+    Just eq_0 ->
+      Just (rec_list (\ a -> (case a of {
+                               [] -> True;
+                               _ : _ -> False;
+                             }))
+             (\ x_0 _ res_0 a ->
+               (case a of {
+                 [] -> False;
+                 y_0 : y_1 -> eq_0 x_0 y_0 && res_0 y_1;
+               })));
+  });
+
+instance (Ceq a) => Ceq [a] where {
+  ceq = ceq_list;
+};
+
+set_impl_list :: forall a. Phantom [a] Set_impla;
+set_impl_list = Phantom Set_Choose;
+
+instance Set_impl [a] where {
+  set_impl = set_impl_list;
+};
+
+class Countable a where {
+};
+
+instance (Countable a) => Countable [a] where {
+};
+
+finite_UNIV_list :: forall a. Phantom [a] Bool;
+finite_UNIV_list = Phantom False;
+
+card_UNIV_list :: forall a. Phantom [a] Nat;
+card_UNIV_list = Phantom Zero_nat;
+
+instance Finite_UNIV [a] where {
+  finite_UNIV = finite_UNIV_list;
+};
+
+instance Card_UNIV [a] where {
+  card_UNIVa = card_UNIV_list;
+};
+
+cEnum_list ::
+  forall a. Maybe ([[a]], (([a] -> Bool) -> Bool, ([a] -> Bool) -> Bool));
+cEnum_list = Nothing;
+
+instance Cenum [a] where {
+  cEnum = cEnum_list;
+};
+
+corder_list ::
+  forall a. (Corder a) => Maybe ([a] -> [a] -> Bool, [a] -> [a] -> Bool);
+corder_list = map_option (\ (_, lt) -> (lexordp_eq lt, lexordp lt)) corder;
+
+instance (Corder a) => Corder [a] where {
+  corder = corder_list;
+};
+
+mapping_impl_list :: forall a. Phantom [a] Mapping_impla;
+mapping_impl_list = Phantom Mapping_Choose;
+
+instance Mapping_impl [a] where {
+  mapping_impl = mapping_impl_list;
+};
+
+cproper_interval_list :: forall a. (Corder a) => Maybe [a] -> Maybe [a] -> Bool;
+cproper_interval_list xso yso = error "undefined";
+
+instance (Corder a) => Cproper_interval [a] where {
+  cproper_interval = cproper_interval_list;
+};
 
 newtype Mini_alg = Abs_mini_alg (Rat, (Rat, Nat));
 
@@ -577,19 +3286,3156 @@ newtype Mini_alg_unique = Abs_mini_alg_unique Mini_alg;
 
 newtype Real = Real_of_u Mini_alg_unique;
 
-data Partial_object_ext a b = Partial_object_ext (Set a) b;
+rep_mini_alg_unique :: Mini_alg_unique -> Mini_alg;
+rep_mini_alg_unique (Abs_mini_alg_unique x) = x;
 
-data Monoid_ext a b = Monoid_ext (a -> a -> a) a b;
+rep_mini_alg :: Mini_alg -> (Rat, (Rat, Nat));
+rep_mini_alg (Abs_mini_alg x) = x;
+
+ma_identity :: Mini_alg -> Mini_alg -> Bool;
+ma_identity xa xc = rep_mini_alg xa == rep_mini_alg xc;
+
+mau_equal :: Mini_alg_unique -> Mini_alg_unique -> Bool;
+mau_equal xa xc = ma_identity (rep_mini_alg_unique xa) (rep_mini_alg_unique xc);
+
+equal_real :: Real -> Real -> Bool;
+equal_real (Real_of_u r1) (Real_of_u r2) = mau_equal r1 r2;
+
+instance Eq Real where {
+  a == b = equal_real a b;
+};
+
+ma_compatible :: Mini_alg -> Mini_alg -> Bool;
+ma_compatible xa xc =
+  let {
+    (_, (q1, b1)) = rep_mini_alg xa;
+  } in (\ (_, (q2, b2)) ->
+         equal_rat q1 zero_rat || (equal_rat q2 zero_rat || equal_nat b1 b2))
+    (rep_mini_alg xc);
+
+mau_compatible :: Mini_alg_unique -> Mini_alg_unique -> Bool;
+mau_compatible xa xc =
+  ma_compatible (rep_mini_alg_unique xa) (rep_mini_alg_unique xc);
+
+of_nat :: forall a. (Semiring_1 a) => Nat -> a;
+of_nat (Nat_of_num k) = numeral k;
+of_nat Zero_nat = zeroa;
+
+ma_normalize :: (Rat, (Rat, Nat)) -> (Rat, (Rat, Nat));
+ma_normalize x =
+  let {
+    (a, (b, c)) = x;
+  } in (if equal_rat b zero_rat then (a, (zero_rat, Zero_nat))
+         else (a, (b, c)));
+
+ma_times :: Mini_alg -> Mini_alg -> Mini_alg;
+ma_times xb xc =
+  Abs_mini_alg
+    (let {
+       (p1, (q1, b1)) = rep_mini_alg xb;
+     } in (\ (p2, (q2, b2)) ->
+            (if equal_rat q1 zero_rat
+              then ma_normalize (times_rat p1 p2, (times_rat p1 q2, b2))
+              else ma_normalize
+                     (plus_rat (times_rat p1 p2)
+                        (times_rat (times_rat (of_nat b2) q1) q2),
+                       (plus_rat (times_rat p1 q2) (times_rat q1 p2), b1))))
+      (rep_mini_alg xc));
+
+mau_times :: Mini_alg_unique -> Mini_alg_unique -> Mini_alg_unique;
+mau_times xb xc =
+  Abs_mini_alg_unique
+    (ma_times (rep_mini_alg_unique xb) (rep_mini_alg_unique xc));
+
+times_real :: Real -> Real -> Real;
+times_real (Real_of_u r1) (Real_of_u r2) =
+  (if mau_compatible r1 r2 then Real_of_u (mau_times r1 r2)
+    else error "different base"
+           (\ _ -> times_real (Real_of_u r1) (Real_of_u r2)));
+
+instance Times Real where {
+  times = times_real;
+};
+
+instance Dvd Real where {
+};
+
+shows_list_char :: [Prelude.Char] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_char cs = shows_string cs;
+
+instance Showa Prelude.Char where {
+  shows_prec = shows_prec_char;
+  shows_list = shows_list_char;
+};
+
+ma_show_real :: Mini_alg -> [Prelude.Char];
+ma_show_real xa =
+  let {
+    (p, (q, b)) = rep_mini_alg xa;
+    sb = (shows_prec_list Zero_nat ['s', 'q', 'r', 't', '('] .
+           shows_prec_nat Zero_nat b) .
+           shows_prec_list Zero_nat [')'];
+    qb = (if equal_rat q one_rat then sb
+           else (if equal_rat q (uminus_rat one_rat)
+                  then shows_prec_list Zero_nat ['-'] . sb
+                  else (shows_prec_rat Zero_nat q .
+                         shows_prec_list Zero_nat ['*']) .
+                         sb));
+  } in (if equal_rat q zero_rat then shows_prec_rat Zero_nat p []
+         else (if equal_rat p zero_rat then qb []
+                else (if less_rat q zero_rat
+                       then shows_prec_rat Zero_nat p (qb [])
+                       else shows_prec_rat Zero_nat p
+                              (shows_prec_list Zero_nat ['+'] (qb [])))));
+
+mau_show_real :: Mini_alg_unique -> [Prelude.Char];
+mau_show_real xa = ma_show_real (rep_mini_alg_unique xa);
+
+show_real :: Real -> [Prelude.Char];
+show_real (Real_of_u x) = mau_show_real x;
+
+shows_paren ::
+  ([Prelude.Char] -> [Prelude.Char]) -> [Prelude.Char] -> [Prelude.Char];
+shows_paren p = shows_prec_char Zero_nat '(' . p . shows_prec_char Zero_nat ')';
+
+ma_is_rat :: Mini_alg -> Bool;
+ma_is_rat xa = let {
+                 (_, (q, _)) = rep_mini_alg xa;
+               } in equal_rat q zero_rat;
+
+mau_is_rat :: Mini_alg_unique -> Bool;
+mau_is_rat xa = ma_is_rat (rep_mini_alg_unique xa);
+
+is_rat :: Real -> Bool;
+is_rat (Real_of_u x) = mau_is_rat x;
+
+shows_prec_real :: Nat -> Real -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_real d x =
+  (if is_rat x then id else shows_paren) (shows_string (show_real x));
+
+shows_list_real :: [Real] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_real = shows_list_aux (shows_prec_real Zero_nat);
+
+instance Showa Real where {
+  shows_prec = shows_prec_real;
+  shows_list = shows_list_real;
+};
+
+ma_uminus :: Mini_alg -> Mini_alg;
+ma_uminus xa =
+  Abs_mini_alg
+    (let {
+       (p1, (q1, b1)) = rep_mini_alg xa;
+     } in (uminus_rat p1, (uminus_rat q1, b1)));
+
+mau_uminus :: Mini_alg_unique -> Mini_alg_unique;
+mau_uminus xa = Abs_mini_alg_unique (ma_uminus (rep_mini_alg_unique xa));
+
+uminus_real :: Real -> Real;
+uminus_real (Real_of_u r) = Real_of_u (mau_uminus r);
+
+ma_of_rat :: Rat -> Mini_alg;
+ma_of_rat xa = Abs_mini_alg (xa, (zero_rat, Zero_nat));
+
+mau_of_rat :: Rat -> Mini_alg_unique;
+mau_of_rat xa = Abs_mini_alg_unique (ma_of_rat xa);
+
+zero_real :: Real;
+zero_real = Real_of_u (mau_of_rat zero_rat);
+
+ma_plus :: Mini_alg -> Mini_alg -> Mini_alg;
+ma_plus xb xc =
+  Abs_mini_alg
+    (let {
+       (p1, (q1, b1)) = rep_mini_alg xb;
+     } in (\ (p2, (q2, b2)) ->
+            (if equal_rat q1 zero_rat then (plus_rat p1 p2, (q2, b2))
+              else ma_normalize (plus_rat p1 p2, (plus_rat q1 q2, b1))))
+      (rep_mini_alg xc));
+
+mau_plus :: Mini_alg_unique -> Mini_alg_unique -> Mini_alg_unique;
+mau_plus xb xc =
+  Abs_mini_alg_unique
+    (ma_plus (rep_mini_alg_unique xb) (rep_mini_alg_unique xc));
+
+plus_real :: Real -> Real -> Real;
+plus_real (Real_of_u r1) (Real_of_u r2) =
+  (if mau_compatible r1 r2 then Real_of_u (mau_plus r1 r2)
+    else error "different base"
+           (\ _ -> plus_real (Real_of_u r1) (Real_of_u r2)));
+
+minus_real :: Real -> Real -> Real;
+minus_real x y = plus_real x (uminus_real y);
+
+sqrt_int_maina :: Int -> Int -> (Int, Bool);
+sqrt_int_maina x n =
+  let {
+    x2 = times_int x x;
+  } in (if less_eq_int x2 n then (x, equal_int x2 n)
+         else sqrt_int_maina
+                (div_int (plus_int (div_int n x) x) (Pos (Bit0 One))) n);
+
+ceiling :: forall a. (Floor_ceiling a) => a -> Int;
+ceiling x = uminus_int (floor (uminus x));
+
+power :: forall a. a -> (a -> a -> a) -> a -> Nat -> a;
+power one times a n =
+  (if equal_nat n Zero_nat then one
+    else times a (power one times a (minus_nat n (Nat_of_num One))));
+
+powera :: forall a. (Power a) => a -> Nat -> a;
+powera = power onea times;
+
+log_ceil_impl :: Nat -> Int -> Int -> Nat -> Nat;
+log_ceil_impl b x prod sum =
+  (if less_eq_int x prod then sum
+    else log_ceil_impl b x (times_int prod (of_nat b))
+           (plus_nat sum (Nat_of_num One)));
+
+log_ceil :: Nat -> Int -> Nat;
+log_ceil b x =
+  (if less_nat (Nat_of_num One) b && less_eq_int Zero_int x
+    then log_ceil_impl b x (Pos One) Zero_nat else Zero_nat);
+
+of_int :: Int -> Rat;
+of_int a = Frct (a, Pos One);
+
+start_value :: Int -> Nat -> Int;
+start_value n p =
+  powera (Pos (Bit0 One))
+    (nat (ceiling
+           (divide_rat (of_int (of_nat (log_ceil (Nat_of_num (Bit0 One)) n)))
+             (of_nat p))));
+
+sqrt_int_main :: Int -> (Int, Bool);
+sqrt_int_main x = sqrt_int_maina (start_value x (Nat_of_num (Bit0 One))) x;
+
+sqrt_int_ceiling_pos :: Int -> Int;
+sqrt_int_ceiling_pos x =
+  (case sqrt_int_main x of {
+    (y, True) -> y;
+    (y, False) -> plus_int y (Pos One);
+  });
+
+sqrt_int_floor_pos :: Int -> Int;
+sqrt_int_floor_pos x = fst (sqrt_int_main x);
+
+ma_floor :: Mini_alg -> Int;
+ma_floor xa =
+  let {
+    (p, (q, b)) = rep_mini_alg xa;
+    ((z1, n1), (z2, n2)) = (quotient_of p, quotient_of q);
+    z2n1 = times_int z2 n1;
+    z1n2 = times_int z1 n2;
+    n12 = times_int n1 n2;
+    prod = times_int (times_int z2n1 z2n1) (of_nat b);
+  } in div_int
+         (plus_int z1n2
+           (if less_eq_int Zero_int z2n1 then sqrt_int_floor_pos prod
+             else uminus_int (sqrt_int_ceiling_pos prod)))
+         n12;
+
+mau_floor :: Mini_alg_unique -> Int;
+mau_floor xa = ma_floor (rep_mini_alg_unique xa);
+
+floor_real :: Real -> Int;
+floor_real (Real_of_u r) = mau_floor r;
+
+of_inta :: forall a. (Ring_1 a) => Int -> a;
+of_inta (Pos k) = numeral k;
+of_inta Zero_int = zeroa;
+of_inta (Neg k) = uminus (numeral k);
+
+one_real :: Real;
+one_real = Real_of_u (mau_of_rat one_rat);
+
+instance Plus Real where {
+  plus = plus_real;
+};
+
+instance Semigroup_add Real where {
+};
+
+instance Cancel_semigroup_add Real where {
+};
+
+instance Ab_semigroup_add Real where {
+};
+
+instance Cancel_ab_semigroup_add Real where {
+};
+
+instance Zero Real where {
+  zeroa = zero_real;
+};
+
+instance Monoid_add Real where {
+};
+
+instance Comm_monoid_add Real where {
+};
+
+instance Cancel_comm_monoid_add Real where {
+};
+
+instance Mult_zero Real where {
+};
+
+instance Semigroup_mult Real where {
+};
+
+instance Semiring Real where {
+};
+
+instance Semiring_0 Real where {
+};
+
+instance Semiring_0_cancel Real where {
+};
+
+instance One Real where {
+  onea = one_real;
+};
+
+instance Power Real where {
+};
+
+instance Monoid_mult Real where {
+};
+
+instance Numeral Real where {
+};
+
+instance Semiring_numeral Real where {
+};
+
+instance Zero_neq_one Real where {
+};
+
+instance Semiring_1 Real where {
+};
+
+instance Semiring_1_cancel Real where {
+};
+
+instance Uminus Real where {
+  uminus = uminus_real;
+};
+
+instance Minus Real where {
+  minus = minus_real;
+};
+
+instance Group_add Real where {
+};
+
+instance Neg_numeral Real where {
+};
+
+instance Ab_group_add Real where {
+};
+
+instance Ring Real where {
+};
+
+instance Ring_1 Real where {
+};
+
+real_lt :: Real -> Real -> Bool;
+real_lt x y =
+  let {
+    fx = floor_real x;
+    fy = floor_real y;
+  } in (if less_int fx fy then True
+         else (if less_int fy fx then False
+                else real_lt
+                       (times_real x
+                         (of_inta
+                           (Pos (Bit0 (Bit0
+(Bit0 (Bit0 (Bit0 (Bit0 (Bit0 (Bit0 (Bit0 (Bit0 One)))))))))))))
+                       (times_real y
+                         (of_inta
+                           (Pos (Bit0 (Bit0
+(Bit0 (Bit0 (Bit0 (Bit0 (Bit0 (Bit0 (Bit0 (Bit0 One)))))))))))))));
+
+ma_ge_0 :: Mini_alg -> Bool;
+ma_ge_0 xa =
+  let {
+    (p, (q, b)) = rep_mini_alg xa;
+    bqq = times_rat (times_rat (of_nat b) q) q;
+    pp = times_rat p p;
+  } in less_eq_rat zero_rat p && less_eq_rat bqq pp ||
+         less_eq_rat zero_rat q && less_eq_rat pp bqq;
+
+mau_ge_0 :: Mini_alg_unique -> Bool;
+mau_ge_0 xa = ma_ge_0 (rep_mini_alg_unique xa);
+
+ge_0 :: Real -> Bool;
+ge_0 (Real_of_u x) = mau_ge_0 x;
+
+less_real :: Real -> Real -> Bool;
+less_real (Real_of_u x) (Real_of_u y) =
+  not (equal_real (Real_of_u x) (Real_of_u y)) &&
+    (if mau_compatible x y then ge_0 (minus_real (Real_of_u y) (Real_of_u x))
+      else real_lt (Real_of_u x) (Real_of_u y));
+
+abs_real :: Real -> Real;
+abs_real a = (if less_real a zero_real then uminus_real a else a);
+
+instance Abs Real where {
+  absa = abs_real;
+};
+
+sgn_real :: Real -> Real;
+sgn_real a =
+  (if equal_real a zero_real then zero_real
+    else (if less_real zero_real a then one_real else uminus_real one_real));
+
+instance Sgn Real where {
+  sgn = sgn_real;
+};
+
+instance Ab_semigroup_mult Real where {
+};
+
+instance Comm_semiring Real where {
+};
+
+instance Comm_semiring_0 Real where {
+};
+
+instance Comm_semiring_0_cancel Real where {
+};
+
+instance Comm_monoid_mult Real where {
+};
+
+instance Comm_semiring_1 Real where {
+};
+
+instance Comm_semiring_1_cancel Real where {
+};
+
+instance Comm_semiring_1_cancel_crossproduct Real where {
+};
+
+instance No_zero_divisors Real where {
+};
+
+instance Ring_no_zero_divisors Real where {
+};
+
+instance Ring_1_no_zero_divisors Real where {
+};
+
+instance Comm_ring Real where {
+};
+
+instance Comm_ring_1 Real where {
+};
+
+instance Idom Real where {
+};
+
+ma_inverse :: Mini_alg -> Mini_alg;
+ma_inverse xa =
+  Abs_mini_alg
+    (let {
+       (p, (q, b)) = rep_mini_alg xa;
+       d = inverse_rat
+             (minus_rat (times_rat p p) (times_rat (times_rat (of_nat b) q) q));
+     } in ma_normalize (times_rat p d, (times_rat (uminus_rat q) d, b)));
+
+mau_inverse :: Mini_alg_unique -> Mini_alg_unique;
+mau_inverse xa = Abs_mini_alg_unique (ma_inverse (rep_mini_alg_unique xa));
+
+inverse_real :: Real -> Real;
+inverse_real (Real_of_u r) = Real_of_u (mau_inverse r);
+
+divide_real :: Real -> Real -> Real;
+divide_real x y = times_real x (inverse_real y);
+
+instance Inverse Real where {
+  inverse = inverse_real;
+  divide = divide_real;
+};
+
+instance Division_ring Real where {
+};
+
+instance Field Real where {
+};
+
+less_eq_real :: Real -> Real -> Bool;
+less_eq_real (Real_of_u x) (Real_of_u y) =
+  equal_real (Real_of_u x) (Real_of_u y) ||
+    (if mau_compatible x y then ge_0 (minus_real (Real_of_u y) (Real_of_u x))
+      else real_lt (Real_of_u x) (Real_of_u y));
+
+instance Ord Real where {
+  less_eq = less_eq_real;
+  less = less_real;
+};
+
+instance Abs_if Real where {
+};
+
+instance Sgn_if Real where {
+};
+
+instance Semiring_char_0 Real where {
+};
+
+instance Ring_char_0 Real where {
+};
+
+instance Preorder Real where {
+};
+
+instance Order Real where {
+};
+
+instance No_bot Real where {
+};
+
+instance No_top Real where {
+};
+
+instance Field_char_0 Real where {
+};
+
+ceq_real :: Maybe (Real -> Real -> Bool);
+ceq_real = Just equal_real;
+
+instance Ceq Real where {
+  ceq = ceq_real;
+};
+
+set_impl_real :: Phantom Real Set_impla;
+set_impl_real = Phantom Set_RBT;
+
+instance Set_impl Real where {
+  set_impl = set_impl_real;
+};
+
+instance Linorder Real where {
+};
+
+instance Ordered_ab_semigroup_add Real where {
+};
+
+instance Ordered_semiring Real where {
+};
+
+instance Ordered_cancel_semiring Real where {
+};
+
+instance Ordered_cancel_ab_semigroup_add Real where {
+};
+
+instance Ordered_ab_semigroup_add_imp_le Real where {
+};
+
+instance Ordered_comm_monoid_add Real where {
+};
+
+instance Ordered_ab_group_add Real where {
+};
+
+instance Ordered_ring Real where {
+};
+
+cEnum_real :: Maybe ([Real], ((Real -> Bool) -> Bool, (Real -> Bool) -> Bool));
+cEnum_real = Nothing;
+
+instance Cenum Real where {
+  cEnum = cEnum_real;
+};
+
+instance Dense_order Real where {
+};
+
+instance Linordered_ab_semigroup_add Real where {
+};
+
+instance Linordered_cancel_ab_semigroup_add Real where {
+};
+
+instance Linordered_semiring Real where {
+};
+
+instance Linordered_semiring_strict Real where {
+};
+
+instance Linordered_semiring_1 Real where {
+};
+
+instance Linordered_semiring_1_strict Real where {
+};
+
+instance Ordered_ab_group_add_abs Real where {
+};
+
+instance Linordered_ab_group_add Real where {
+};
+
+instance Linordered_ring Real where {
+};
+
+instance Linordered_ring_strict Real where {
+};
+
+instance Ordered_comm_semiring Real where {
+};
+
+instance Ordered_cancel_comm_semiring Real where {
+};
+
+instance Linordered_comm_semiring_strict Real where {
+};
+
+instance Linordered_semidom Real where {
+};
+
+instance Ordered_comm_ring Real where {
+};
+
+instance Ordered_ring_abs Real where {
+};
+
+instance Linordered_idom Real where {
+};
+
+instance Non_strict_order Real where {
+};
+
+instance Ordered_ab_semigroup Real where {
+};
+
+instance Ordered_semiring_0 Real where {
+};
+
+instance Ordered_semiring_1 Real where {
+};
+
+instance Poly_carrier Real where {
+};
+
+corder_real :: Maybe (Real -> Real -> Bool, Real -> Real -> Bool);
+corder_real = Just (less_eq_real, less_real);
+
+instance Corder Real where {
+  corder = corder_real;
+};
+
+instance Dense_linorder Real where {
+};
+
+instance Unbounded_dense_linorder Real where {
+};
+
+instance Linordered_field Real where {
+};
+
+instance Archimedean_field Real where {
+};
+
+instance Large_ordered_semiring_1 Real where {
+};
+
+instance Floor_ceiling Real where {
+  floor = floor_real;
+};
+
+data Term a b = Var b | Fun a [Term a b];
+
+data Ctxt a b = Hole | More a [Term a b] (Ctxt a b) [Term a b];
+
+instance (Eq a, Eq b) => Eq (Term a b) where {
+  a == b = equal_term a b;
+};
+
+equal_term :: forall a b. (Eq a, Eq b) => Term a b -> Term a b -> Bool;
+equal_term (Var x1) (Fun x21 x22) = False;
+equal_term (Fun x21 x22) (Var x1) = False;
+equal_term (Fun x21 x22) (Fun y21 y22) = x21 == y21 && x22 == y22;
+equal_term (Var x1) (Var y1) = x1 == y1;
+
+equal_ctxt :: forall a b. (Eq a, Eq b) => Ctxt a b -> Ctxt a b -> Bool;
+equal_ctxt Hole (More x21 x22 x23 x24) = False;
+equal_ctxt (More x21 x22 x23 x24) Hole = False;
+equal_ctxt (More x21 x22 x23 x24) (More y21 y22 y23 y24) =
+  x21 == y21 && x22 == y22 && equal_ctxt x23 y23 && x24 == y24;
+equal_ctxt Hole Hole = True;
+
+instance (Eq a, Eq b) => Eq (Ctxt a b) where {
+  a == b = equal_ctxt a b;
+};
+
+ceq_ctxt :: forall a b. (Eq a, Eq b) => Maybe (Ctxt a b -> Ctxt a b -> Bool);
+ceq_ctxt = Just equal_ctxt;
+
+instance (Eq a, Eq b) => Ceq (Ctxt a b) where {
+  ceq = ceq_ctxt;
+};
+
+set_impl_ctxt :: forall a b. Phantom (Ctxt a b) Set_impla;
+set_impl_ctxt = Phantom Set_RBT;
+
+instance Set_impl (Ctxt a b) where {
+  set_impl = set_impl_ctxt;
+};
+
+rec_ctxt ::
+  forall a b c.
+    a -> (b -> [Term b c] -> Ctxt b c -> [Term b c] -> a -> a) -> Ctxt b c -> a;
+rec_ctxt f1 f2 Hole = f1;
+rec_ctxt f1 f2 (More x21 x22 x23 x24) = f2 x21 x22 x23 x24 (rec_ctxt f1 f2 x23);
+
+n2m_term_rec ::
+  forall a b c d.
+    (a -> b) ->
+      (c -> [Term c a] -> d -> b) ->
+        d -> (Term c a -> [Term c a] -> b -> d -> d) -> Term c a -> b;
+n2m_term_rec f11 f12 f21 f22 (Var x11) = f11 x11;
+n2m_term_rec f11 f12 f21 f22 (Fun x121 x122) =
+  f12 x121 x122 (n2m_term_list_rec f11 f12 f21 f22 x122);
+
+n2m_term_list_rec ::
+  forall a b c d.
+    (a -> b) ->
+      (c -> [Term c a] -> d -> b) ->
+        d -> (Term c a -> [Term c a] -> b -> d -> d) -> [Term c a] -> d;
+n2m_term_list_rec f11 f12 f21 f22 [] = f21;
+n2m_term_list_rec f11 f12 f21 f22 (x221 : x222) =
+  f22 x221 x222 (n2m_term_rec f11 f12 f21 f22 x221)
+    (n2m_term_list_rec f11 f12 f21 f22 x222);
+
+less_eq_term ::
+  forall a b. (Eq a, Ord a, Eq b, Ord b) => Term a b -> Term a b -> Bool;
+less_eq_term =
+  (\ x y ->
+    n2m_term_rec
+      (\ x_0 a -> (case a of {
+                    Var aa -> less x_0 aa;
+                    Fun _ _ -> True;
+                  }))
+      (\ x_0 _ res_0 a ->
+        (case a of {
+          Var _ -> False;
+          Fun y_0 y_1 -> less x_0 y_0 || x_0 == y_0 && res_0 y_1;
+        }))
+      (\ a -> (case a of {
+                [] -> False;
+                _ : _ -> True;
+              }))
+      (\ x_0 _ res_0 res_1 a ->
+        (case a of {
+          [] -> False;
+          y_0 : y_1 -> res_0 y_0 || equal_term x_0 y_0 && res_1 y_1;
+        }))
+      x y ||
+      equal_term x y);
+
+less_term ::
+  forall a b. (Eq a, Ord a, Eq b, Ord b) => Term a b -> Term a b -> Bool;
+less_term =
+  n2m_term_rec
+    (\ x_0 a -> (case a of {
+                  Var aa -> less x_0 aa;
+                  Fun _ _ -> True;
+                }))
+    (\ x_0 _ res_0 a ->
+      (case a of {
+        Var _ -> False;
+        Fun y_0 y_1 -> less x_0 y_0 || x_0 == y_0 && res_0 y_1;
+      }))
+    (\ a -> (case a of {
+              [] -> False;
+              _ : _ -> True;
+            }))
+    (\ x_0 _ res_0 res_1 a ->
+      (case a of {
+        [] -> False;
+        y_0 : y_1 -> res_0 y_0 || equal_term x_0 y_0 && res_1 y_1;
+      }));
+
+instance (Eq a, Ord a, Eq b, Ord b) => Ord (Term a b) where {
+  less_eq = less_eq_term;
+  less = less_term;
+};
+
+instance (Eq a, Order a, Eq b, Order b) => Preorder (Term a b) where {
+};
+
+instance (Eq a, Order a, Eq b, Order b) => Order (Term a b) where {
+};
+
+corder_ctxt ::
+  forall a b.
+    (Eq a, Linorder a, Eq b,
+      Linorder b) => Maybe (Ctxt a b -> Ctxt a b -> Bool,
+                             Ctxt a b -> Ctxt a b -> Bool);
+corder_ctxt =
+  Just ((\ x y ->
+          rec_ctxt (\ a -> (case a of {
+                             Hole -> False;
+                             More _ _ _ _ -> True;
+                           }))
+            (\ x_0 x_1 x_2 x_3 res_0 a ->
+              (case a of {
+                Hole -> False;
+                More y_0 y_1 y_2 y_3 ->
+                  less x_0 y_0 ||
+                    x_0 == y_0 &&
+                      (less_list x_1 y_1 ||
+                        x_1 == y_1 &&
+                          (res_0 y_2 ||
+                            equal_ctxt x_2 y_2 && less_list x_3 y_3));
+              }))
+            x y ||
+            equal_ctxt x y),
+         rec_ctxt (\ a -> (case a of {
+                            Hole -> False;
+                            More _ _ _ _ -> True;
+                          }))
+           (\ x_0 x_1 x_2 x_3 res_0 a ->
+             (case a of {
+               Hole -> False;
+               More y_0 y_1 y_2 y_3 ->
+                 less x_0 y_0 ||
+                   x_0 == y_0 &&
+                     (less_list x_1 y_1 ||
+                       x_1 == y_1 &&
+                         (res_0 y_2 ||
+                           equal_ctxt x_2 y_2 && less_list x_3 y_3));
+             })));
+
+instance (Eq a, Linorder a, Eq b, Linorder b) => Corder (Ctxt a b) where {
+  corder = corder_ctxt;
+};
+
+shows_term ::
+  forall a b.
+    (a -> [Prelude.Char] -> [Prelude.Char]) ->
+      (b -> [Prelude.Char] -> [Prelude.Char]) ->
+        Term a b -> [Prelude.Char] -> [Prelude.Char];
+shows_term fun var (Var x) = var x;
+shows_term fun var (Fun f ts) =
+  fun f .
+    shows_list_gen id [] ['('] [',', ' '] [')'] (map (shows_term fun var) ts);
+
+shows_prec_term ::
+  forall a b.
+    (Showa a, Showa b) => Nat -> Term a b -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_term d t = shows_term (shows_prec Zero_nat) (shows_prec Zero_nat) t;
+
+shows_list_term ::
+  forall a b.
+    (Showa a, Showa b) => [Term a b] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_term = shows_list_aux (shows_prec_term Zero_nat);
+
+instance (Showa a, Showa b) => Showa (Term a b) where {
+  shows_prec = shows_prec_term;
+  shows_list = shows_list_term;
+};
+
+instance (Eq a, Linorder a, Eq b, Linorder b) => Linorder (Term a b) where {
+};
+
+instance (Eq a, Key a, Eq b, Key b) => Key (Term a b) where {
+};
+
+ceq_term :: forall a b. (Eq a, Eq b) => Maybe (Term a b -> Term a b -> Bool);
+ceq_term = Just equal_term;
+
+instance (Eq a, Eq b) => Ceq (Term a b) where {
+  ceq = ceq_term;
+};
+
+set_impl_term :: forall a b. Phantom (Term a b) Set_impla;
+set_impl_term = Phantom Set_RBT;
+
+instance Set_impl (Term a b) where {
+  set_impl = set_impl_term;
+};
+
+cEnum_term ::
+  forall a b.
+    Maybe ([Term a b],
+            ((Term a b -> Bool) -> Bool, (Term a b -> Bool) -> Bool));
+cEnum_term = Nothing;
+
+instance Cenum (Term a b) where {
+  cEnum = cEnum_term;
+};
+
+corder_term ::
+  forall a b.
+    (Eq a, Linorder a, Eq b,
+      Linorder b) => Maybe (Term a b -> Term a b -> Bool,
+                             Term a b -> Term a b -> Bool);
+corder_term = Just (less_eq_term, less_term);
+
+instance (Eq a, Linorder a, Eq b, Linorder b) => Corder (Term a b) where {
+  corder = corder_term;
+};
+
+instance Ord Prelude.Char where {
+  less_eq = (\ a b -> a <= b);
+  less = (\ a b -> a < b);
+};
+
+instance Preorder Prelude.Char where {
+};
+
+instance Order Prelude.Char where {
+};
+
+instance Linorder Prelude.Char where {
+};
+
+instance Key Prelude.Char where {
+};
+
+ceq_char :: Maybe (Prelude.Char -> Prelude.Char -> Bool);
+ceq_char = Just (\ a b -> a == b);
+
+instance Ceq Prelude.Char where {
+  ceq = ceq_char;
+};
+
+instance Countable Prelude.Char where {
+};
+
+corder_char ::
+  Maybe (Prelude.Char -> Prelude.Char -> Bool,
+          Prelude.Char -> Prelude.Char -> Bool);
+corder_char = Just ((\ a b -> a <= b), (\ a b -> a < b));
+
+instance Corder Prelude.Char where {
+  corder = corder_char;
+};
+
+data Pos = Empty | PCons Nat Pos;
+
+equal_pos :: Pos -> Pos -> Bool;
+equal_pos Empty (PCons x21 x22) = False;
+equal_pos (PCons x21 x22) Empty = False;
+equal_pos (PCons x21 x22) (PCons y21 y22) =
+  equal_nat x21 y21 && equal_pos x22 y22;
+equal_pos Empty Empty = True;
+
+instance Eq Pos where {
+  a == b = equal_pos a b;
+};
+
+one_pos :: Pos;
+one_pos = Empty;
+
+instance One Pos where {
+  onea = one_pos;
+};
+
+append :: Pos -> Pos -> Pos;
+append Empty q = q;
+append (PCons i p) q = PCons i (append p q);
+
+times_pos :: Pos -> Pos -> Pos;
+times_pos p q = append p q;
+
+instance Times Pos where {
+  times = times_pos;
+};
+
+instance Power Pos where {
+};
+
+data Sum a b = Inl a | Inr b;
+
+equal_sum :: forall a b. (Eq a, Eq b) => Sum a b -> Sum a b -> Bool;
+equal_sum (Inl x1) (Inr x2) = False;
+equal_sum (Inr x2) (Inl x1) = False;
+equal_sum (Inr x2) (Inr y2) = x2 == y2;
+equal_sum (Inl x1) (Inl y1) = x1 == y1;
+
+instance (Eq a, Eq b) => Eq (Sum a b) where {
+  a == b = equal_sum a b;
+};
+
+data Lab a b = Lab (Lab a b) b | FunLab (Lab a b) [Lab a b] | UnLab a
+  | Sharp (Lab a b);
+
+instance (Eq a, Eq b) => Eq (Lab a b) where {
+  a == b = equal_lab a b;
+};
+
+equal_lab :: forall a b. (Eq a, Eq b) => Lab a b -> Lab a b -> Bool;
+equal_lab (UnLab x3) (Sharp x4) = False;
+equal_lab (Sharp x4) (UnLab x3) = False;
+equal_lab (FunLab x21 x22) (Sharp x4) = False;
+equal_lab (Sharp x4) (FunLab x21 x22) = False;
+equal_lab (FunLab x21 x22) (UnLab x3) = False;
+equal_lab (UnLab x3) (FunLab x21 x22) = False;
+equal_lab (Lab x11 x12) (Sharp x4) = False;
+equal_lab (Sharp x4) (Lab x11 x12) = False;
+equal_lab (Lab x11 x12) (UnLab x3) = False;
+equal_lab (UnLab x3) (Lab x11 x12) = False;
+equal_lab (Lab x11 x12) (FunLab x21 x22) = False;
+equal_lab (FunLab x21 x22) (Lab x11 x12) = False;
+equal_lab (Sharp x4) (Sharp y4) = equal_lab x4 y4;
+equal_lab (UnLab x3) (UnLab y3) = x3 == y3;
+equal_lab (FunLab x21 x22) (FunLab y21 y22) = equal_lab x21 y21 && x22 == y22;
+equal_lab (Lab x11 x12) (Lab y11 y12) = equal_lab x11 y11 && x12 == y12;
+
+shows_map ::
+  forall a.
+    (a -> [Prelude.Char] -> [Prelude.Char]) ->
+      [a] -> [Prelude.Char] -> [Prelude.Char];
+shows_map s [] = id;
+shows_map s (x : xs) = s x . shows_map s xs;
+
+shows_lab ::
+  forall a b.
+    (a -> [Prelude.Char] -> [Prelude.Char]) ->
+      (b -> [Prelude.Char] -> [Prelude.Char]) ->
+        Lab a b -> [Prelude.Char] -> [Prelude.Char];
+shows_lab fun lab (UnLab f) = fun f;
+shows_lab fun lab (Lab f l) =
+  shows_lab fun lab f . shows_string ['['] . lab l . shows_string [']'];
+shows_lab fun lab (Sharp f) = shows_lab fun lab f . shows_string ['#'];
+shows_lab fun lab (FunLab f l) =
+  shows_lab fun lab f .
+    shows_string ['['] . shows_map (shows_lab fun lab) l . shows_string [']'];
+
+shows_prec_lab ::
+  forall a b.
+    (Showa a, Showa b) => Nat -> Lab a b -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_lab d l = shows_lab (shows_prec Zero_nat) (shows_prec Zero_nat) l;
+
+shows_list_lab ::
+  forall a b.
+    (Showa a, Showa b) => [Lab a b] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_lab = shows_list_aux (shows_prec_lab Zero_nat);
+
+instance (Showa a, Showa b) => Showa (Lab a b) where {
+  shows_prec = shows_prec_lab;
+  shows_list = shows_list_lab;
+};
+
+default_lab :: forall a b. (Default a) => Lab a b;
+default_lab = UnLab defaulta;
+
+instance (Default a) => Default (Lab a b) where {
+  defaulta = default_lab;
+};
+
+n2m_lab_rec ::
+  forall a b c d.
+    (Lab a b -> b -> c -> c) ->
+      (Lab a b -> [Lab a b] -> c -> d -> c) ->
+        (a -> c) ->
+          (Lab a b -> c -> c) ->
+            d -> (Lab a b -> [Lab a b] -> c -> d -> d) -> Lab a b -> c;
+n2m_lab_rec f11 f12 f13 f14 f21 f22 (Lab x111 x112) =
+  f11 x111 x112 (n2m_lab_rec f11 f12 f13 f14 f21 f22 x111);
+n2m_lab_rec f11 f12 f13 f14 f21 f22 (FunLab x121 x122) =
+  f12 x121 x122 (n2m_lab_rec f11 f12 f13 f14 f21 f22 x121)
+    (n2m_lab_list_rec f11 f12 f13 f14 f21 f22 x122);
+n2m_lab_rec f11 f12 f13 f14 f21 f22 (UnLab x13) = f13 x13;
+n2m_lab_rec f11 f12 f13 f14 f21 f22 (Sharp x14) =
+  f14 x14 (n2m_lab_rec f11 f12 f13 f14 f21 f22 x14);
+
+n2m_lab_list_rec ::
+  forall a b c d.
+    (Lab a b -> b -> c -> c) ->
+      (Lab a b -> [Lab a b] -> c -> d -> c) ->
+        (a -> c) ->
+          (Lab a b -> c -> c) ->
+            d -> (Lab a b -> [Lab a b] -> c -> d -> d) -> [Lab a b] -> d;
+n2m_lab_list_rec f11 f12 f13 f14 f21 f22 [] = f21;
+n2m_lab_list_rec f11 f12 f13 f14 f21 f22 (x221 : x222) =
+  f22 x221 x222 (n2m_lab_rec f11 f12 f13 f14 f21 f22 x221)
+    (n2m_lab_list_rec f11 f12 f13 f14 f21 f22 x222);
+
+less_eq_lab ::
+  forall a b. (Eq a, Ord a, Eq b, Ord b) => Lab a b -> Lab a b -> Bool;
+less_eq_lab =
+  (\ x y ->
+    n2m_lab_rec
+      (\ x_0 x_1 res_0 a ->
+        (case a of {
+          Lab y_0 y_1 -> res_0 y_0 || equal_lab x_0 y_0 && less x_1 y_1;
+          FunLab _ _ -> True;
+          UnLab _ -> True;
+          Sharp _ -> True;
+        }))
+      (\ x_0 _ res_0 res_1 a ->
+        (case a of {
+          Lab _ _ -> False;
+          FunLab y_0 y_1 -> res_0 y_0 || equal_lab x_0 y_0 && res_1 y_1;
+          UnLab _ -> True;
+          Sharp _ -> True;
+        }))
+      (\ x_0 a ->
+        (case a of {
+          Lab _ _ -> False;
+          FunLab _ _ -> False;
+          UnLab aa -> less x_0 aa;
+          Sharp _ -> True;
+        }))
+      (\ _ a b ->
+        (case b of {
+          Lab _ _ -> False;
+          FunLab _ _ -> False;
+          UnLab _ -> False;
+          Sharp ba -> a ba;
+        }))
+      (\ a -> (case a of {
+                [] -> False;
+                _ : _ -> True;
+              }))
+      (\ x_0 _ res_0 res_1 a ->
+        (case a of {
+          [] -> False;
+          y_0 : y_1 -> res_0 y_0 || equal_lab x_0 y_0 && res_1 y_1;
+        }))
+      x y ||
+      equal_lab x y);
+
+less_lab ::
+  forall a b. (Eq a, Ord a, Eq b, Ord b) => Lab a b -> Lab a b -> Bool;
+less_lab =
+  n2m_lab_rec
+    (\ x_0 x_1 res_0 a ->
+      (case a of {
+        Lab y_0 y_1 -> res_0 y_0 || equal_lab x_0 y_0 && less x_1 y_1;
+        FunLab _ _ -> True;
+        UnLab _ -> True;
+        Sharp _ -> True;
+      }))
+    (\ x_0 _ res_0 res_1 a ->
+      (case a of {
+        Lab _ _ -> False;
+        FunLab y_0 y_1 -> res_0 y_0 || equal_lab x_0 y_0 && res_1 y_1;
+        UnLab _ -> True;
+        Sharp _ -> True;
+      }))
+    (\ x_0 a ->
+      (case a of {
+        Lab _ _ -> False;
+        FunLab _ _ -> False;
+        UnLab aa -> less x_0 aa;
+        Sharp _ -> True;
+      }))
+    (\ _ a b ->
+      (case b of {
+        Lab _ _ -> False;
+        FunLab _ _ -> False;
+        UnLab _ -> False;
+        Sharp ba -> a ba;
+      }))
+    (\ a -> (case a of {
+              [] -> False;
+              _ : _ -> True;
+            }))
+    (\ x_0 _ res_0 res_1 a ->
+      (case a of {
+        [] -> False;
+        y_0 : y_1 -> res_0 y_0 || equal_lab x_0 y_0 && res_1 y_1;
+      }));
+
+instance (Eq a, Ord a, Eq b, Ord b) => Ord (Lab a b) where {
+  less_eq = less_eq_lab;
+  less = less_lab;
+};
+
+instance (Eq a, Order a, Eq b, Order b) => Preorder (Lab a b) where {
+};
+
+instance (Eq a, Order a, Eq b, Order b) => Order (Lab a b) where {
+};
+
+instance (Eq a, Linorder a, Eq b, Linorder b) => Linorder (Lab a b) where {
+};
+
+instance (Eq a, Key a, Eq b, Key b) => Key (Lab a b) where {
+};
+
+ceq_lab :: forall a b. (Eq a, Eq b) => Maybe (Lab a b -> Lab a b -> Bool);
+ceq_lab = Just equal_lab;
+
+instance (Eq a, Eq b) => Ceq (Lab a b) where {
+  ceq = ceq_lab;
+};
+
+set_impl_lab :: forall a b. Phantom (Lab a b) Set_impla;
+set_impl_lab = Phantom Set_RBT;
+
+instance Set_impl (Lab a b) where {
+  set_impl = set_impl_lab;
+};
+
+cEnum_lab ::
+  forall a b.
+    Maybe ([Lab a b], ((Lab a b -> Bool) -> Bool, (Lab a b -> Bool) -> Bool));
+cEnum_lab = Nothing;
+
+instance Cenum (Lab a b) where {
+  cEnum = cEnum_lab;
+};
+
+corder_lab ::
+  forall a b.
+    (Eq a, Linorder a, Eq b,
+      Linorder b) => Maybe (Lab a b -> Lab a b -> Bool,
+                             Lab a b -> Lab a b -> Bool);
+corder_lab = Just (less_eq_lab, less_lab);
+
+instance (Eq a, Linorder a, Eq b, Linorder b) => Corder (Lab a b) where {
+  corder = corder_lab;
+};
+
+rec_option :: forall a b. a -> (b -> a) -> Maybe b -> a;
+rec_option f1 f2 Nothing = f1;
+rec_option f1 f2 (Just x2) = f2 x2;
+
+ceq_option :: forall a. (Ceq a) => Maybe (Maybe a -> Maybe a -> Bool);
+ceq_option =
+  (case ceq of {
+    Nothing -> Nothing;
+    Just eq_0 ->
+      Just (rec_option
+             (\ a -> (case a of {
+                       Nothing -> True;
+                       Just _ -> False;
+                     }))
+             (\ x_0 a ->
+               (case a of {
+                 Nothing -> False;
+                 Just aa -> eq_0 x_0 aa;
+               })));
+  });
+
+instance (Ceq a) => Ceq (Maybe a) where {
+  ceq = ceq_option;
+};
+
+set_impl_option :: forall a. (Set_impl a) => Phantom (Maybe a) Set_impla;
+set_impl_option = Phantom (of_phantom (set_impl :: Phantom a Set_impla));
+
+instance (Set_impl a) => Set_impl (Maybe a) where {
+  set_impl = set_impl_option;
+};
+
+cEnum_option ::
+  forall a.
+    (Cenum a) => Maybe ([Maybe a],
+                         ((Maybe a -> Bool) -> Bool,
+                           (Maybe a -> Bool) -> Bool));
+cEnum_option =
+  (case cEnum of {
+    Nothing -> Nothing;
+    Just (enum_a, (enum_all_a, enum_ex_a)) ->
+      Just (Nothing : map Just enum_a,
+             ((\ p -> p Nothing && enum_all_a (\ x -> p (Just x))),
+               (\ p -> p Nothing || enum_ex_a (\ x -> p (Just x)))));
+  });
+
+instance (Cenum a) => Cenum (Maybe a) where {
+  cEnum = cEnum_option;
+};
+
+finite_UNIV_option :: forall a. (Finite_UNIV a) => Phantom (Maybe a) Bool;
+finite_UNIV_option = Phantom (of_phantom (finite_UNIV :: Phantom a Bool));
+
+instance (Finite_UNIV a) => Finite_UNIV (Maybe a) where {
+  finite_UNIV = finite_UNIV_option;
+};
+
+corder_option ::
+  forall a.
+    (Corder a) => Maybe (Maybe a -> Maybe a -> Bool,
+                          Maybe a -> Maybe a -> Bool);
+corder_option =
+  map_option
+    (\ (leq, lt) ->
+      ((\ x y ->
+         (case x of {
+           Nothing -> True;
+           Just xa -> (case y of {
+                        Nothing -> False;
+                        Just a -> leq xa a;
+                      });
+         })),
+        (\ x a ->
+          (case a of {
+            Nothing -> False;
+            Just y -> (case x of {
+                        Nothing -> True;
+                        Just xa -> lt xa y;
+                      });
+          }))))
+    corder;
+
+instance (Corder a) => Corder (Maybe a) where {
+  corder = corder_option;
+};
+
+is_none :: forall a. Maybe a -> Bool;
+is_none (Just x) = False;
+is_none Nothing = True;
+
+cproper_interval_option ::
+  forall a. (Cproper_interval a) => Maybe (Maybe a) -> Maybe (Maybe a) -> Bool;
+cproper_interval_option Nothing Nothing = True;
+cproper_interval_option Nothing (Just x) = not (is_none x);
+cproper_interval_option (Just x) Nothing = cproper_interval x Nothing;
+cproper_interval_option (Just x) (Just Nothing) = False;
+cproper_interval_option (Just x) (Just (Just y)) = cproper_interval x (Just y);
+
+instance (Cproper_interval a) => Cproper_interval (Maybe a) where {
+  cproper_interval = cproper_interval_option;
+};
+
+newtype Alist b a = Alist [(b, a)];
+
+newtype Multiset a = Bag (Alist a Nat);
+
+map_of :: forall a b. (Eq a) => [(a, b)] -> a -> Maybe b;
+map_of ((l, v) : ps) k = (if l == k then Just v else map_of ps k);
+map_of [] k = Nothing;
+
+count_of :: forall a. (Eq a) => [(a, Nat)] -> a -> Nat;
+count_of xs x = (case map_of xs x of {
+                  Nothing -> Zero_nat;
+                  Just n -> n;
+                });
+
+impl_ofa :: forall b a. Alist b a -> [(b, a)];
+impl_ofa (Alist x) = x;
+
+count :: forall a. (Eq a) => Multiset a -> a -> Nat;
+count (Bag xs) = count_of (impl_ofa xs);
+
+less_eq_multiset :: forall a. (Eq a) => Multiset a -> Multiset a -> Bool;
+less_eq_multiset (Bag xs) a =
+  all (\ (x, n) -> less_eq_nat n (count a x)) (impl_ofa xs);
+
+equal_multiset :: forall a. (Eq a) => Multiset a -> Multiset a -> Bool;
+equal_multiset m1 m2 = less_eq_multiset m1 m2 && less_eq_multiset m2 m1;
+
+instance (Eq a) => Eq (Multiset a) where {
+  a == b = equal_multiset a b;
+};
+
+shows_prec_prod ::
+  forall a b.
+    (Showa a, Showa b) => Nat -> (a, b) -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_prod d p =
+  shows_paren
+    (shows_prec Zero_nat (fst p) .
+      shows_prec_char Zero_nat ',' . shows_prec Zero_nat (snd p));
+
+shows_list_prod ::
+  forall a b.
+    (Showa a, Showa b) => [(a, b)] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_prod = shows_list_aux (shows_prec_prod Zero_nat);
+
+instance (Showa a, Showa b) => Showa (a, b) where {
+  shows_prec = shows_prec_prod;
+  shows_list = shows_list_prod;
+};
+
+less_eq_proda :: forall a b. (Ord a, Ord b) => (a, b) -> (a, b) -> Bool;
+less_eq_proda (x1, y1) (x2, y2) = less x1 x2 || less_eq x1 x2 && less_eq y1 y2;
+
+less_proda :: forall a b. (Ord a, Ord b) => (a, b) -> (a, b) -> Bool;
+less_proda (x1, y1) (x2, y2) = less x1 x2 || less_eq x1 x2 && less y1 y2;
+
+instance (Ord a, Ord b) => Ord (a, b) where {
+  less_eq = less_eq_proda;
+  less = less_proda;
+};
+
+instance (Preorder a, Preorder b) => Preorder (a, b) where {
+};
+
+instance (Order a, Order b) => Order (a, b) where {
+};
+
+instance (Linorder a, Linorder b) => Linorder (a, b) where {
+};
+
+instance (Key a, Key b) => Key (a, b) where {
+};
+
+rec_prod :: forall a b c. (a -> b -> c) -> (a, b) -> c;
+rec_prod f1 (a, b) = f1 a b;
+
+ceq_prod :: forall a b. (Ceq a, Ceq b) => Maybe ((a, b) -> (a, b) -> Bool);
+ceq_prod =
+  (case ceq of {
+    Nothing -> Nothing;
+    Just eq_0 ->
+      (case ceq of {
+        Nothing -> Nothing;
+        Just eq_1 ->
+          Just (rec_prod
+                 (\ x_0 x_1 (y_0, y_1) -> eq_0 x_0 y_0 && eq_1 x_1 y_1));
+      });
+  });
+
+instance (Ceq a, Ceq b) => Ceq (a, b) where {
+  ceq = ceq_prod;
+};
+
+set_impl_choose2 :: Set_impla -> Set_impla -> Set_impla;
+set_impl_choose2 Set_Monada Set_Monada = Set_Monada;
+set_impl_choose2 Set_RBT Set_RBT = Set_RBT;
+set_impl_choose2 Set_DList Set_DList = Set_DList;
+set_impl_choose2 Set_Collect Set_Collect = Set_Collect;
+set_impl_choose2 x y = Set_Choose;
+
+set_impl_prod ::
+  forall a b. (Set_impl a, Set_impl b) => Phantom (a, b) Set_impla;
+set_impl_prod =
+  Phantom
+    (set_impl_choose2 (of_phantom (set_impl :: Phantom a Set_impla))
+      (of_phantom (set_impl :: Phantom b Set_impla)));
+
+instance (Set_impl a, Set_impl b) => Set_impl (a, b) where {
+  set_impl = set_impl_prod;
+};
+
+finite_UNIV_prod ::
+  forall a b. (Finite_UNIV a, Finite_UNIV b) => Phantom (a, b) Bool;
+finite_UNIV_prod =
+  Phantom
+    (of_phantom (finite_UNIV :: Phantom a Bool) &&
+      of_phantom (finite_UNIV :: Phantom b Bool));
+
+card_UNIV_prod :: forall a b. (Card_UNIV a, Card_UNIV b) => Phantom (a, b) Nat;
+card_UNIV_prod =
+  Phantom
+    (times_nat (of_phantom (card_UNIVa :: Phantom a Nat))
+      (of_phantom (card_UNIVa :: Phantom b Nat)));
+
+instance (Finite_UNIV a, Finite_UNIV b) => Finite_UNIV (a, b) where {
+  finite_UNIV = finite_UNIV_prod;
+};
+
+instance (Card_UNIV a, Card_UNIV b) => Card_UNIV (a, b) where {
+  card_UNIVa = card_UNIV_prod;
+};
+
+product :: forall a b. [a] -> [b] -> [(a, b)];
+product [] uu = [];
+product (x : xs) ys = map (\ a -> (x, a)) ys ++ product xs ys;
+
+cEnum_prod ::
+  forall a b.
+    (Cenum a,
+      Cenum b) => Maybe ([(a, b)],
+                          (((a, b) -> Bool) -> Bool, ((a, b) -> Bool) -> Bool));
+cEnum_prod =
+  (case cEnum of {
+    Nothing -> Nothing;
+    Just (enum_a, (enum_all_a, enum_ex_a)) ->
+      (case cEnum of {
+        Nothing -> Nothing;
+        Just (enum_b, (enum_all_b, enum_ex_b)) ->
+          Just (product enum_a enum_b,
+                 ((\ p -> enum_all_a (\ x -> enum_all_b (\ y -> p (x, y)))),
+                   (\ p -> enum_ex_a (\ x -> enum_ex_b (\ y -> p (x, y))))));
+      });
+  });
+
+instance (Cenum a, Cenum b) => Cenum (a, b) where {
+  cEnum = cEnum_prod;
+};
+
+less_eq_prod ::
+  forall a b.
+    (a -> a -> Bool) ->
+      (a -> a -> Bool) -> (b -> b -> Bool) -> (a, b) -> (a, b) -> Bool;
+less_eq_prod leq_a less_a leq_b =
+  (\ (x1, x2) (y1, y2) -> less_a x1 y1 || leq_a x1 y1 && leq_b x2 y2);
+
+less_prod ::
+  forall a b.
+    (a -> a -> Bool) ->
+      (a -> a -> Bool) -> (b -> b -> Bool) -> (a, b) -> (a, b) -> Bool;
+less_prod leq_a less_a less_b =
+  (\ (x1, x2) (y1, y2) -> less_a x1 y1 || leq_a x1 y1 && less_b x2 y2);
+
+corder_prod ::
+  forall a b.
+    (Corder a,
+      Corder b) => Maybe ((a, b) -> (a, b) -> Bool, (a, b) -> (a, b) -> Bool);
+corder_prod =
+  (case corder of {
+    Nothing -> Nothing;
+    Just (leq_a, lt_a) ->
+      (case corder of {
+        Nothing -> Nothing;
+        Just (leq_b, lt_b) ->
+          Just (less_eq_prod leq_a lt_a leq_b, less_prod leq_a lt_a lt_b);
+      });
+  });
+
+instance (Corder a, Corder b) => Corder (a, b) where {
+  corder = corder_prod;
+};
+
+mapping_impl_choose2 :: Mapping_impla -> Mapping_impla -> Mapping_impla;
+mapping_impl_choose2 Mapping_RBT Mapping_RBT = Mapping_RBT;
+mapping_impl_choose2 Mapping_Assoc_List Mapping_Assoc_List = Mapping_Assoc_List;
+mapping_impl_choose2 Mapping_Mapping Mapping_Mapping = Mapping_Mapping;
+mapping_impl_choose2 x y = Mapping_Choose;
+
+mapping_impl_prod ::
+  forall a b. (Mapping_impl a, Mapping_impl b) => Phantom (a, b) Mapping_impla;
+mapping_impl_prod =
+  Phantom
+    (mapping_impl_choose2 (of_phantom (mapping_impl :: Phantom a Mapping_impla))
+      (of_phantom (mapping_impl :: Phantom b Mapping_impla)));
+
+instance (Mapping_impl a, Mapping_impl b) => Mapping_impl (a, b) where {
+  mapping_impl = mapping_impl_prod;
+};
+
+cproper_interval_prod ::
+  forall a b.
+    (Cproper_interval a,
+      Cproper_interval b) => Maybe (a, b) -> Maybe (a, b) -> Bool;
+cproper_interval_prod Nothing Nothing = True;
+cproper_interval_prod Nothing (Just (y1, y2)) =
+  cproper_interval Nothing (Just y1) || cproper_interval Nothing (Just y2);
+cproper_interval_prod (Just (x1, x2)) Nothing =
+  cproper_interval (Just x1) Nothing || cproper_interval (Just x2) Nothing;
+cproper_interval_prod (Just (x1, x2)) (Just (y1, y2)) =
+  cproper_interval (Just x1) (Just y1) ||
+    (snd (the corder) x1 y1 &&
+       (cproper_interval (Just x2) Nothing ||
+         cproper_interval Nothing (Just y2)) ||
+      not (snd (the corder) y1 x1) && cproper_interval (Just x2) (Just y2));
+
+instance (Cproper_interval a,
+           Cproper_interval b) => Cproper_interval (a, b) where {
+  cproper_interval = cproper_interval_prod;
+};
+
+data Gctxt a b = GCHole | GCFun a [Gctxt a b];
+
+instance (Eq a) => Eq (Gctxt a b) where {
+  a == b = equal_gctxt a b;
+};
+
+equal_gctxt :: forall a b. (Eq a) => Gctxt a b -> Gctxt a b -> Bool;
+equal_gctxt GCHole (GCFun x21 x22) = False;
+equal_gctxt (GCFun x21 x22) GCHole = False;
+equal_gctxt (GCFun x21 x22) (GCFun y21 y22) = x21 == y21 && x22 == y22;
+equal_gctxt GCHole GCHole = True;
+
+data Ta_rule a b = TA_rule b [a] a;
+
+equal_ta_rule :: forall a b. (Eq a, Eq b) => Ta_rule a b -> Ta_rule a b -> Bool;
+equal_ta_rule (TA_rule x1 x2 x3) (TA_rule y1 y2 y3) =
+  x1 == y1 && x2 == y2 && x3 == y3;
+
+instance (Eq a, Eq b) => Eq (Ta_rule a b) where {
+  a == b = equal_ta_rule a b;
+};
+
+show_ta_rule ::
+  forall a b.
+    (Showa a, Showa b) => Ta_rule a b -> [Prelude.Char] -> [Prelude.Char];
+show_ta_rule (TA_rule f qs q) =
+  shows_prec Zero_nat f .
+    shows_prec_list Zero_nat qs .
+      shows_prec_list Zero_nat [' ', '-', '>', ' '] . shows_prec Zero_nat q;
+
+shows_prec_ta_rule ::
+  forall a b.
+    (Showa a,
+      Showa b) => Nat -> Ta_rule a b -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_ta_rule d r = show_ta_rule r;
+
+shows_list_ta_rule ::
+  forall a b.
+    (Showa a, Showa b) => [Ta_rule a b] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_ta_rule = shows_list_aux (shows_prec_ta_rule Zero_nat);
+
+instance (Showa a, Showa b) => Showa (Ta_rule a b) where {
+  shows_prec = shows_prec_ta_rule;
+  shows_list = shows_list_ta_rule;
+};
+
+ceq_ta_rule ::
+  forall a b. (Eq a, Eq b) => Maybe (Ta_rule a b -> Ta_rule a b -> Bool);
+ceq_ta_rule = Just equal_ta_rule;
+
+instance (Eq a, Eq b) => Ceq (Ta_rule a b) where {
+  ceq = ceq_ta_rule;
+};
+
+set_impl_ta_rule :: forall a b. Phantom (Ta_rule a b) Set_impla;
+set_impl_ta_rule = Phantom Set_RBT;
+
+instance Set_impl (Ta_rule a b) where {
+  set_impl = set_impl_ta_rule;
+};
+
+cEnum_ta_rule ::
+  forall a b.
+    Maybe ([Ta_rule a b],
+            ((Ta_rule a b -> Bool) -> Bool, (Ta_rule a b -> Bool) -> Bool));
+cEnum_ta_rule = Nothing;
+
+instance Cenum (Ta_rule a b) where {
+  cEnum = cEnum_ta_rule;
+};
+
+finite_UNIV_ta_rule :: forall a b. Phantom (Ta_rule a b) Bool;
+finite_UNIV_ta_rule = Phantom False;
+
+instance Finite_UNIV (Ta_rule a b) where {
+  finite_UNIV = finite_UNIV_ta_rule;
+};
+
+rec_ta_rule :: forall a b c. (a -> [b] -> b -> c) -> Ta_rule b a -> c;
+rec_ta_rule f (TA_rule x1 x2 x3) = f x1 x2 x3;
+
+less_eq_ta_rule ::
+  forall a b.
+    (Eq a, Order a, Eq b, Ord b) => Ta_rule a b -> Ta_rule a b -> Bool;
+less_eq_ta_rule =
+  (\ x y ->
+    rec_ta_rule
+      (\ x_0 x_1 x_2 (TA_rule y_0 y_1 y_2) ->
+        less x_0 y_0 ||
+          x_0 == y_0 && (less_list x_1 y_1 || x_1 == y_1 && less x_2 y_2))
+      x y ||
+      equal_ta_rule x y);
+
+less_ta_rule ::
+  forall a b.
+    (Eq a, Order a, Eq b, Ord b) => Ta_rule a b -> Ta_rule a b -> Bool;
+less_ta_rule =
+  rec_ta_rule
+    (\ x_0 x_1 x_2 (TA_rule y_0 y_1 y_2) ->
+      less x_0 y_0 ||
+        x_0 == y_0 && (less_list x_1 y_1 || x_1 == y_1 && less x_2 y_2));
+
+corder_ta_rule ::
+  forall a b.
+    (Eq a, Linorder a, Eq b,
+      Linorder b) => Maybe (Ta_rule a b -> Ta_rule a b -> Bool,
+                             Ta_rule a b -> Ta_rule a b -> Bool);
+corder_ta_rule = Just (less_eq_ta_rule, less_ta_rule);
+
+instance (Eq a, Linorder a, Eq b, Linorder b) => Corder (Ta_rule a b) where {
+  corder = corder_ta_rule;
+};
+
+cproper_interval_ta_rule ::
+  forall a b.
+    (Linorder a,
+      Linorder b) => Maybe (Ta_rule a b) -> Maybe (Ta_rule a b) -> Bool;
+cproper_interval_ta_rule = (\ _ _ -> False);
+
+instance (Eq a, Linorder a, Eq b,
+           Linorder b) => Cproper_interval (Ta_rule a b) where {
+  cproper_interval = cproper_interval_ta_rule;
+};
+
+data Arctic = MinInfty | Num_arc Int;
+
+equal_arctic :: Arctic -> Arctic -> Bool;
+equal_arctic MinInfty (Num_arc int) = False;
+equal_arctic (Num_arc int) MinInfty = False;
+equal_arctic (Num_arc inta) (Num_arc int) = equal_int inta int;
+equal_arctic MinInfty MinInfty = True;
+
+instance Eq Arctic where {
+  a == b = equal_arctic a b;
+};
+
+shows_arctic :: Arctic -> [Prelude.Char] -> [Prelude.Char];
+shows_arctic (Num_arc i) = shows_prec_int Zero_nat i;
+shows_arctic MinInfty = shows_string ['-', 'i', 'n', 'f'];
+
+shows_prec_arctic :: Nat -> Arctic -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_arctic d ai = shows_arctic ai;
+
+shows_list_arctic :: [Arctic] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_arctic = shows_list_aux (shows_prec_arctic Zero_nat);
+
+instance Showa Arctic where {
+  shows_prec = shows_prec_arctic;
+  shows_list = shows_list_arctic;
+};
+
+one_arctic :: Arctic;
+one_arctic = Num_arc Zero_int;
+
+instance One Arctic where {
+  onea = one_arctic;
+};
+
+max :: forall a. (Ord a) => a -> a -> a;
+max a b = (if less_eq a b then b else a);
+
+plus_arctic :: Arctic -> Arctic -> Arctic;
+plus_arctic MinInfty y = y;
+plus_arctic (Num_arc v) MinInfty = Num_arc v;
+plus_arctic (Num_arc x) (Num_arc y) = Num_arc (max x y);
+
+instance Plus Arctic where {
+  plus = plus_arctic;
+};
+
+zero_arctic :: Arctic;
+zero_arctic = MinInfty;
+
+instance Zero Arctic where {
+  zeroa = zero_arctic;
+};
+
+instance Semigroup_add Arctic where {
+};
+
+instance Numeral Arctic where {
+};
+
+times_arctic :: Arctic -> Arctic -> Arctic;
+times_arctic MinInfty y = MinInfty;
+times_arctic (Num_arc v) MinInfty = MinInfty;
+times_arctic (Num_arc x) (Num_arc y) = Num_arc (plus_int x y);
+
+instance Times Arctic where {
+  times = times_arctic;
+};
+
+instance Power Arctic where {
+};
+
+less_eq_arctic :: Arctic -> Arctic -> Bool;
+less_eq_arctic MinInfty x = True;
+less_eq_arctic (Num_arc uu) MinInfty = False;
+less_eq_arctic (Num_arc y) (Num_arc x) = less_eq_int y x;
+
+less_arctic :: Arctic -> Arctic -> Bool;
+less_arctic MinInfty x = True;
+less_arctic (Num_arc uu) MinInfty = False;
+less_arctic (Num_arc y) (Num_arc x) = less_int y x;
+
+instance Ord Arctic where {
+  less_eq = less_eq_arctic;
+  less = less_arctic;
+};
+
+instance Ab_semigroup_add Arctic where {
+};
+
+instance Semigroup_mult Arctic where {
+};
+
+instance Semiring Arctic where {
+};
+
+instance Mult_zero Arctic where {
+};
+
+instance Monoid_add Arctic where {
+};
+
+instance Comm_monoid_add Arctic where {
+};
+
+instance Semiring_0 Arctic where {
+};
+
+instance Monoid_mult Arctic where {
+};
+
+instance Semiring_numeral Arctic where {
+};
+
+instance Zero_neq_one Arctic where {
+};
+
+instance Semiring_1 Arctic where {
+};
+
+ceq_arctic :: Maybe (Arctic -> Arctic -> Bool);
+ceq_arctic = Just equal_arctic;
+
+instance Ceq Arctic where {
+  ceq = ceq_arctic;
+};
+
+set_impl_arctic :: Phantom Arctic Set_impla;
+set_impl_arctic = Phantom Set_RBT;
+
+instance Set_impl Arctic where {
+  set_impl = set_impl_arctic;
+};
+
+cEnum_arctic ::
+  Maybe ([Arctic], ((Arctic -> Bool) -> Bool, (Arctic -> Bool) -> Bool));
+cEnum_arctic = Nothing;
+
+instance Cenum Arctic where {
+  cEnum = cEnum_arctic;
+};
+
+rec_arctic :: forall a. a -> (Int -> a) -> Arctic -> a;
+rec_arctic f1 f2 MinInfty = f1;
+rec_arctic f1 f2 (Num_arc int) = f2 int;
+
+corder_arctic :: Maybe (Arctic -> Arctic -> Bool, Arctic -> Arctic -> Bool);
+corder_arctic =
+  Just ((\ x y ->
+          rec_arctic
+            (\ a -> (case a of {
+                      MinInfty -> False;
+                      Num_arc _ -> True;
+                    }))
+            (\ x_0 a ->
+              (case a of {
+                MinInfty -> False;
+                Num_arc aa -> less_int x_0 aa;
+              }))
+            x y ||
+            equal_arctic x y),
+         rec_arctic
+           (\ a -> (case a of {
+                     MinInfty -> False;
+                     Num_arc _ -> True;
+                   }))
+           (\ x_0 a ->
+             (case a of {
+               MinInfty -> False;
+               Num_arc aa -> less_int x_0 aa;
+             })));
+
+instance Corder Arctic where {
+  corder = corder_arctic;
+};
+
+instance Non_strict_order Arctic where {
+};
+
+instance Ordered_ab_semigroup Arctic where {
+};
+
+instance Ordered_semiring_0 Arctic where {
+};
+
+instance Ordered_semiring_1 Arctic where {
+};
+
+data Filtered a = FPair a Nat;
+
+equal_filtered :: forall a. (Eq a) => Filtered a -> Filtered a -> Bool;
+equal_filtered (FPair x1 x2) (FPair y1 y2) = x1 == y1 && equal_nat x2 y2;
+
+instance (Eq a) => Eq (Filtered a) where {
+  a == b = equal_filtered a b;
+};
+
+filtered_fun :: forall a. Filtered a -> a;
+filtered_fun (FPair f n) = f;
+
+shows_prec_filtered ::
+  forall a. (Showa a) => Nat -> Filtered a -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_filtered d ff = shows_prec Zero_nat (filtered_fun ff);
+
+shows_list_filtered ::
+  forall a. (Showa a) => [Filtered a] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_filtered = shows_list_aux (shows_prec_filtered Zero_nat);
+
+instance (Showa a) => Showa (Filtered a) where {
+  shows_prec = shows_prec_filtered;
+  shows_list = shows_list_filtered;
+};
+
+rec_filtered :: forall a b. (a -> Nat -> b) -> Filtered a -> b;
+rec_filtered f (FPair x1 x2) = f x1 x2;
+
+less_eq_filtered :: forall a. (Eq a, Ord a) => Filtered a -> Filtered a -> Bool;
+less_eq_filtered =
+  (\ x y ->
+    rec_filtered
+      (\ x_0 x_1 (FPair y_0 y_1) ->
+        less x_0 y_0 || x_0 == y_0 && less_nat x_1 y_1)
+      x y ||
+      equal_filtered x y);
+
+less_filtered :: forall a. (Eq a, Ord a) => Filtered a -> Filtered a -> Bool;
+less_filtered =
+  rec_filtered
+    (\ x_0 x_1 (FPair y_0 y_1) ->
+      less x_0 y_0 || x_0 == y_0 && less_nat x_1 y_1);
+
+instance (Eq a, Ord a) => Ord (Filtered a) where {
+  less_eq = less_eq_filtered;
+  less = less_filtered;
+};
+
+instance (Eq a, Order a) => Preorder (Filtered a) where {
+};
+
+instance (Eq a, Order a) => Order (Filtered a) where {
+};
+
+instance (Eq a, Linorder a) => Linorder (Filtered a) where {
+};
+
+instance (Eq a, Key a) => Key (Filtered a) where {
+};
+
+data L_poly a b = LPoly b [(a, b)];
+
+cEnum_l_poly ::
+  forall a b.
+    Maybe ([L_poly a b],
+            ((L_poly a b -> Bool) -> Bool, (L_poly a b -> Bool) -> Bool));
+cEnum_l_poly = Nothing;
+
+instance Cenum (L_poly a b) where {
+  cEnum = cEnum_l_poly;
+};
+
+data Location = H | A | Ba | Ra;
+
+equal_location :: Location -> Location -> Bool;
+equal_location Ba Ra = False;
+equal_location Ra Ba = False;
+equal_location A Ra = False;
+equal_location Ra A = False;
+equal_location A Ba = False;
+equal_location Ba A = False;
+equal_location H Ra = False;
+equal_location Ra H = False;
+equal_location H Ba = False;
+equal_location Ba H = False;
+equal_location H A = False;
+equal_location A H = False;
+equal_location Ra Ra = True;
+equal_location Ba Ba = True;
+equal_location A A = True;
+equal_location H H = True;
+
+instance Eq Location where {
+  a == b = equal_location a b;
+};
+
+ceq_location :: Maybe (Location -> Location -> Bool);
+ceq_location = Just equal_location;
+
+instance Ceq Location where {
+  ceq = ceq_location;
+};
+
+set_impl_location :: Phantom Location Set_impla;
+set_impl_location = Phantom Set_DList;
+
+instance Set_impl Location where {
+  set_impl = set_impl_location;
+};
+
+rec_location :: forall a. a -> a -> a -> a -> Location -> a;
+rec_location f1 f2 f3 f4 H = f1;
+rec_location f1 f2 f3 f4 A = f2;
+rec_location f1 f2 f3 f4 Ba = f3;
+rec_location f1 f2 f3 f4 Ra = f4;
+
+corder_location ::
+  Maybe (Location -> Location -> Bool, Location -> Location -> Bool);
+corder_location =
+  Just ((\ x y ->
+          rec_location
+            (\ a ->
+              (case a of {
+                H -> False;
+                A -> True;
+                Ba -> True;
+                Ra -> True;
+              }))
+            (\ a ->
+              (case a of {
+                H -> False;
+                A -> False;
+                Ba -> True;
+                Ra -> True;
+              }))
+            (\ a ->
+              (case a of {
+                H -> False;
+                A -> False;
+                Ba -> False;
+                Ra -> True;
+              }))
+            (\ a ->
+              (case a of {
+                H -> False;
+                A -> False;
+                Ba -> False;
+                Ra -> False;
+              }))
+            x y ||
+            equal_location x y),
+         rec_location
+           (\ a ->
+             (case a of {
+               H -> False;
+               A -> True;
+               Ba -> True;
+               Ra -> True;
+             }))
+           (\ a ->
+             (case a of {
+               H -> False;
+               A -> False;
+               Ba -> True;
+               Ra -> True;
+             }))
+           (\ a ->
+             (case a of {
+               H -> False;
+               A -> False;
+               Ba -> False;
+               Ra -> True;
+             }))
+           (\ a ->
+             (case a of {
+               H -> False;
+               A -> False;
+               Ba -> False;
+               Ra -> False;
+             })));
+
+instance Corder Location where {
+  corder = corder_location;
+};
+
+data Scg a b = Null | Scg a a [(b, b)] [(b, b)];
+
+equal_scg :: forall a b. (Eq a, Eq b) => Scg a b -> Scg a b -> Bool;
+equal_scg Null (Scg x21 x22 x23 x24) = False;
+equal_scg (Scg x21 x22 x23 x24) Null = False;
+equal_scg (Scg x21 x22 x23 x24) (Scg y21 y22 y23 y24) =
+  x21 == y21 && x22 == y22 && x23 == y23 && x24 == y24;
+equal_scg Null Null = True;
+
+instance (Eq a, Eq b) => Eq (Scg a b) where {
+  a == b = equal_scg a b;
+};
+
+rec_scg ::
+  forall a b c. a -> (b -> b -> [(c, c)] -> [(c, c)] -> a) -> Scg b c -> a;
+rec_scg f1 f2 Null = f1;
+rec_scg f1 f2 (Scg x21 x22 x23 x24) = f2 x21 x22 x23 x24;
+
+less_eq_scg ::
+  forall a b. (Eq a, Ord a, Eq b, Order b) => Scg a b -> Scg a b -> Bool;
+less_eq_scg =
+  (\ x y ->
+    rec_scg (\ a -> (case a of {
+                      Null -> False;
+                      Scg _ _ _ _ -> True;
+                    }))
+      (\ x_0 x_1 x_2 x_3 a ->
+        (case a of {
+          Null -> False;
+          Scg y_0 y_1 y_2 y_3 ->
+            less x_0 y_0 ||
+              x_0 == y_0 &&
+                (less x_1 y_1 ||
+                  x_1 == y_1 &&
+                    (less_list x_2 y_2 || x_2 == y_2 && less_list x_3 y_3));
+        }))
+      x y ||
+      equal_scg x y);
+
+less_scg ::
+  forall a b. (Eq a, Ord a, Eq b, Order b) => Scg a b -> Scg a b -> Bool;
+less_scg =
+  rec_scg (\ a -> (case a of {
+                    Null -> False;
+                    Scg _ _ _ _ -> True;
+                  }))
+    (\ x_0 x_1 x_2 x_3 a ->
+      (case a of {
+        Null -> False;
+        Scg y_0 y_1 y_2 y_3 ->
+          less x_0 y_0 ||
+            x_0 == y_0 &&
+              (less x_1 y_1 ||
+                x_1 == y_1 &&
+                  (less_list x_2 y_2 || x_2 == y_2 && less_list x_3 y_3));
+      }));
+
+instance (Eq a, Ord a, Eq b, Order b) => Ord (Scg a b) where {
+  less_eq = less_eq_scg;
+  less = less_scg;
+};
+
+instance (Eq a, Order a, Eq b, Order b) => Preorder (Scg a b) where {
+};
+
+instance (Eq a, Order a, Eq b, Order b) => Order (Scg a b) where {
+};
+
+instance (Eq a, Linorder a, Eq b, Linorder b) => Linorder (Scg a b) where {
+};
+
+data Arctic_delta a = MinInfty_delta | Num_arc_delta a;
+
+equal_arctic_delta ::
+  forall a. (Eq a) => Arctic_delta a -> Arctic_delta a -> Bool;
+equal_arctic_delta MinInfty_delta (Num_arc_delta a) = False;
+equal_arctic_delta (Num_arc_delta a) MinInfty_delta = False;
+equal_arctic_delta (Num_arc_delta aa) (Num_arc_delta a) = aa == a;
+equal_arctic_delta MinInfty_delta MinInfty_delta = True;
+
+instance (Eq a) => Eq (Arctic_delta a) where {
+  a == b = equal_arctic_delta a b;
+};
+
+shows_arctic_delta ::
+  forall a. (Showa a) => Arctic_delta a -> [Prelude.Char] -> [Prelude.Char];
+shows_arctic_delta (Num_arc_delta i) = shows_prec Zero_nat i;
+shows_arctic_delta MinInfty_delta = shows_string ['-', 'i', 'n', 'f'];
+
+shows_prec_arctic_delta ::
+  forall a.
+    (Showa a) => Nat -> Arctic_delta a -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_arctic_delta d ari = shows_arctic_delta ari;
+
+shows_list_arctic_delta ::
+  forall a. (Showa a) => [Arctic_delta a] -> [Prelude.Char] -> [Prelude.Char];
+shows_list_arctic_delta = shows_list_aux (shows_prec_arctic_delta Zero_nat);
+
+instance (Showa a) => Showa (Arctic_delta a) where {
+  shows_prec = shows_prec_arctic_delta;
+  shows_list = shows_list_arctic_delta;
+};
+
+one_arctic_delta :: forall a. (Linordered_field a) => Arctic_delta a;
+one_arctic_delta = Num_arc_delta zeroa;
+
+instance (Linordered_field a) => One (Arctic_delta a) where {
+  onea = one_arctic_delta;
+};
+
+plus_arctic_delta ::
+  forall a.
+    (Linordered_field a) => Arctic_delta a -> Arctic_delta a -> Arctic_delta a;
+plus_arctic_delta MinInfty_delta y = y;
+plus_arctic_delta (Num_arc_delta v) MinInfty_delta = Num_arc_delta v;
+plus_arctic_delta (Num_arc_delta x) (Num_arc_delta y) = Num_arc_delta (max x y);
+
+instance (Linordered_field a) => Plus (Arctic_delta a) where {
+  plus = plus_arctic_delta;
+};
+
+zero_arctic_delta :: forall a. (Linordered_field a) => Arctic_delta a;
+zero_arctic_delta = MinInfty_delta;
+
+instance (Linordered_field a) => Zero (Arctic_delta a) where {
+  zeroa = zero_arctic_delta;
+};
+
+instance (Linordered_field a) => Semigroup_add (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Numeral (Arctic_delta a) where {
+};
+
+times_arctic_delta ::
+  forall a.
+    (Linordered_field a) => Arctic_delta a -> Arctic_delta a -> Arctic_delta a;
+times_arctic_delta MinInfty_delta y = MinInfty_delta;
+times_arctic_delta (Num_arc_delta v) MinInfty_delta = MinInfty_delta;
+times_arctic_delta (Num_arc_delta x) (Num_arc_delta y) =
+  Num_arc_delta (plus x y);
+
+instance (Linordered_field a) => Times (Arctic_delta a) where {
+  times = times_arctic_delta;
+};
+
+instance (Linordered_field a) => Power (Arctic_delta a) where {
+};
+
+less_eq_arctic_delta ::
+  forall a. (Ord a) => Arctic_delta a -> Arctic_delta a -> Bool;
+less_eq_arctic_delta MinInfty_delta x = True;
+less_eq_arctic_delta (Num_arc_delta uu) MinInfty_delta = False;
+less_eq_arctic_delta (Num_arc_delta y) (Num_arc_delta x) = less_eq y x;
+
+less_arctic_delta ::
+  forall a. (Ord a) => Arctic_delta a -> Arctic_delta a -> Bool;
+less_arctic_delta MinInfty_delta x = True;
+less_arctic_delta (Num_arc_delta uu) MinInfty_delta = False;
+less_arctic_delta (Num_arc_delta y) (Num_arc_delta x) = less y x;
+
+instance (Ord a) => Ord (Arctic_delta a) where {
+  less_eq = less_eq_arctic_delta;
+  less = less_arctic_delta;
+};
+
+instance (Linordered_field a) => Ab_semigroup_add (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Semigroup_mult (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Semiring (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Mult_zero (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Monoid_add (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Comm_monoid_add (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Semiring_0 (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Monoid_mult (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Semiring_numeral (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Zero_neq_one (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Semiring_1 (Arctic_delta a) where {
+};
+
+ceq_arctic_delta ::
+  forall a. (Eq a) => Maybe (Arctic_delta a -> Arctic_delta a -> Bool);
+ceq_arctic_delta = Just equal_arctic_delta;
+
+instance (Eq a) => Ceq (Arctic_delta a) where {
+  ceq = ceq_arctic_delta;
+};
+
+set_impl_arctic_delta :: forall a. Phantom (Arctic_delta a) Set_impla;
+set_impl_arctic_delta = Phantom Set_RBT;
+
+instance Set_impl (Arctic_delta a) where {
+  set_impl = set_impl_arctic_delta;
+};
+
+cEnum_arctic_delta ::
+  forall a.
+    Maybe ([Arctic_delta a],
+            ((Arctic_delta a -> Bool) -> Bool,
+              (Arctic_delta a -> Bool) -> Bool));
+cEnum_arctic_delta = Nothing;
+
+instance Cenum (Arctic_delta a) where {
+  cEnum = cEnum_arctic_delta;
+};
+
+rec_arctic_delta :: forall a b. a -> (b -> a) -> Arctic_delta b -> a;
+rec_arctic_delta f1 f2 MinInfty_delta = f1;
+rec_arctic_delta f1 f2 (Num_arc_delta a) = f2 a;
+
+corder_arctic_delta ::
+  forall a.
+    (Eq a,
+      Linorder a) => Maybe (Arctic_delta a -> Arctic_delta a -> Bool,
+                             Arctic_delta a -> Arctic_delta a -> Bool);
+corder_arctic_delta =
+  Just ((\ x y ->
+          rec_arctic_delta
+            (\ a ->
+              (case a of {
+                MinInfty_delta -> False;
+                Num_arc_delta _ -> True;
+              }))
+            (\ x_0 a ->
+              (case a of {
+                MinInfty_delta -> False;
+                Num_arc_delta aa -> less x_0 aa;
+              }))
+            x y ||
+            equal_arctic_delta x y),
+         rec_arctic_delta
+           (\ a ->
+             (case a of {
+               MinInfty_delta -> False;
+               Num_arc_delta _ -> True;
+             }))
+           (\ x_0 a ->
+             (case a of {
+               MinInfty_delta -> False;
+               Num_arc_delta aa -> less x_0 aa;
+             })));
+
+instance (Eq a, Linorder a) => Corder (Arctic_delta a) where {
+  corder = corder_arctic_delta;
+};
+
+instance (Linordered_field a) => Non_strict_order (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Ordered_ab_semigroup (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Ordered_semiring_0 (Arctic_delta a) where {
+};
+
+instance (Linordered_field a) => Ordered_semiring_1 (Arctic_delta a) where {
+};
+
+data Cond_constraint a b = CC_cond Bool (Term a b, Term a b)
+  | CC_rewr (Term a b) (Term a b)
+  | CC_impl [Cond_constraint a b] (Cond_constraint a b)
+  | CC_all b (Cond_constraint a b);
+
+instance (Eq a, Eq b) => Eq (Cond_constraint a b) where {
+  a == b = equal_cond_constraint a b;
+};
+
+equal_cond_constraint ::
+  forall a b.
+    (Eq a, Eq b) => Cond_constraint a b -> Cond_constraint a b -> Bool;
+equal_cond_constraint (CC_impl x31 x32) (CC_all x41 x42) = False;
+equal_cond_constraint (CC_all x41 x42) (CC_impl x31 x32) = False;
+equal_cond_constraint (CC_rewr x21 x22) (CC_all x41 x42) = False;
+equal_cond_constraint (CC_all x41 x42) (CC_rewr x21 x22) = False;
+equal_cond_constraint (CC_rewr x21 x22) (CC_impl x31 x32) = False;
+equal_cond_constraint (CC_impl x31 x32) (CC_rewr x21 x22) = False;
+equal_cond_constraint (CC_cond x11 x12) (CC_all x41 x42) = False;
+equal_cond_constraint (CC_all x41 x42) (CC_cond x11 x12) = False;
+equal_cond_constraint (CC_cond x11 x12) (CC_impl x31 x32) = False;
+equal_cond_constraint (CC_impl x31 x32) (CC_cond x11 x12) = False;
+equal_cond_constraint (CC_cond x11 x12) (CC_rewr x21 x22) = False;
+equal_cond_constraint (CC_rewr x21 x22) (CC_cond x11 x12) = False;
+equal_cond_constraint (CC_all x41 x42) (CC_all y41 y42) =
+  x41 == y41 && equal_cond_constraint x42 y42;
+equal_cond_constraint (CC_impl x31 x32) (CC_impl y31 y32) =
+  x31 == y31 && equal_cond_constraint x32 y32;
+equal_cond_constraint (CC_rewr x21 x22) (CC_rewr y21 y22) =
+  equal_term x21 y21 && equal_term x22 y22;
+equal_cond_constraint (CC_cond x11 x12) (CC_cond y11 y12) =
+  x11 == y11 && x12 == y12;
+
+data Itself a = Type;
+
+newtype Rbt b a = RBT (Rbta b a);
+
+data Xml =
+  XML [Prelude.Char] [([Prelude.Char], [Prelude.Char])] [Xml]
+    (Maybe [Prelude.Char]);
+
+data Xmldoc = XMLDOC [Prelude.Char] Xml;
+
+data Order_tag = Lex | Mul;
+
+data Mapping a b = Assoc_List_Mapping (Alist a b)
+  | RBT_Mapping (Mapping_rbt a b) | Mapping (a -> Maybe b);
+
+data Complexity_measure a b = Derivational_Complexity [(a, Nat)]
+  | Runtime_Complexity [(a, Nat)] [(a, Nat)];
+
+newtype Complexity_class = Comp_Poly Nat;
+
+data Strategy a b = No_Strategy | Innermost | Innermost_Q [Term a b];
+
+data Fp_strategy a b = Outermost | Context_Sensitive [((a, Nat), [Nat])]
+  | Forbidden_Patterns [(Ctxt a b, (Term a b, Location))];
+
+data Input a b =
+  DP_input
+    (Bool, ([(Term a b, Term a b)], (Strategy a b, [(Term a b, Term a b)])))
+  | Inn_TRS_input
+      (Strategy a b, ([(Term a b, Term a b)], Maybe [(Term a b, Term a b)]))
+  | COMP_input ([(Term a b, Term a b)], [(Term a b, Term a b)])
+  | EQ_input ([(Term a b, Term a b)], (Term a b, Term a b))
+  | CPX_input
+      (Strategy a b,
+        ([(Term a b, Term a b)],
+          (Maybe [(Term a b, Term a b)],
+            (Complexity_measure a b, Complexity_class))))
+  | FP_TRS_input (Fp_strategy a b, [(Term a b, Term a b)])
+  | CTRS_input [((Term a b, Term a b), [(Term a b, Term a b)])]
+  | Unknown_input [Prelude.Char];
+
+data Tpoly a b = PVar a | PNum b | PSum [Tpoly a b] | PMult [Tpoly a b];
+
+data Compare = LT | GT | EQ;
+
+data Domain = Natural Nat | Integera | Arctic | Arctic_rat | Int_mat Nat Nat
+  | Arctic_mat Nat | Arctic_rat_mat Nat | Rational Rat Nat | Rat_mat Nat Nat
+  | Mini_Alg Real Nat | Mini_Alg_mat Nat Nat;
+
+data Const_string_sound_proof a b =
+  Const_string_sound_proof b [(a, a)] [(Term a b, Term a b)];
+
+data Af_entry = Collapse Nat | AFList [Nat];
+
+data Redtriple_impl a = Int_carrier [((a, Nat), (Int, [Int]))]
+  | Int_nl_carrier [((a, Nat), [([(Nat, Nat)], Int)])]
+  | Rat_carrier [((a, Nat), (Rat, [Rat]))]
+  | Rat_nl_carrier Rat [((a, Nat), [([(Nat, Nat)], Rat)])]
+  | Real_carrier [((a, Nat), (Real, [Real]))]
+  | Real_nl_carrier Real [((a, Nat), [([(Nat, Nat)], Real)])]
+  | Arctic_carrier [((a, Nat), (Arctic, [Arctic]))]
+  | Arctic_rat_carrier [((a, Nat), (Arctic_delta Rat, [Arctic_delta Rat]))]
+  | Int_mat_carrier Nat Nat [((a, Nat), ([[Int]], [[[Int]]]))]
+  | Rat_mat_carrier Nat Nat [((a, Nat), ([[Rat]], [[[Rat]]]))]
+  | Real_mat_carrier Nat Nat [((a, Nat), ([[Real]], [[[Real]]]))]
+  | Arctic_mat_carrier Nat [((a, Nat), ([[Arctic]], [[[Arctic]]]))]
+  | Arctic_rat_mat_carrier Nat
+      [((a, Nat), ([[Arctic_delta Rat]], [[[Arctic_delta Rat]]]))]
+  | RPO [((a, Nat), (Nat, Order_tag))] [((a, Nat), Af_entry)]
+  | KBO ([((a, Nat), (Nat, (Nat, Maybe [Nat])))], Nat) [((a, Nat), Af_entry)];
+
+data Complex_constant_removal_prf a b =
+  Complex_Constant_Removal_Proof (Term a b)
+    [((Term a b, Term a b), (Term a b, Term a b))];
+
+data List_order_type = MS_Ext | Max_Ext | Min_Ext | Dms_Ext;
+
+data Root_redtriple_impl a =
+  SCNP List_order_type [((a, Nat), [(Nat, Nat)])] (Redtriple_impl a);
+
+data Cond_constraint_prf a b = Final
+  | Delete_Condition (Cond_constraint a b) (Cond_constraint_prf a b)
+  | Different_Constructor (Cond_constraint a b)
+  | Same_Constructor (Cond_constraint a b) (Cond_constraint a b)
+      (Cond_constraint_prf a b)
+  | Variable_Equation b (Term a b) (Cond_constraint a b)
+      (Cond_constraint_prf a b)
+  | Funarg_Into_Var (Cond_constraint a b) Nat b (Cond_constraint a b)
+      (Cond_constraint_prf a b)
+  | Simplify_Condition (Cond_constraint a b) [(b, Term a b)]
+      (Cond_constraint a b) (Cond_constraint_prf a b)
+  | Induction (Cond_constraint a b) [Cond_constraint a b]
+      [((Term a b, Term a b),
+         ([(Term a b, [b])], (Cond_constraint a b, Cond_constraint_prf a b)))];
+
+data Cond_red_pair_prf a b =
+  Cond_Red_Pair_Prf a
+    [(Cond_constraint a b, ([(Term a b, Term a b)], Cond_constraint_prf a b))]
+    Nat Nat;
+
+data ArithFun = Arg Nat | Const Nat | Sum [ArithFun] | Max [ArithFun]
+  | Min [ArithFun] | Prod [ArithFun]
+  | IfEqual ArithFun ArithFun ArithFun ArithFun;
+
+data Sl_inter a = SL_Inter Nat [((a, Nat), ArithFun)];
+
+data Sl_variant a b = Rootlab (Maybe (a, Nat)) | Finitelab (Sl_inter a)
+  | QuasiFinitelab (Sl_inter a) b;
+
+data Generic_assm_proof a b c d e f g h =
+  SN_assm_proof
+    (Bool,
+      ([Term (Lab a b) c],
+        ([(Term (Lab a b) c, Term (Lab a b) c)],
+          [(Term (Lab a b) c, Term (Lab a b) c)])))
+    d
+  | Finite_assm_proof
+      (Bool,
+        (Bool,
+          ([(Term (Lab a b) c, Term (Lab a b) c)],
+            ([(Term (Lab a b) c, Term (Lab a b) c)],
+              ([Term (Lab a b) c],
+                ([(Term (Lab a b) c, Term (Lab a b) c)],
+                  [(Term (Lab a b) c, Term (Lab a b) c)]))))))
+      e
+  | SN_FP_assm_proof
+      ([(Ctxt (Lab a b) c, (Term (Lab a b) c, Location))],
+        [(Term (Lab a b) c, Term (Lab a b) c)])
+      f
+  | Not_SN_assm_proof
+      (Bool, ([Term (Lab a b) c], [(Term (Lab a b) c, Term (Lab a b) c)])) d
+  | Infinite_assm_proof
+      (Bool,
+        (Bool,
+          ([(Term (Lab a b) c, Term (Lab a b) c)],
+            ([(Term (Lab a b) c, Term (Lab a b) c)],
+              ([Term (Lab a b) c],
+                ([(Term (Lab a b) c, Term (Lab a b) c)],
+                  [(Term (Lab a b) c, Term (Lab a b) c)]))))))
+      e
+  | Not_RelSN_assm_proof
+      (Bool,
+        ([Term (Lab a b) c],
+          ([(Term (Lab a b) c, Term (Lab a b) c)],
+            [(Term (Lab a b) c, Term (Lab a b) c)])))
+      f
+  | Not_SN_FP_assm_proof
+      ([(Ctxt (Lab a b) c, (Term (Lab a b) c, Location))],
+        [(Term (Lab a b) c, Term (Lab a b) c)])
+      g
+  | Unknown_assm_proof [Prelude.Char] h;
+
+data Join_info a =
+  Guided
+    [(Term a [Prelude.Char],
+       ([(Pos, ((Term a [Prelude.Char], Term a [Prelude.Char]),
+                 Term a [Prelude.Char]))],
+         (Term a [Prelude.Char],
+           [(Pos, ((Term a [Prelude.Char], Term a [Prelude.Char]),
+                    Term a [Prelude.Char]))])))]
+  | Join_NF | Join_BFS Nat;
+
+newtype ProjL a = Projection [((a, Nat), Nat)];
+
+data Tree_automaton a b = Tree_Automaton [a] [Ta_rule a b] [(a, a)];
+
+data Ta_relation a = Decision_Proc | Id_Relation | Some_Relation [(a, a)];
+
+data Boundstype = Roof | Match;
+
+data Bounds_info a b =
+  Bounds_Info Boundstype Nat [b] (Tree_automaton b (a, Nat)) (Ta_relation b);
+
+data Trs_termination_proof a b c =
+  DP_Trans Bool Bool [(Term (Lab a b) c, Term (Lab a b) c)]
+    (Dp_termination_proof a b c)
+  | Rule_Removal (Redtriple_impl (Lab a b))
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Trs_termination_proof a b c)
+  | String_Reversal (Trs_termination_proof a b c)
+  | Constant_String (Const_string_sound_proof (Lab a b) c)
+      (Trs_termination_proof a b c)
+  | Bounds (Bounds_info (Lab a b) c)
+  | Uncurry
+      (Lab a b,
+        ([((Lab a b, Nat), [Lab a b])],
+          ([(Term (Lab a b) c, Term (Lab a b) c)],
+            [(Term (Lab a b) c, Term (Lab a b) c)])))
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Trs_termination_proof a b c)
+  | Semlab (Sl_variant (Lab a b) c) [Term (Lab a b) c]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Trs_termination_proof a b c)
+  | R_is_Empty
+  | Fcc [Ctxt (Lab a b) c] [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Trs_termination_proof a b c)
+  | Split [(Term (Lab a b) c, Term (Lab a b) c)] (Trs_termination_proof a b c)
+      (Trs_termination_proof a b c)
+  | Switch_Innermost (Join_info (Lab a b)) (Trs_termination_proof a b c)
+  | Drop_Equality (Trs_termination_proof a b c)
+  | Remove_Nonapplicable_Rules [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Trs_termination_proof a b c)
+  | Permuting_AFS [((Lab a b, Nat), Af_entry)] (Trs_termination_proof a b c)
+  | Assume_SN
+      (Bool,
+        ([Term (Lab a b) c],
+          ([(Term (Lab a b) c, Term (Lab a b) c)],
+            [(Term (Lab a b) c, Term (Lab a b) c)])))
+      [Generic_assm_proof a b c (Trs_termination_proof a b c)
+         (Dp_termination_proof a b c) (Fptrs_termination_proof a b c) ()
+         (Unknown_proof a b c)];
+
+data Fptrs_termination_proof a b c =
+  Assume_FP_SN
+    ([(Ctxt (Lab a b) c, (Term (Lab a b) c, Location))],
+      [(Term (Lab a b) c, Term (Lab a b) c)])
+    [Generic_assm_proof a b c (Trs_termination_proof a b c)
+       (Dp_termination_proof a b c) (Fptrs_termination_proof a b c) ()
+       (Unknown_proof a b c)];
+
+data Dp_termination_proof a b c = P_is_Empty
+  | Subterm_Criterion_Proc (ProjL (Lab a b))
+      [((Term (Lab a b) c, Term (Lab a b) c),
+         [(Pos, ((Term (Lab a b) c, Term (Lab a b) c), Term (Lab a b) c))])]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
+  | Redpair_Proc
+      (Sum (Root_redtriple_impl (Lab a b)) (Redtriple_impl (Lab a b)))
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
+  | Redpair_UR_Proc
+      (Sum (Root_redtriple_impl (Lab a b)) (Redtriple_impl (Lab a b)))
+      [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
+  | Usable_Rules_Proc [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Dp_termination_proof a b c)
+  | Dep_Graph_Proc
+      [(Maybe (Dp_termination_proof a b c),
+         [(Term (Lab a b) c, Term (Lab a b) c)])]
+  | Mono_Redpair_Proc (Redtriple_impl (Lab a b))
+      [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
+  | Mono_Redpair_UR_Proc (Redtriple_impl (Lab a b))
+      [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
+  | Size_Change_Subterm_Proc
+      [((Term (Lab a b) c, Term (Lab a b) c), ([(Nat, Nat)], [(Nat, Nat)]))]
+  | Size_Change_Redpair_Proc (Redtriple_impl (Lab a b))
+      (Maybe [(Term (Lab a b) c, Term (Lab a b) c)])
+      [((Term (Lab a b) c, Term (Lab a b) c), ([(Nat, Nat)], [(Nat, Nat)]))]
+  | Uncurry_Proc (Maybe Nat)
+      (Lab a b,
+        ([((Lab a b, Nat), [Lab a b])],
+          ([(Term (Lab a b) c, Term (Lab a b) c)],
+            [(Term (Lab a b) c, Term (Lab a b) c)])))
+      [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
+  | Fcc_Proc (Lab a b) [Ctxt (Lab a b) c] [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
+  | Split_Proc [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
+      (Dp_termination_proof a b c)
+  | Semlab_Proc (Sl_variant (Lab a b) c) [(Term (Lab a b) c, Term (Lab a b) c)]
+      [Term (Lab a b) c] [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Dp_termination_proof a b c)
+  | Switch_Innermost_Proc (Join_info (Lab a b)) (Dp_termination_proof a b c)
+  | Rewriting_Proc (Maybe [(Term (Lab a b) c, Term (Lab a b) c)])
+      (Term (Lab a b) c, Term (Lab a b) c) (Term (Lab a b) c, Term (Lab a b) c)
+      (Term (Lab a b) c, Term (Lab a b) c) (Term (Lab a b) c, Term (Lab a b) c)
+      Pos (Dp_termination_proof a b c)
+  | Instantiation_Proc (Term (Lab a b) c, Term (Lab a b) c)
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
+  | Forward_Instantiation_Proc (Term (Lab a b) c, Term (Lab a b) c)
+      [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Maybe [(Term (Lab a b) c, Term (Lab a b) c)])
+      (Dp_termination_proof a b c)
+  | Narrowing_Proc (Term (Lab a b) c, Term (Lab a b) c) Pos
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
+  | Assume_Finite
+      (Bool,
+        (Bool,
+          ([(Term (Lab a b) c, Term (Lab a b) c)],
+            ([(Term (Lab a b) c, Term (Lab a b) c)],
+              ([Term (Lab a b) c],
+                ([(Term (Lab a b) c, Term (Lab a b) c)],
+                  [(Term (Lab a b) c, Term (Lab a b) c)]))))))
+      [Generic_assm_proof a b c (Trs_termination_proof a b c)
+         (Dp_termination_proof a b c) (Fptrs_termination_proof a b c) ()
+         (Unknown_proof a b c)]
+  | Unlab_Proc [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
+  | Q_Reduction_Proc [Term (Lab a b) c] (Dp_termination_proof a b c)
+  | Complex_Constant_Removal_Proc (Complex_constant_removal_prf (Lab a b) c)
+      (Dp_termination_proof a b c)
+  | General_Redpair_Proc (Redtriple_impl (Lab a b))
+      [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Cond_red_pair_prf (Lab a b) c)
+      [Dp_termination_proof a b c]
+  | To_Trs_Proc (Trs_termination_proof a b c);
+
+data Unknown_proof a b c =
+  Assume_Unknown [Prelude.Char]
+    [Generic_assm_proof a b c (Trs_termination_proof a b c)
+       (Dp_termination_proof a b c) (Fptrs_termination_proof a b c) ()
+       (Unknown_proof a b c)];
+
+data Cr_proof a b c = SN_WCR (Join_info (Lab a b)) (Trs_termination_proof a b c)
+  | Weakly_Orthogonal | Strongly_Closed Nat;
 
 data Ring_ext a b = Ring_ext a (a -> a -> a) b;
 
-add ::
-  forall a b. Partial_object_ext a (Monoid_ext a (Ring_ext a b)) -> a -> a -> a;
-add (Partial_object_ext carrier (Monoid_ext mult one (Ring_ext zero add more)))
-  = add;
+newtype Sum_bot a b = Sumbot (Sum a b);
 
-dlist_all :: forall a. (Ceq a) => (a -> Bool) -> Set_dlist a -> Bool;
-dlist_all x xa = all x (list_of_dlist xa);
+data Non_join_info a b c = Diff_NFs
+  | Tcap_Non_Unif (Term a b -> Term a b -> b -> Term a b)
+  | Tree_Aut_Intersect_Empty (Tree_automaton c a) (Ta_relation c)
+      (Tree_automaton c a) (Ta_relation c)
+  | Finite_Model_Gt (Sl_variant a b) | Reduction_Pair_Gt (Redtriple_impl a)
+  | Usable_Rules_Reach_NJ (Non_join_info a b c)
+  | Argument_Filter_NJ [((a, Nat), Af_entry)] (Non_join_info a b c)
+  | Grounding [(b, Term a b)] (Non_join_info a b c);
+
+data Ncr_proof a b c d = SN_NWCR (Trs_termination_proof a b c)
+  | Non_Join (Term (Lab a b) c)
+      [(Pos, ((Term (Lab a b) c, Term (Lab a b) c), Term (Lab a b) c))]
+      [(Pos, ((Term (Lab a b) c, Term (Lab a b) c), Term (Lab a b) c))]
+      (Non_join_info (Lab a b) c d)
+  | NCR_Disj_Subtrs [(Term (Lab a b) c, Term (Lab a b) c)] (Ncr_proof a b c d);
+
+data Dp_loop_prf a b =
+  DP_loop_prf (Term a b) [(Pos, ((Term a b, Term a b), (Bool, Term a b)))]
+    [(b, Term a b)] (Ctxt a b);
+
+data Monoid_ext a b = Monoid_ext (a -> a -> a) a b;
+
+data Trs_loop_prf a b =
+  TRS_loop_prf (Term a b) [(Pos, ((Term a b, Term a b), Term a b))]
+    [(b, Term a b)] (Ctxt a b);
+
+data Ta_ext a b c = Ta_ext (Set a) (Set (Ta_rule a b)) (Set (a, a)) c;
+
+data Dependance = Ignore | Increase | Decrease | Wild;
+
+data Pat_eqv_prf a b = Pat_Dom_Renaming [(b, Term a b)]
+  | Pat_Irrelevant [(b, Term a b)] [(b, Term a b)]
+  | Pat_Simplify [(b, Term a b)] [(b, Term a b)];
+
+data Interpretation a = Int_linear_poly ((a, Nat), (Int, [Int]))
+  | Rat_linear_poly ((a, Nat), (Rat, [Rat]))
+  | Arctic_linear_poly ((a, Nat), (Arctic, [Arctic]))
+  | Arctic_rat_linear_poly ((a, Nat), (Arctic_delta Rat, [Arctic_delta Rat]))
+  | Real_linear_poly ((a, Nat), (Real, [Real]))
+  | Int_matrix ((a, Nat), ([[Int]], [[[Int]]]))
+  | Rat_matrix ((a, Nat), ([[Rat]], [[[Rat]]]))
+  | Arctic_matrix ((a, Nat), ([[Arctic]], [[[Arctic]]]))
+  | Arctic_rat_matrix ((a, Nat), ([[Arctic_delta Rat]], [[[Arctic_delta Rat]]]))
+  | Real_matrix ((a, Nat), ([[Real]], [[[Real]]]))
+  | Int_non_linear_poly ((a, Nat), [([(Nat, Nat)], Int)])
+  | Rat_non_linear_poly ((a, Nat), [([(Nat, Nat)], Rat)])
+  | Real_non_linear_poly ((a, Nat), [([(Nat, Nat)], Real)]);
+
+data Pat_rule_pos = Pat_Base | Pat_Pump | Pat_Close;
+
+data Pat_rule_prf a b = Pat_OrigRule (Term a b, Term a b) Bool
+  | Pat_InitPump (Pat_rule_prf a b) [(b, Term a b)] [(b, Term a b)]
+  | Pat_InitPumpCtxt (Pat_rule_prf a b) [(b, Term a b)] Pos b
+  | Pat_Equiv (Pat_rule_prf a b) Bool (Pat_eqv_prf a b)
+  | Pat_Narrow (Pat_rule_prf a b) (Pat_rule_prf a b) Pos
+  | Pat_Inst (Pat_rule_prf a b) [(b, Term a b)] Pat_rule_pos
+  | Pat_Rewr (Pat_rule_prf a b)
+      (Term a b, [(Pos, ((Term a b, Term a b), Term a b))]) Pat_rule_pos b
+  | Pat_Exp_Sigma (Pat_rule_prf a b) Nat;
+
+data Non_loop_prf a b =
+  Non_loop_prf (Pat_rule_prf a b) [(b, Term a b)] [(b, Term a b)] Nat Nat Pos;
+
+data Cert_result = Certified [Prelude.Char] | Unsupported [Prelude.Char]
+  | Error [Prelude.Char];
+
+newtype Subst_incr a b = Abs_subst_incr
+  (b -> Term a b, (Set b, Term a b -> [b]));
+
+data Memory_ext a b c d =
+  Memory_ext (() -> a) (a -> b -> Maybe c) (a -> (b, c) -> a) d;
+
+data Rule_removal_nonterm_reltrs_prf a b =
+  Rule_removal_nonterm_reltrs_prf (Maybe [(Term a b, Term a b)])
+    (Maybe [(Term a b, Term a b)]);
+
+newtype Dp_trans_nontermination_tt_prf a b c = DP_trans_nontermination_tt_prf
+  [(Term (Lab a b) c, Term (Lab a b) c)];
+
+data Const_string_complete_proof a b =
+  Const_string_complete_proof [(a, a)] [(Term a b, Term a b)];
+
+newtype Rule_removal_nonterm_trs_prf a b = Rule_removal_nonterm_trs_prf
+  [(Term a b, Term a b)];
+
+newtype Q_increase_nonterm_trs_prf a b = Q_increase_nonterm_trs_prf [Term a b];
+
+newtype Instantiation_complete_proc_prf a b = Instantiation_complete_proc_prf
+  [(Term a b, Term a b)];
+
+data Rule_removal_nonterm_dp_prf a b =
+  Rule_removal_nonterm_dp_prf (Maybe [(Term a b, Term a b)])
+    (Maybe [(Term a b, Term a b)]);
+
+newtype Q_increase_nonterm_dp_prf a b = Q_increase_nonterm_dp_prf [Term a b];
+
+newtype Dp_q_reduction_nonterm_prf a b = DP_q_reduction_nonterm_prf [Term a b];
+
+data Rewriting_complete_proc_prf a b =
+  Rewriting_complete_proc_prf (Maybe [(Term a b, Term a b)])
+    (Term a b, Term a b) (Term a b, Term a b) (Term a b, Term a b)
+    (Term a b, Term a b) Pos;
+
+data Narrowing_complete_proc_prf a b =
+  Narrowing_complete_proc_prf (Term a b, Term a b) Pos [(Term a b, Term a b)];
+
+data Fp_loop_prf a b =
+  FP_loop_prf (Ctxt a b) [(b, Term a b)] (Term a b)
+    [(Pos, ((Term a b, Term a b), Term a b))];
+
+data Dp_proof_step a = OC1 ([a], [a]) Bool
+  | OC2 ([a], [a]) ([a], [a]) ([a], [a]) [a] [a] [a]
+  | OC2p ([a], [a]) ([a], [a]) ([a], [a]) [a] [a] [a]
+  | OC3 ([a], [a]) ([a], [a]) ([a], [a]) [a] [a]
+  | OC3p ([a], [a]) ([a], [a]) ([a], [a]) [a] [a]
+  | OCDP1 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      ([a], [a])
+  | OCDP2 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      ([a], [a])
+  | WPEQ (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+  | Lift (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+  | DPOC1_1 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      ([a], [a]) [a] [a]
+  | DPOC1_2 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      ([a], [a]) [a] [a] [a]
+  | DPOC2 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      ([a], [a]) [a] [a]
+  | DPOC3_1 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      ([a], [a]) [a] [a]
+  | DPOC3_2 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      ([a], [a]) [a] [a] [a]
+  | DPDP1_1 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a]))) [a] [a]
+  | DPDP1_2 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a]))) [a] [a]
+  | DPDP2_1 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a]))) [a] [a]
+  | DPDP2_2 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
+      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a]))) [a]
+      [a];
+
+data Non_loop_srs_proof a = SE_OC ([a], [a]) [a] [a] [Dp_proof_step a]
+  | SE_DP (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a]))) [a]
+      [a] [Dp_proof_step a];
+
+data Uncurry_nt_proof a b c =
+  Uncurry_nt_proof
+    (Lab a b,
+      ([((Lab a b, Nat), [Lab a b])],
+        ([(Term (Lab a b) c, Term (Lab a b) c)],
+          [(Term (Lab a b) c, Term (Lab a b) c)])))
+    [(Term (Lab a b) c, Term (Lab a b) c)];
+
+data Rel_trs_loop_prf a b =
+  Rel_trs_loop_prf (Term a b) [(Pos, ((Term a b, Term a b), (Bool, Term a b)))]
+    [(b, Term a b)] (Ctxt a b);
+
+data Reltrs_nontermination_proof a b c = Rel_Loop (Rel_trs_loop_prf (Lab a b) c)
+  | Rel_TRS_String_Reversal (Reltrs_nontermination_proof a b c)
+  | Rel_Not_Well_Formed
+  | Rel_Rule_Removal (Rule_removal_nonterm_reltrs_prf (Lab a b) c)
+      (Reltrs_nontermination_proof a b c)
+  | Rel_R_Not_SN (Trs_nontermination_proof a b c)
+  | Rel_TRS_Assume_Not_SN
+      (Bool,
+        ([Term (Lab a b) c],
+          ([(Term (Lab a b) c, Term (Lab a b) c)],
+            [(Term (Lab a b) c, Term (Lab a b) c)])))
+      [Generic_assm_proof a b c (Trs_nontermination_proof a b c)
+         (Dp_nontermination_proof a b c) (Reltrs_nontermination_proof a b c)
+         (Fp_nontermination_proof a b c) (Neg_unknown_proof a b c)];
+
+data Trs_nontermination_proof a b c = TRS_Loop (Trs_loop_prf (Lab a b) c)
+  | TRS_Not_Well_Formed
+  | TRS_Rule_Removal (Rule_removal_nonterm_trs_prf (Lab a b) c)
+      (Trs_nontermination_proof a b c)
+  | TRS_String_Reversal (Trs_nontermination_proof a b c)
+  | TRS_Constant_String (Const_string_complete_proof (Lab a b) c)
+      (Trs_nontermination_proof a b c)
+  | TRS_DP_Trans (Dp_trans_nontermination_tt_prf a b c)
+      (Dp_nontermination_proof a b c)
+  | TRS_Termination_Switch (Join_info (Lab a b))
+      (Trs_nontermination_proof a b c)
+  | TRS_Nonloop (Non_loop_prf (Lab a b) c)
+  | TRS_Nonloop_SRS (Non_loop_srs_proof (Lab a b))
+  | TRS_Q_Increase (Q_increase_nonterm_trs_prf (Lab a b) c)
+      (Trs_nontermination_proof a b c)
+  | TRS_Uncurry (Uncurry_nt_proof a b c) (Trs_nontermination_proof a b c)
+  | TRS_Assume_Not_SN
+      (Bool, ([Term (Lab a b) c], [(Term (Lab a b) c, Term (Lab a b) c)]))
+      [Generic_assm_proof a b c (Trs_nontermination_proof a b c)
+         (Dp_nontermination_proof a b c) (Reltrs_nontermination_proof a b c)
+         (Fp_nontermination_proof a b c) (Neg_unknown_proof a b c)];
+
+data Fp_nontermination_proof a b c = FPTRS_Loop (Fp_loop_prf (Lab a b) c)
+  | FPTRS_Rule_Removal (Rule_removal_nonterm_trs_prf (Lab a b) c)
+      (Fp_nontermination_proof a b c)
+  | FPTRS_Assume_Not_SN
+      ([(Ctxt (Lab a b) c, (Term (Lab a b) c, Location))],
+        [(Term (Lab a b) c, Term (Lab a b) c)])
+      [Generic_assm_proof a b c (Trs_nontermination_proof a b c)
+         (Dp_nontermination_proof a b c) (Reltrs_nontermination_proof a b c)
+         (Fp_nontermination_proof a b c) (Neg_unknown_proof a b c)];
+
+data Dp_nontermination_proof a b c = DP_Loop (Dp_loop_prf (Lab a b) c)
+  | DP_Nonloop (Non_loop_prf (Lab a b) c)
+  | DP_Rule_Removal (Rule_removal_nonterm_dp_prf (Lab a b) c)
+      (Dp_nontermination_proof a b c)
+  | DP_Q_Increase (Q_increase_nonterm_dp_prf (Lab a b) c)
+      (Dp_nontermination_proof a b c)
+  | DP_Q_Reduction (Dp_q_reduction_nonterm_prf (Lab a b) c)
+      (Dp_nontermination_proof a b c)
+  | DP_Termination_Switch (Join_info (Lab a b)) (Dp_nontermination_proof a b c)
+  | DP_Instantiation (Instantiation_complete_proc_prf (Lab a b) c)
+      (Dp_nontermination_proof a b c)
+  | DP_Rewriting (Rewriting_complete_proc_prf (Lab a b) c)
+      (Dp_nontermination_proof a b c)
+  | DP_Narrowing (Narrowing_complete_proc_prf (Lab a b) c)
+      (Dp_nontermination_proof a b c)
+  | DP_Assume_Infinite
+      (Bool,
+        (Bool,
+          ([(Term (Lab a b) c, Term (Lab a b) c)],
+            ([(Term (Lab a b) c, Term (Lab a b) c)],
+              ([Term (Lab a b) c],
+                ([(Term (Lab a b) c, Term (Lab a b) c)],
+                  [(Term (Lab a b) c, Term (Lab a b) c)]))))))
+      [Generic_assm_proof a b c (Trs_nontermination_proof a b c)
+         (Dp_nontermination_proof a b c) (Reltrs_nontermination_proof a b c)
+         (Fp_nontermination_proof a b c) (Neg_unknown_proof a b c)];
+
+data Neg_unknown_proof a b c =
+  Assume_NT_Unknown [Prelude.Char]
+    [Generic_assm_proof a b c (Trs_nontermination_proof a b c)
+       (Dp_nontermination_proof a b c) (Reltrs_nontermination_proof a b c)
+       (Fp_nontermination_proof a b c) (Neg_unknown_proof a b c)];
+
+data Quasi_reductive_proof a b c =
+  Unravel
+    [(((Term (Lab a b) c, Term (Lab a b) c),
+        [(Term (Lab a b) c, Term (Lab a b) c)]),
+       [(Term (Lab a b) c, Term (Lab a b) c)])]
+    (Trs_termination_proof a b c);
+
+data Completion_proof a b c =
+  SN_WCR_Eq (Join_info (Lab a b)) (Trs_termination_proof a b c)
+    [((Term (Lab a b) c, Term (Lab a b) c),
+       [(Pos, ((Term (Lab a b) c, Term (Lab a b) c),
+                (Bool, Term (Lab a b) c)))])]
+    (Maybe [((Term (Lab a b) c, Term (Lab a b) c),
+              [(Pos, ((Term (Lab a b) c, Term (Lab a b) c),
+                       (Bool, Term (Lab a b) c)))])]);
+
+data Equational_disproof a b c =
+  Completion_and_Normalization_Different [(Term (Lab a b) c, Term (Lab a b) c)]
+    (Completion_proof a b c);
+
+data Eq_proof a b = Refl (Term a b) | Sym (Eq_proof a b)
+  | Trans (Eq_proof a b) (Eq_proof a b)
+  | Assm (Term a b, Term a b) (b -> Term a b) | Cong a [Eq_proof a b];
+
+data Equational_proof a b c = Equational_Proof_Tree (Eq_proof (Lab a b) c)
+  | Completion_and_Normalization [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Completion_proof a b c)
+  | Conversion
+      [(Pos, ((Term (Lab a b) c, Term (Lab a b) c), (Bool, Term (Lab a b) c)))];
+
+data Complexity_proof a b =
+  Rule_Shift_Complexity (Redtriple_impl a) [(Term a b, Term a b)]
+    (Complexity_proof a b)
+  | RisEmpty_Complexity
+  | Remove_Nonapplicable_Rules_Complexity [(Term a b, Term a b)]
+      (Complexity_proof a b);
+
+data Cert_problem a b c =
+  TRS_Termination_Proof Bool (Strategy (Lab a b) c)
+    [(Term (Lab a b) c, Term (Lab a b) c)]
+    (Maybe [(Term (Lab a b) c, Term (Lab a b) c)]) (Trs_termination_proof a b c)
+  | Complexity_Proof (Strategy (Lab a b) c)
+      [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Maybe [(Term (Lab a b) c, Term (Lab a b) c)])
+      (Complexity_measure (Lab a b) c) Complexity_class
+      (Complexity_proof (Lab a b) c)
+  | DP_Termination_Proof Bool Bool [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Strategy (Lab a b) c)
+      [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
+  | DP_Nontermination_Proof Bool Bool [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Strategy (Lab a b) c) [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Dp_nontermination_proof a b c)
+  | TRS_Nontermination_Proof Bool (Strategy (Lab a b) c)
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Trs_nontermination_proof a b c)
+  | Outermost_Termination_Proof [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Fptrs_termination_proof a b c)
+  | Outermost_Nontermination_Proof [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Fp_nontermination_proof a b c)
+  | CS_Termination_Proof [((Lab a b, Nat), [Nat])]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Fptrs_termination_proof a b c)
+  | CS_Nontermination_Proof [((Lab a b, Nat), [Nat])]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Fp_nontermination_proof a b c)
+  | FP_Termination_Proof [(Ctxt (Lab a b) c, (Term (Lab a b) c, Location))]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Fptrs_termination_proof a b c)
+  | FP_Nontermination_Proof [(Ctxt (Lab a b) c, (Term (Lab a b) c, Location))]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Fp_nontermination_proof a b c)
+  | Relative_TRS_Nontermination_Proof Bool (Strategy (Lab a b) c)
+      [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Reltrs_nontermination_proof a b c)
+  | TRS_Confluence_Proof Bool [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Cr_proof a b c)
+  | TRS_Non_Confluence_Proof Bool [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Ncr_proof a b c c)
+  | Completion_Proof [(Term (Lab a b) c, Term (Lab a b) c)]
+      [(Term (Lab a b) c, Term (Lab a b) c)] (Completion_proof a b c)
+  | Equational_Proof [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Term (Lab a b) c, Term (Lab a b) c) (Equational_proof a b c)
+  | Equational_Disproof [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Term (Lab a b) c, Term (Lab a b) c) (Equational_disproof a b c)
+  | Quasi_Reductive_Proof
+      [((Term (Lab a b) c, Term (Lab a b) c),
+         [(Term (Lab a b) c, Term (Lab a b) c)])]
+      (Quasi_reductive_proof a b c)
+  | Unknown_Proof [Prelude.Char] (Unknown_proof a b c)
+  | Unknown_Disproof [Prelude.Char] (Neg_unknown_proof a b c);
+
+newtype Tp b a = TP
+  (Bool,
+    ([Term b a],
+      (Bool,
+        ([(Term b a, Term b a)],
+          ([(Term b a, Term b a)],
+            Rbt (b, Nat) [(Bool, (Term b a, Term b a))])))));
+
+data C_constraint a b =
+  Conditional_C Bool (Term a b, Term a b) (Term a b, Term a b)
+  | Unconditional_C Bool (Term a b, Term a b);
+
+data Ta_rule_impl a b = TA_rule_impl b [a] a (Rbt a ());
+
+newtype Dpp b a = DPP
+  (Bool,
+    (Bool,
+      ([(Term b a, Term b a)],
+        ([(Term b a, Term b a)],
+          ([Term b a],
+            (Bool,
+              (Bool,
+                ([(Term b a, Term b a)],
+                  ([(Term b a, Term b a)],
+                    (Rbt (b, Nat) [(Bool, (Term b a, Term b a))],
+                      (Rbt (b, Nat) [(Bool, (Term b a, Term b a))],
+                        Bool)))))))))));
+
+data Ta_impl_ext a b c =
+  Ta_impl_ext (Rbt a ()) (Rbt (b, Nat) [Ta_rule_impl a b]) [a] (Rbt a ())
+    [(a, a)] (a -> Rbt a ()) (a -> Rbt a ()) c;
+
+data Condition_type = Bound | Strict | Non_Strict;
+
+data Redtriple_ext a b c =
+  Redtriple_ext (Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    ((a, Nat) -> Nat -> Bool)
+    ([(Term a b, Term a b)] -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    ([Prelude.Char] -> [Prelude.Char])
+    (Complexity_measure a b ->
+      Sum ([Prelude.Char] -> [Prelude.Char]) Complexity_class)
+    c;
+
+data Sl_ops_ext a b c d e =
+  Sl_ops_ext (a -> [b] -> c) (a -> Nat -> c -> Bool) (a -> [b] -> b) [b] b
+    ([(Term a d, Term a d)] -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    (a -> [b] -> c) (a -> Nat -> c -> Bool) (c -> [c]) (a -> Nat -> [c]) e;
+
+data Slm_ops_ext a b c d =
+  Slm_ops_ext (a -> [b] -> c) (a -> [b] -> b) [b] b (a -> [b] -> c) d;
+
+data Tp_ops_ext a b c d =
+  Tp_ops_ext
+    (a -> (Bool,
+            (Set (Term b c),
+              (Set (Term b c, Term b c), Set (Term b c, Term b c)))))
+    (a -> [Term b c]) (a -> [(Term b c, Term b c)])
+    (a -> [(Term b c, Term b c)]) (a -> [(Term b c, Term b c)]) (a -> Bool)
+    (a -> Term b c -> Bool) (a -> Bool)
+    (a -> (b, Nat) -> [(Term b c, Term b c)])
+    (a -> [(Term b c, Term b c)] -> [(Term b c, Term b c)] -> a)
+    (a -> [(Term b c, Term b c)] ->
+            ([(Term b c, Term b c)], [(Term b c, Term b c)]))
+    (Bool ->
+      [Term b c] -> [(Term b c, Term b c)] -> [(Term b c, Term b c)] -> a)
+    (a -> Bool) d;
+
+data Partial_object_ext a b = Partial_object_ext (Set a) b;
+
+data Dpp_ops_ext a b c d =
+  Dpp_ops_ext
+    (a -> (Bool,
+            (Bool,
+              (Set (Term b c, Term b c),
+                (Set (Term b c, Term b c),
+                  (Set (Term b c),
+                    (Set (Term b c, Term b c), Set (Term b c, Term b c))))))))
+    (a -> [(Term b c, Term b c)]) (a -> [(Term b c, Term b c)])
+    (a -> [(Term b c, Term b c)]) (a -> [Term b c])
+    (a -> [(Term b c, Term b c)]) (a -> [(Term b c, Term b c)])
+    (a -> [(Term b c, Term b c)]) (a -> Bool) (a -> Bool) (a -> Bool)
+    (a -> Term b c -> Bool) (a -> Bool)
+    (a -> (b, Nat) -> [(Term b c, Term b c)])
+    (a -> (b, Nat) -> [(Term b c, Term b c)]) (a -> [(Term b c, Term b c)] -> a)
+    (a -> (Term b c, Term b c) -> [(Term b c, Term b c)] -> a)
+    (a -> [(Term b c, Term b c)] -> a)
+    (a -> [(Term b c, Term b c)] -> [(Term b c, Term b c)] -> a)
+    (a -> [(Term b c, Term b c)] -> [(Term b c, Term b c)] -> a)
+    (a -> [(Term b c, Term b c)] ->
+            ([(Term b c, Term b c)], [(Term b c, Term b c)]))
+    (a -> [(Term b c, Term b c)] ->
+            ([(Term b c, Term b c)], [(Term b c, Term b c)]))
+    (Bool ->
+      Bool ->
+        [(Term b c, Term b c)] ->
+          [(Term b c, Term b c)] ->
+            [Term b c] -> [(Term b c, Term b c)] -> [(Term b c, Term b c)] -> a)
+    (a -> Bool) (a -> Bool) (a -> Bool) d;
+
+data Root_redtriple_ext a b c =
+  Root_redtriple_ext (Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    ((a, Nat) -> Nat -> Bool) ((a, Nat) -> Nat -> Bool)
+    ([Prelude.Char] -> [Prelude.Char]) c;
+
+data Non_inf_order_ext a b c =
+  Non_inf_order_ext (Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    (C_constraint a b -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
+    ((a, Nat) -> Nat -> Dependance) ([Prelude.Char] -> [Prelude.Char]) c;
+
+data Ordered_semiring_ext a b =
+  Ordered_semiring_ext (a -> a -> Bool) (a -> a -> Bool) (a -> a -> a) b;
+
+data Lpoly_order_semiring_ext a b =
+  Lpoly_order_semiring_ext Bool a (a -> Bool) (a -> Bool) (a -> Nat)
+    (a -> Sum ([Prelude.Char] -> [Prelude.Char]) Nat) [Prelude.Char] b;
+
+suc :: Nat -> Nat;
+suc n = plus_nat n (Nat_of_num One);
+
+dlist_ex :: forall a. (Ceq a) => (a -> Bool) -> Set_dlist a -> Bool;
+dlist_ex x xc = any x (list_of_dlist xc);
+
+rBT_Impl_rbt_ex :: forall a b. (a -> b -> Bool) -> Rbta a b -> Bool;
+rBT_Impl_rbt_ex p (Branch c l k v r) =
+  p k v || (rBT_Impl_rbt_ex p l || rBT_Impl_rbt_ex p r);
+rBT_Impl_rbt_ex p Emptya = False;
+
+ex :: forall a b. (Corder a) => (a -> b -> Bool) -> Mapping_rbt a b -> Bool;
+ex x xc = rBT_Impl_rbt_ex x (impl_ofb xc);
+
+bex :: forall a. (Ceq a, Corder a) => Set a -> (a -> Bool) -> Bool;
+bex (RBT_set rbt) p =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing -> error "Bex RBT_set: corder = None" (\ _ -> bex (RBT_set rbt) p);
+    Just _ -> ex (\ k _ -> p k) rbt;
+  });
+bex (DList_set dxs) p =
+  (case (ceq :: Maybe (a -> a -> Bool)) of {
+    Nothing -> error "Bex DList_set: ceq = None" (\ _ -> bex (DList_set dxs) p);
+    Just _ -> dlist_ex p dxs;
+  });
+bex (Set_Monad xs) p = any p xs;
+
+tag :: Xml -> [Prelude.Char];
+tag (XML name uu uv uw) = name;
+
+nth :: forall a. [a] -> Nat -> a;
+nth (x : xs) n =
+  (if equal_nat n Zero_nat then x else nth xs (minus_nat n (Nat_of_num One)));
+
+upt :: Nat -> Nat -> [Nat];
+upt i j =
+  (if less_nat i j then i : upt (plus_nat i (Nat_of_num One)) j else []);
 
 rBT_Impl_rbt_all :: forall a b. (a -> b -> Bool) -> Rbta a b -> Bool;
 rBT_Impl_rbt_all p (Branch c l k v r) =
@@ -597,7 +6443,7 @@ rBT_Impl_rbt_all p (Branch c l k v r) =
 rBT_Impl_rbt_all p Emptya = True;
 
 alla :: forall a b. (Corder a) => (a -> b -> Bool) -> Mapping_rbt a b -> Bool;
-alla x xa = rBT_Impl_rbt_all x (impl_ofb xa);
+alla x xc = rBT_Impl_rbt_all x (impl_ofb xc);
 
 ball :: forall a. (Ceq a, Corder a) => Set a -> (a -> Bool) -> Bool;
 ball (RBT_set rbt) p =
@@ -613,14 +6459,6 @@ ball (DList_set dxs) p =
     Just _ -> dlist_all p dxs;
   });
 ball (Set_Monad xs) p = all p xs;
-
-data Term a b = Var b | Fun a [Term a b];
-
-data Ctxt a b = Hole | More a [Term a b] (Ctxt a b) [Term a b];
-
-data Sum a b = Inl a | Inr b;
-
-newtype Sum_bot a b = Sumbot (Sum a b);
 
 returna :: forall a b. a -> Sum_bot b a;
 returna x = Sumbot (Inr x);
@@ -654,23 +6492,6 @@ binda (Sumbot a) f = (case a of {
                        Inr aa -> f aa;
                      });
 
-times_num :: Num -> Num -> Num;
-times_num (Bit1 m) (Bit1 n) =
-  Bit1 (plus_num (plus_num m n) (Bit0 (times_num m n)));
-times_num (Bit1 m) (Bit0 n) = Bit0 (times_num (Bit1 m) n);
-times_num (Bit0 m) (Bit1 n) = Bit0 (times_num m (Bit1 n));
-times_num (Bit0 m) (Bit0 n) = Bit0 (Bit0 (times_num m n));
-times_num One n = n;
-times_num m One = m;
-
-times_int :: Int -> Int -> Int;
-times_int (Neg m) (Neg n) = Pos (times_num m n);
-times_int (Neg m) (Pos n) = Neg (times_num m n);
-times_int (Pos m) (Neg n) = Neg (times_num m n);
-times_int (Pos m) (Pos n) = Pos (times_num m n);
-times_int Zero_int l = Zero_int;
-times_int k Zero_int = Zero_int;
-
 int_of_string_aux :: Int -> [Prelude.Char] -> Sum_bot [Prelude.Char] Int;
 int_of_string_aux n [] = returna n;
 int_of_string_aux n (d : s) =
@@ -678,6 +6499,10 @@ int_of_string_aux n (d : s) =
     (\ m ->
       int_of_string_aux
         (plus_int (times_int (Pos (Bit0 (Bit1 (Bit0 One)))) n) m) s);
+
+tl :: forall a. [a] -> [a];
+tl [] = [];
+tl (x21 : x22) = x22;
 
 take :: forall a. Nat -> [a] -> [a];
 take n [] = [];
@@ -697,49 +6522,15 @@ int_of_string s =
                   (\ i -> returna (minus_int Zero_int i))
            else int_of_string_aux Zero_int s));
 
-class Showa a where {
-  shows_prec :: Nat -> a -> [Prelude.Char] -> [Prelude.Char];
-  shows_list :: [a] -> [Prelude.Char] -> [Prelude.Char];
-};
-
-shows_prec_list ::
-  forall a. (Showa a) => Nat -> [a] -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_list d l = shows_list l;
-
-shows_string :: [Prelude.Char] -> [Prelude.Char] -> [Prelude.Char];
-shows_string = (\ a b -> a ++ b);
-
-shows_prec_char :: Nat -> Prelude.Char -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_char d c = (\ a -> c : a);
-
-shows_list_char :: [Prelude.Char] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_char cs = shows_string cs;
-
-instance Showa Prelude.Char where {
-  shows_prec = shows_prec_char;
-  shows_list = shows_list_char;
-};
-
 shows_attr ::
   ([Prelude.Char], [Prelude.Char]) -> [Prelude.Char] -> [Prelude.Char];
 shows_attr av =
   shows_prec_list Zero_nat (fst av) .
     shows_string ['='] . shows_string ('\"' : snd av ++ ['\"']);
 
-shows_map ::
-  forall a.
-    (a -> [Prelude.Char] -> [Prelude.Char]) ->
-      [a] -> [Prelude.Char] -> [Prelude.Char];
-shows_map s [] = id;
-shows_map s (x : xs) = s x . shows_map s xs;
-
 shows_attrs ::
   [([Prelude.Char], [Prelude.Char])] -> [Prelude.Char] -> [Prelude.Char];
 shows_attrs asa = shows_map (\ a -> shows_string [' '] . shows_attr a) asa;
-
-is_none :: forall a. Maybe a -> Bool;
-is_none (Just x) = False;
-is_none Nothing = True;
 
 replicate :: forall a. Nat -> a -> [a];
 replicate n x =
@@ -748,7 +6539,7 @@ replicate n x =
 
 shows_XML_indent ::
   [Prelude.Char] -> Nat -> Xml -> [Prelude.Char] -> [Prelude.Char];
-shows_XML_indent ind i (Xml n a c t) =
+shows_XML_indent ind i (XML n a c t) =
   shows_string ind .
     shows_string ['<'] .
       shows_prec_list Zero_nat n .
@@ -768,7 +6559,7 @@ shows_prec_xml :: Nat -> Xml -> [Prelude.Char] -> [Prelude.Char];
 shows_prec_xml d xml = shows_XML_indent ['\n'] (Nat_of_num (Bit0 One)) xml;
 
 text :: [Prelude.Char] -> Xml -> Sum_bot [Prelude.Char] [Prelude.Char];
-text tag (Xml n atts cs t) =
+text tag (XML n atts cs t) =
   (if n == tag && null atts && null cs && not (is_none t) && not (null (the t))
     then returna (the t)
     else errora
@@ -777,7 +6568,7 @@ text tag (Xml n atts cs t) =
                 'r', 'a', 'c', 't', ' ', 't', 'e', 'x', 't', ' ', 'f', 'o', 'r',
                 ' '],
                tag, [' ', 'f', 'r', 'o', 'm', ' '], ['\n'],
-               shows_prec_xml Zero_nat (Xml n atts cs t) []]));
+               shows_prec_xml Zero_nat (XML n atts cs t) []]));
 
 int :: [Prelude.Char] -> Xml -> Sum_bot [Prelude.Char] Int;
 int tag x = binda (text tag x) int_of_string;
@@ -786,490 +6577,6 @@ nata :: [Prelude.Char] -> Xml -> Sum_bot [Prelude.Char] Nat;
 nata tag x =
   binda (text tag x)
     (\ txt -> binda (int_of_string txt) (\ i -> returna (nat i)));
-
-quotient_of :: Rat -> (Int, Int);
-quotient_of (Frct x) = x;
-
-apsnd :: forall a b c. (a -> b) -> (c, a) -> (c, b);
-apsnd f (x, y) = (x, f y);
-
-class Plus a where {
-  plus :: a -> a -> a;
-};
-
-class (Plus a) => Semigroup_add a where {
-};
-
-class (Semigroup_add a) => Cancel_semigroup_add a where {
-};
-
-class (Semigroup_add a) => Ab_semigroup_add a where {
-};
-
-class (Ab_semigroup_add a,
-        Cancel_semigroup_add a) => Cancel_ab_semigroup_add a where {
-};
-
-class Zero a where {
-  zeroa :: a;
-};
-
-class (Semigroup_add a, Zero a) => Monoid_add a where {
-};
-
-class (Ab_semigroup_add a, Monoid_add a) => Comm_monoid_add a where {
-};
-
-class (Cancel_ab_semigroup_add a,
-        Comm_monoid_add a) => Cancel_comm_monoid_add a where {
-};
-
-class Times a where {
-  times :: a -> a -> a;
-};
-
-class (Times a, Zero a) => Mult_zero a where {
-};
-
-class (Times a) => Semigroup_mult a where {
-};
-
-class (Ab_semigroup_add a, Semigroup_mult a) => Semiring a where {
-};
-
-class (Comm_monoid_add a, Mult_zero a, Semiring a) => Semiring_0 a where {
-};
-
-class (Cancel_comm_monoid_add a, Semiring_0 a) => Semiring_0_cancel a where {
-};
-
-class (Semigroup_mult a) => Ab_semigroup_mult a where {
-};
-
-class (Ab_semigroup_mult a, Semiring a) => Comm_semiring a where {
-};
-
-class (Comm_semiring a, Semiring_0 a) => Comm_semiring_0 a where {
-};
-
-class (Comm_semiring_0 a,
-        Semiring_0_cancel a) => Comm_semiring_0_cancel a where {
-};
-
-class One a where {
-  onea :: a;
-};
-
-class (One a, Times a) => Power a where {
-};
-
-class (Semigroup_mult a, Power a) => Monoid_mult a where {
-};
-
-class (One a, Semigroup_add a) => Numeral a where {
-};
-
-class (Monoid_mult a, Numeral a, Semiring a) => Semiring_numeral a where {
-};
-
-class (One a, Zero a) => Zero_neq_one a where {
-};
-
-class (Semiring_numeral a, Semiring_0 a, Zero_neq_one a) => Semiring_1 a where {
-};
-
-class (Semiring_0_cancel a, Semiring_1 a) => Semiring_1_cancel a where {
-};
-
-class (Ab_semigroup_mult a, Monoid_mult a) => Comm_monoid_mult a where {
-};
-
-class (Times a) => Dvd a where {
-};
-
-class (Comm_monoid_mult a, Comm_semiring_0 a, Dvd a,
-        Semiring_1 a) => Comm_semiring_1 a where {
-};
-
-class (Comm_semiring_0_cancel a, Comm_semiring_1 a,
-        Semiring_1_cancel a) => Comm_semiring_1_cancel a where {
-};
-
-class (Times a, Zero a) => No_zero_divisors a where {
-};
-
-class (Dvd a) => Div a where {
-  div :: a -> a -> a;
-  mod :: a -> a -> a;
-};
-
-class (Div a, Comm_semiring_1_cancel a,
-        No_zero_divisors a) => Semiring_div a where {
-};
-
-class Minus a where {
-  minus :: a -> a -> a;
-};
-
-class (Ab_semigroup_add a, Order a) => Ordered_ab_semigroup_add a where {
-};
-
-class (Comm_monoid_add a, Ordered_ab_semigroup_add a,
-        Semiring a) => Ordered_semiring a where {
-};
-
-class (Ordered_semiring a,
-        Semiring_0_cancel a) => Ordered_cancel_semiring a where {
-};
-
-class (Comm_semiring_0 a, Ordered_semiring a) => Ordered_comm_semiring a where {
-};
-
-class (Comm_semiring_0_cancel a, Ordered_cancel_semiring a,
-        Ordered_comm_semiring a) => Ordered_cancel_comm_semiring a where {
-};
-
-class (Cancel_ab_semigroup_add a,
-        Ordered_ab_semigroup_add a) => Ordered_cancel_ab_semigroup_add a where {
-};
-
-class (Ordered_cancel_ab_semigroup_add a) => Ordered_ab_semigroup_add_imp_le a where {
-};
-
-class (Ordered_ab_semigroup_add a,
-        Linorder a) => Linordered_ab_semigroup_add a where {
-};
-
-class (Linordered_ab_semigroup_add a,
-        Ordered_ab_semigroup_add_imp_le a) => Linordered_cancel_ab_semigroup_add a where {
-};
-
-class (Comm_monoid_add a,
-        Ordered_cancel_ab_semigroup_add a) => Ordered_comm_monoid_add a where {
-};
-
-class (Linordered_cancel_ab_semigroup_add a, Ordered_comm_monoid_add a,
-        Ordered_cancel_semiring a) => Linordered_semiring a where {
-};
-
-class (Linordered_semiring a) => Linordered_semiring_strict a where {
-};
-
-class (Linordered_semiring_strict a,
-        Ordered_cancel_comm_semiring a) => Linordered_comm_semiring_strict a where {
-};
-
-class (Semiring_1 a) => Semiring_char_0 a where {
-};
-
-class (Semiring_char_0 a, Comm_semiring_1_cancel a,
-        Linordered_comm_semiring_strict a) => Linordered_semidom a where {
-};
-
-class (Semiring_div a, Minus a,
-        Linordered_semidom a) => Semiring_numeral_div a where {
-};
-
-instance Plus Int where {
-  plus = plus_int;
-};
-
-instance Semigroup_add Int where {
-};
-
-instance Cancel_semigroup_add Int where {
-};
-
-instance Ab_semigroup_add Int where {
-};
-
-instance Cancel_ab_semigroup_add Int where {
-};
-
-instance Zero Int where {
-  zeroa = Zero_int;
-};
-
-instance Monoid_add Int where {
-};
-
-instance Comm_monoid_add Int where {
-};
-
-instance Cancel_comm_monoid_add Int where {
-};
-
-instance Times Int where {
-  times = times_int;
-};
-
-instance Mult_zero Int where {
-};
-
-instance Semigroup_mult Int where {
-};
-
-instance Semiring Int where {
-};
-
-instance Semiring_0 Int where {
-};
-
-instance Semiring_0_cancel Int where {
-};
-
-less_eq_int :: Int -> Int -> Bool;
-less_eq_int (Neg k) (Neg l) = less_eq_num l k;
-less_eq_int (Neg k) (Pos l) = True;
-less_eq_int (Neg k) Zero_int = True;
-less_eq_int (Pos k) (Neg l) = False;
-less_eq_int (Pos k) (Pos l) = less_eq_num k l;
-less_eq_int (Pos k) Zero_int = False;
-less_eq_int Zero_int (Neg l) = False;
-less_eq_int Zero_int (Pos l) = True;
-less_eq_int Zero_int Zero_int = True;
-
-less_int :: Int -> Int -> Bool;
-less_int (Neg k) (Neg l) = less_num l k;
-less_int (Neg k) (Pos l) = True;
-less_int (Neg k) Zero_int = True;
-less_int (Pos k) (Neg l) = False;
-less_int (Pos k) (Pos l) = less_num k l;
-less_int (Pos k) Zero_int = False;
-less_int Zero_int (Neg l) = False;
-less_int Zero_int (Pos l) = True;
-less_int Zero_int Zero_int = False;
-
-instance Ord Int where {
-  less_eq = less_eq_int;
-  less = less_int;
-};
-
-instance Preorder Int where {
-};
-
-instance Order Int where {
-};
-
-instance Ordered_ab_semigroup_add Int where {
-};
-
-instance Ordered_semiring Int where {
-};
-
-instance Ordered_cancel_semiring Int where {
-};
-
-instance Ab_semigroup_mult Int where {
-};
-
-instance Comm_semiring Int where {
-};
-
-instance Comm_semiring_0 Int where {
-};
-
-instance Comm_semiring_0_cancel Int where {
-};
-
-instance Ordered_comm_semiring Int where {
-};
-
-instance Ordered_cancel_comm_semiring Int where {
-};
-
-instance Ordered_cancel_ab_semigroup_add Int where {
-};
-
-instance Ordered_ab_semigroup_add_imp_le Int where {
-};
-
-instance Linorder Int where {
-};
-
-instance Linordered_ab_semigroup_add Int where {
-};
-
-instance Linordered_cancel_ab_semigroup_add Int where {
-};
-
-instance Ordered_comm_monoid_add Int where {
-};
-
-instance Linordered_semiring Int where {
-};
-
-instance Linordered_semiring_strict Int where {
-};
-
-instance Linordered_comm_semiring_strict Int where {
-};
-
-one_int :: Int;
-one_int = Pos One;
-
-instance One Int where {
-  onea = one_int;
-};
-
-instance Power Int where {
-};
-
-instance Monoid_mult Int where {
-};
-
-instance Numeral Int where {
-};
-
-instance Semiring_numeral Int where {
-};
-
-instance Zero_neq_one Int where {
-};
-
-instance Semiring_1 Int where {
-};
-
-instance Semiring_1_cancel Int where {
-};
-
-instance Comm_monoid_mult Int where {
-};
-
-instance Dvd Int where {
-};
-
-instance Comm_semiring_1 Int where {
-};
-
-instance Comm_semiring_1_cancel Int where {
-};
-
-instance Semiring_char_0 Int where {
-};
-
-instance Linordered_semidom Int where {
-};
-
-instance No_zero_divisors Int where {
-};
-
-instance Minus Int where {
-  minus = minus_int;
-};
-
-numeral :: forall a. (Numeral a) => Num -> a;
-numeral (Bit1 n) = let {
-                     m = numeral n;
-                   } in plus (plus m m) onea;
-numeral (Bit0 n) = let {
-                     m = numeral n;
-                   } in plus m m;
-numeral One = onea;
-
-divmod_step :: forall a. (Semiring_numeral_div a) => Num -> (a, a) -> (a, a);
-divmod_step l (q, r) =
-  (if less_eq (numeral l) r
-    then (plus (times (numeral (Bit0 One)) q) onea, minus r (numeral l))
-    else (times (numeral (Bit0 One)) q, r));
-
-divmod :: forall a. (Semiring_numeral_div a) => Num -> Num -> (a, a);
-divmod (Bit1 m) (Bit0 n) =
-  let {
-    (q, r) = divmod m n;
-  } in (q, plus (times (numeral (Bit0 One)) r) onea);
-divmod (Bit0 m) (Bit0 n) =
-  let {
-    (q, r) = divmod m n;
-  } in (q, times (numeral (Bit0 One)) r);
-divmod m n =
-  (if less_num m n then (zeroa, numeral m)
-    else divmod_step n (divmod m (Bit0 n)));
-
-abs_int :: Int -> Int;
-abs_int i = (if less_int i Zero_int then uminus_int i else i);
-
-equal_int :: Int -> Int -> Bool;
-equal_int (Neg k) (Neg l) = equal_num k l;
-equal_int (Neg k) (Pos l) = False;
-equal_int (Neg k) Zero_int = False;
-equal_int (Pos k) (Neg l) = False;
-equal_int (Pos k) (Pos l) = equal_num k l;
-equal_int (Pos k) Zero_int = False;
-equal_int Zero_int (Neg l) = False;
-equal_int Zero_int (Pos l) = False;
-equal_int Zero_int Zero_int = True;
-
-sgn_int :: Int -> Int;
-sgn_int i =
-  (if equal_int i Zero_int then Zero_int
-    else (if less_int Zero_int i then Pos One else uminus_int (Pos One)));
-
-div_int :: Int -> Int -> Int;
-div_int a b = fst (divmod_int a b);
-
-instance Semiring_numeral_div Int where {
-};
-
-divmod_abs :: Int -> Int -> (Int, Int);
-divmod_abs Zero_int j = (Zero_int, Zero_int);
-divmod_abs j Zero_int = (Zero_int, abs_int j);
-divmod_abs (Pos k) (Neg l) = divmod k l;
-divmod_abs (Neg k) (Pos l) = divmod k l;
-divmod_abs (Neg k) (Neg l) = divmod k l;
-divmod_abs (Pos k) (Pos l) = divmod k l;
-
-divmod_int :: Int -> Int -> (Int, Int);
-divmod_int k l =
-  (if equal_int k Zero_int then (Zero_int, Zero_int)
-    else (if equal_int l Zero_int then (Zero_int, k)
-           else apsnd (times_int (sgn_int l))
-                  (if equal_int (sgn_int k) (sgn_int l) then divmod_abs k l
-                    else let {
-                           (r, s) = divmod_abs k l;
-                         } in (if equal_int s Zero_int
-                                then (uminus_int r, Zero_int)
-                                else (minus_int (uminus_int r) (Pos One),
-                                       minus_int (abs_int l) s)))));
-
-mod_int :: Int -> Int -> Int;
-mod_int a b = snd (divmod_int a b);
-
-instance Div Int where {
-  div = div_int;
-  mod = mod_int;
-};
-
-instance Semiring_div Int where {
-};
-
-gcd_int :: Int -> Int -> Int;
-gcd_int k l =
-  abs_int
-    (if equal_int l Zero_int then k
-      else gcd_int l (mod_int (abs_int k) (abs_int l)));
-
-normalize :: (Int, Int) -> (Int, Int);
-normalize p =
-  (if less_int Zero_int (snd p)
-    then let {
-           a = gcd_int (fst p) (snd p);
-         } in (div_int (fst p) a, div_int (snd p) a)
-    else (if equal_int (snd p) Zero_int then (Zero_int, Pos One)
-           else let {
-                  a = uminus_int (gcd_int (fst p) (snd p));
-                } in (div_int (fst p) a, div_int (snd p) a)));
-
-divide_rat :: Rat -> Rat -> Rat;
-divide_rat p q =
-  Frct (let {
-          (a, c) = quotient_of p;
-          (b, d) = quotient_of q;
-        } in normalize (times_int a d, times_int c b));
-
-map_of :: forall a b. (Eq a) => [(a, b)] -> a -> Maybe b;
-map_of ((l, v) : ps) k = (if l == k then Just v else map_of ps k);
-map_of [] k = Nothing;
 
 options ::
   forall a.
@@ -1293,9 +6600,6 @@ change ::
     (Xml -> Sum_bot [Prelude.Char] a) ->
       (a -> b) -> Xml -> Sum_bot [Prelude.Char] b;
 change p f x = binda (p x) (\ a -> returna (f a));
-
-of_inta :: Int -> Rat;
-of_inta a = Frct (a, Pos One);
 
 list2elements :: forall a. [a] -> Maybe (a, a);
 list2elements [x, y] = Just (x, y);
@@ -1321,7 +6625,7 @@ pair ::
           (a -> b -> c) -> Xml -> Sum_bot [Prelude.Char] c;
 pair tag p1 p2 f xml =
   let {
-    (Xml name atts cs text) = xml;
+    (XML name atts cs text) = xml;
   } in (if name == tag && null atts && is_none text
          then (case list2elements cs of {
                 Nothing -> fail tag xml;
@@ -1334,15 +6638,12 @@ pair tag p1 p2 f xml =
 rat :: Xml -> Sum_bot [Prelude.Char] Rat;
 rat = options
         [(['i', 'n', 't', 'e', 'g', 'e', 'r'],
-           change (int ['i', 'n', 't', 'e', 'g', 'e', 'r']) of_inta),
+           change (int ['i', 'n', 't', 'e', 'g', 'e', 'r']) of_int),
           (['r', 'a', 't', 'i', 'o', 'n', 'a', 'l'],
             pair ['r', 'a', 't', 'i', 'o', 'n', 'a', 'l']
               (int ['n', 'u', 'm', 'e', 'r', 'a', 't', 'o', 'r'])
               (int ['d', 'e', 'n', 'o', 'm', 'i', 'n', 'a', 't', 'o', 'r'])
-              (\ x y -> divide_rat (of_inta x) (of_inta y)))];
-
-one :: forall a b. Partial_object_ext a (Monoid_ext a b) -> a;
-one (Partial_object_ext carrier (Monoid_ext mult one more)) = one;
+              (\ x y -> divide_rat (of_int x) (of_int y)))];
 
 drop :: forall a. Nat -> [a] -> [a];
 drop n [] = [];
@@ -1354,39 +6655,26 @@ find :: forall a. (a -> Bool) -> [a] -> Maybe a;
 find uu [] = Nothing;
 find p (x : xs) = (if p x then Just x else find p xs);
 
-fold :: forall a b. (a -> b -> b) -> [a] -> b -> b;
-fold f (x : xs) s = fold f xs (f x s);
-fold f [] s = s;
-
 last :: forall a. [a] -> a;
 last (x : xs) = (if null xs then x else last xs);
 
-data Itself a = Type;
-
 empty :: forall a b. (Linorder a) => Rbt a b;
-empty = Rbt Emptya;
-
-zero :: forall a b. Partial_object_ext a (Monoid_ext a (Ring_ext a b)) -> a;
-zero (Partial_object_ext carrier (Monoid_ext mult one (Ring_ext zero add more)))
-  = zero;
-
-dvd :: forall a. (Semiring_div a, Eq a) => a -> a -> Bool;
-dvd a b = mod b a == zeroa;
+empty = RBT Emptya;
 
 foldd :: forall a b. (Ceq a) => (a -> b -> b) -> Set_dlist a -> b -> b;
-foldd x xa = fold x (list_of_dlist xa);
+foldd x xc = fold x (list_of_dlist xc);
 
 foldb :: forall a b c. (a -> b -> c -> c) -> Rbta a b -> c -> c;
 foldb f (Branch c lt k v rt) x = foldb f rt (f k v (foldb f lt x));
 foldb f Emptya x = x;
 
 foldc :: forall a b. (Corder a) => (a -> b -> b) -> Mapping_rbt a () -> b -> b;
-foldc x xa = foldb (\ a _ -> x a) (impl_ofb xa);
+foldc x xc = foldb (\ a _ -> x a) (impl_ofb xc);
 
 image ::
   forall a b.
     (Ceq a, Corder a, Ceq b, Corder b,
-      Set_impla b) => (a -> b) -> Set a -> Set b;
+      Set_impl b) => (a -> b) -> Set a -> Set b;
 image h (RBT_set rbt) =
   (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
     Nothing ->
@@ -1412,21 +6700,12 @@ folda :: forall a b c. (a -> b) -> (c -> [b] -> b) -> Term c a -> b;
 folda var fun (Var x) = var x;
 folda var fun (Fun f ts) = fun f (map (folda var fun) ts);
 
-gen_length :: forall a. Nat -> [a] -> Nat;
-gen_length n (x : xs) = gen_length (plus_nat n (Nat_of_num One)) xs;
-gen_length n [] = n;
-
-size_list :: forall a. [a] -> Nat;
-size_list = gen_length Zero_nat;
-
 root :: forall a b. Term a b -> Maybe (a, Nat);
 root (Var x) = Nothing;
 root (Fun f ts) = Just (f, size_list ts);
 
 flip :: forall a b c. (a -> b -> c) -> b -> a -> c;
 flip f = (\ x y -> f y x);
-
-data Xmldoc = Xmldoc [Prelude.Char] Xml;
 
 bool_of_string :: [Prelude.Char] -> Sum_bot [Prelude.Char] Bool;
 bool_of_string s =
@@ -1442,9 +6721,9 @@ bool :: [Prelude.Char] -> Xml -> Sum_bot [Prelude.Char] Bool;
 bool tag node = binda (text tag node) bool_of_string;
 
 leaf :: forall a. [Prelude.Char] -> a -> Xml -> Sum_bot [Prelude.Char] a;
-leaf tag x (Xml name atts cs text) =
+leaf tag x (XML name atts cs text) =
   (if name == tag && null atts && null cs && is_none text then returna x
-    else fail tag (Xml name atts cs text));
+    else fail tag (XML name atts cs text));
 
 map_sum_bot :: forall a b c. (a -> Sum_bot b c) -> [a] -> Sum_bot b [c];
 map_sum_bot f [] = returna [];
@@ -1456,462 +6735,134 @@ many ::
     [Prelude.Char] ->
       (Xml -> Sum_bot [Prelude.Char] a) ->
         ([a] -> b) -> Xml -> Sum_bot [Prelude.Char] b;
-many tag p f (Xml name atts cs text) =
+many tag p f (XML name atts cs text) =
   (if name == tag && null atts && is_none text
     then binda (map_sum_bot p cs) (returna . f)
-    else fail tag (Xml name atts cs text));
-
-mult :: forall a b. Partial_object_ext a (Monoid_ext a b) -> a -> a -> a;
-mult (Partial_object_ext carrier (Monoid_ext mult one more)) = mult;
-
-class Abs a where {
-  absa :: a -> a;
-};
-
-class Sgn a where {
-  sgn :: a -> a;
-};
-
-class Uminus a where {
-  uminus :: a -> a;
-};
-
-class (Cancel_semigroup_add a, Minus a, Monoid_add a,
-        Uminus a) => Group_add a where {
-};
-
-class (Group_add a, Numeral a) => Neg_numeral a where {
-};
-
-class (Cancel_comm_monoid_add a, Group_add a) => Ab_group_add a where {
-};
-
-class (Ab_group_add a, Semiring_0_cancel a) => Ring a where {
-};
-
-class (Neg_numeral a, Ring a, Semiring_1_cancel a) => Ring_1 a where {
-};
-
-neg_numeral :: forall a. (Neg_numeral a) => Num -> a;
-neg_numeral k = uminus (numeral k);
-
-of_int :: forall a. (Ring_1 a) => Int -> a;
-of_int (Pos k) = numeral k;
-of_int Zero_int = zeroa;
-of_int (Neg k) = neg_numeral k;
-
-instance Plus Nat where {
-  plus = plus_nat;
-};
-
-instance Semigroup_add Nat where {
-};
-
-instance Zero Nat where {
-  zeroa = Zero_nat;
-};
-
-instance Monoid_add Nat where {
-};
-
-times_nat :: Nat -> Nat -> Nat;
-times_nat Zero_nat n = Zero_nat;
-times_nat m Zero_nat = Zero_nat;
-times_nat (Nat_of_num k) (Nat_of_num l) = Nat_of_num (times_num k l);
+    else fail tag (XML name atts cs text));
 
 foldr :: forall a b. (a -> b -> b) -> [a] -> b -> b;
 foldr f [] = id;
 foldr f (x : xs) = f x . foldr f xs;
-
-listsum :: forall a. (Monoid_add a) => [a] -> a;
-listsum xs = foldr plus xs zeroa;
-
-weight ::
-  forall a b.
-    ((a, Nat) -> Nat) -> Nat -> ((a, Nat) -> Nat -> Nat) -> Term a b -> Nat;
-weight w w0 scf (Fun f ts) =
-  let {
-    n = size_list ts;
-    scff = scf (f, n);
-  } in plus_nat (w (f, n))
-         (listsum
-           (map (\ (ti, i) -> times_nat (weight w w0 scf ti) (scff i))
-             (zip ts (upt Zero_nat n))));
-weight w w0 scf (Var x) = w0;
-
-instance Times Nat where {
-  times = times_nat;
-};
-
-instance Dvd Nat where {
-};
 
 funpow :: forall a. Nat -> (a -> a) -> a -> a;
 funpow n f =
   (if equal_nat n Zero_nat then id
     else f . funpow (minus_nat n (Nat_of_num One)) f);
 
-of_nat :: forall a. (Semiring_1 a) => Nat -> a;
-of_nat (Nat_of_num k) = numeral k;
-of_nat Zero_nat = zeroa;
+rbt_dela :: forall a b. (Ord a) => a -> Rbta a b -> Rbta a b;
+rbt_dela x Emptya = Emptya;
+rbt_dela x (Branch c a y s b) =
+  (if less x y then rbt_del_from_lefta x a y s b
+    else (if less y x then rbt_del_from_righta x a y s b else combine a b));
 
-one_nat :: Nat;
-one_nat = Nat_of_num One;
-
-instance One Nat where {
-  onea = one_nat;
-};
-
-less_eq_nat :: Nat -> Nat -> Bool;
-less_eq_nat (Nat_of_num k) (Nat_of_num l) = less_eq_num k l;
-less_eq_nat (Nat_of_num k) Zero_nat = False;
-less_eq_nat Zero_nat n = True;
-
-instance Ord Nat where {
-  less_eq = less_eq_nat;
-  less = less_nat;
-};
-
-seta :: forall a. (Ceq a, Corder a, Set_impla a) => Maybe a -> Set a;
-seta Nothing = bot_set;
-seta (Just x) = inserta x bot_set;
-
-rbt_del :: forall a b. (Ord a) => a -> Rbta a b -> Rbta a b;
-rbt_del x Emptya = Emptya;
-rbt_del x (Branch c a y s b) =
-  (if less x y then rbt_del_from_left x a y s b
-    else (if less y x then rbt_del_from_right x a y s b else combine a b));
-
-rbt_del_from_left ::
+rbt_del_from_lefta ::
   forall a b. (Ord a) => a -> Rbta a b -> a -> b -> Rbta a b -> Rbta a b;
-rbt_del_from_left x (Branch B lt z v rt) y s b =
-  balance_left (rbt_del x (Branch B lt z v rt)) y s b;
-rbt_del_from_left x Emptya y s b = Branch R (rbt_del x Emptya) y s b;
-rbt_del_from_left x (Branch R va vb vc vd) y s b =
-  Branch R (rbt_del x (Branch R va vb vc vd)) y s b;
+rbt_del_from_lefta x (Branch B lt z v rt) y s b =
+  balance_left (rbt_dela x (Branch B lt z v rt)) y s b;
+rbt_del_from_lefta x Emptya y s b = Branch R (rbt_dela x Emptya) y s b;
+rbt_del_from_lefta x (Branch R va vb vc vd) y s b =
+  Branch R (rbt_dela x (Branch R va vb vc vd)) y s b;
 
-rbt_del_from_right ::
+rbt_del_from_righta ::
   forall a b. (Ord a) => a -> Rbta a b -> a -> b -> Rbta a b -> Rbta a b;
-rbt_del_from_right x a y s (Branch B lt z v rt) =
-  balance_right a y s (rbt_del x (Branch B lt z v rt));
-rbt_del_from_right x a y s Emptya = Branch R a y s (rbt_del x Emptya);
-rbt_del_from_right x a y s (Branch R va vb vc vd) =
-  Branch R a y s (rbt_del x (Branch R va vb vc vd));
+rbt_del_from_righta x a y s (Branch B lt z v rt) =
+  balance_right a y s (rbt_dela x (Branch B lt z v rt));
+rbt_del_from_righta x a y s Emptya = Branch R a y s (rbt_dela x Emptya);
+rbt_del_from_righta x a y s (Branch R va vb vc vd) =
+  Branch R a y s (rbt_dela x (Branch R va vb vc vd));
 
-rbt_delete :: forall a b. (Ord a) => a -> Rbta a b -> Rbta a b;
-rbt_delete k t = paint B (rbt_del k t);
+rbt_deletea :: forall a b. (Ord a) => a -> Rbta a b -> Rbta a b;
+rbt_deletea k t = paint B (rbt_dela k t);
 
-impl_of :: forall a b. (Linorder a) => Rbt a b -> Rbta a b;
-impl_of (Rbt x) = x;
+impl_of :: forall b a. (Linorder b) => Rbt b a -> Rbta b a;
+impl_of (RBT x) = x;
 
 delete :: forall a b. (Linorder a) => a -> Rbt a b -> Rbt a b;
-delete x xa = Rbt (rbt_delete x (impl_of xa));
+delete xb xc = RBT (rbt_deletea xb (impl_of xc));
 
-rbt_ins ::
+rbt_insa ::
   forall a b. (Ord a) => (a -> b -> b -> b) -> a -> b -> Rbta a b -> Rbta a b;
-rbt_ins f k v Emptya = Branch R Emptya k v Emptya;
-rbt_ins f k v (Branch B l x y r) =
-  (if less k x then balance (rbt_ins f k v l) x y r
-    else (if less x k then balance l x y (rbt_ins f k v r)
+rbt_insa f k v Emptya = Branch R Emptya k v Emptya;
+rbt_insa f k v (Branch B l x y r) =
+  (if less k x then balance (rbt_insa f k v l) x y r
+    else (if less x k then balance l x y (rbt_insa f k v r)
            else Branch B l x (f k y v) r));
-rbt_ins f k v (Branch R l x y r) =
-  (if less k x then Branch R (rbt_ins f k v l) x y r
-    else (if less x k then Branch R l x y (rbt_ins f k v r)
+rbt_insa f k v (Branch R l x y r) =
+  (if less k x then Branch R (rbt_insa f k v l) x y r
+    else (if less x k then Branch R l x y (rbt_insa f k v r)
            else Branch R l x (f k y v) r));
 
-rbt_insert_with_key ::
+rbt_insert_with_keya ::
   forall a b. (Ord a) => (a -> b -> b -> b) -> a -> b -> Rbta a b -> Rbta a b;
-rbt_insert_with_key f k v t = paint B (rbt_ins f k v t);
+rbt_insert_with_keya f k v t = paint B (rbt_insa f k v t);
 
-rbt_insert :: forall a b. (Ord a) => a -> b -> Rbta a b -> Rbta a b;
-rbt_insert = rbt_insert_with_key (\ _ _ nv -> nv);
+rbt_inserta :: forall a b. (Ord a) => a -> b -> Rbta a b -> Rbta a b;
+rbt_inserta = rbt_insert_with_keya (\ _ _ nv -> nv);
 
 insert :: forall a b. (Linorder a) => a -> b -> Rbt a b -> Rbt a b;
-insert x xa xb = Rbt (rbt_insert x xa (impl_of xb));
+insert xc xd xe = RBT (rbt_inserta xc xd (impl_of xe));
 
-rbt_lookup :: forall a b. (Ord a) => Rbta a b -> a -> Maybe b;
-rbt_lookup Emptya k = Nothing;
-rbt_lookup (Branch uu l x y r) k =
-  (if less k x then rbt_lookup l k
-    else (if less x k then rbt_lookup r k else Just y));
+rbt_lookupa :: forall a b. (Ord a) => Rbta a b -> a -> Maybe b;
+rbt_lookupa Emptya k = Nothing;
+rbt_lookupa (Branch uu l x y r) k =
+  (if less k x then rbt_lookupa l k
+    else (if less x k then rbt_lookupa r k else Just y));
 
 lookup :: forall a b. (Linorder a) => Rbt a b -> a -> Maybe b;
-lookup x = rbt_lookup (impl_of x);
-
-abs_rat :: Rat -> Rat;
-abs_rat p = Frct (let {
-                    (a, b) = quotient_of p;
-                  } in (abs_int a, b));
-
-instance Abs Rat where {
-  absa = abs_rat;
-};
-
-times_rat :: Rat -> Rat -> Rat;
-times_rat p q =
-  Frct (let {
-          (a, c) = quotient_of p;
-          (b, d) = quotient_of q;
-        } in normalize (times_int a b, times_int c d));
-
-instance Times Rat where {
-  times = times_rat;
-};
-
-instance Dvd Rat where {
-};
-
-class (No_zero_divisors a, Ring a) => Ring_no_zero_divisors a where {
-};
-
-class (Ring_1 a, Ring_no_zero_divisors a) => Ring_1_no_zero_divisors a where {
-};
-
-class Inverse a where {
-  inverse :: a -> a;
-  divide :: a -> a -> a;
-};
-
-class (Inverse a, Ring_1_no_zero_divisors a) => Division_ring a where {
-};
-
-class (Comm_semiring_1_cancel a) => Comm_semiring_1_cancel_crossproduct a where {
-};
-
-class (Comm_semiring_0_cancel a, Ring a) => Comm_ring a where {
-};
-
-class (Comm_ring a, Comm_semiring_1_cancel a, Ring_1 a) => Comm_ring_1 a where {
-};
-
-class (Comm_ring_1 a, Ring_1_no_zero_divisors a,
-        Comm_semiring_1_cancel_crossproduct a) => Idom a where {
-};
-
-class (Division_ring a, Idom a) => Field a where {
-};
-
-class (Semiring_char_0 a, Ring_1 a) => Ring_char_0 a where {
-};
-
-class (Field a, Ring_char_0 a) => Field_char_0 a where {
-};
-
-of_rat :: forall a. (Field_char_0 a) => Rat -> a;
-of_rat p = let {
-             (a, b) = quotient_of p;
-           } in divide (of_int a) (of_int b);
-
-one_rat :: Rat;
-one_rat = Frct (Pos One, Pos One);
-
-instance One Rat where {
-  onea = one_rat;
-};
-
-less_eq_rat :: Rat -> Rat -> Bool;
-less_eq_rat p q =
-  let {
-    (a, c) = quotient_of p;
-    (b, d) = quotient_of q;
-  } in less_eq_int (times_int a d) (times_int c b);
-
-less_rat :: Rat -> Rat -> Bool;
-less_rat p q =
-  let {
-    (a, c) = quotient_of p;
-    (b, d) = quotient_of q;
-  } in less_int (times_int a d) (times_int c b);
-
-instance Ord Rat where {
-  less_eq = less_eq_rat;
-  less = less_rat;
-};
-
-sgn_rat :: Rat -> Rat;
-sgn_rat p = Frct (sgn_int (fst (quotient_of p)), Pos One);
-
-instance Sgn Rat where {
-  sgn = sgn_rat;
-};
+lookup x = rbt_lookupa (impl_of x);
 
 proja :: forall a b. Term a b -> Nat -> Term a b;
 proja (Fun f ts) i = (if less_nat i (size_list ts) then nth ts i else Fun f ts);
 
-rbt_lookupa :: forall a b. (a -> a -> Bool) -> Rbta a b -> a -> Maybe b;
-rbt_lookupa less (Branch uu l x y r) k =
-  (if less k x then rbt_lookupa less l k
-    else (if less x k then rbt_lookupa less r k else Just y));
-rbt_lookupa less Emptya k = Nothing;
+sunion_with ::
+  forall a b.
+    (a -> a -> Bool) -> (a -> b -> b -> b) -> [(a, b)] -> [(a, b)] -> [(a, b)];
+sunion_with less f asa [] = asa;
+sunion_with less f [] bs = bs;
+sunion_with less f ((ka, va) : asa) ((k, v) : bs) =
+  (if less k ka then (k, v) : sunion_with less f ((ka, va) : asa) bs
+    else (if less ka k then (ka, va) : sunion_with less f asa ((k, v) : bs)
+           else (ka, f ka va v) : sunion_with less f asa bs));
 
-inter_list ::
-  forall a. (Corder a) => Mapping_rbt a () -> [a] -> Mapping_rbt a ();
-inter_list x xa =
-  Mapping_RBTa
-    (fold (\ k -> rbt_inserta (snd (the corder)) k ())
-      (filter
-        (\ xaa ->
-          not (is_none (rbt_lookupa (snd (the corder)) (impl_ofb x) xaa)))
-        xa)
-      Emptya);
+skip_red :: forall a b. Rbta a b -> Rbta a b;
+skip_red (Branch R l k v r) = l;
+skip_red Emptya = Emptya;
+skip_red (Branch B va vb vc vd) = Branch B va vb vc vd;
+
+skip_black :: forall a b. Rbta a b -> Rbta a b;
+skip_black t =
+  let {
+    ta = skip_red t;
+  } in (case ta of {
+         Emptya -> ta;
+         Branch R l _ _ _ -> ta;
+         Branch B l _ _ _ -> l;
+       });
+
+compare_height ::
+  forall a b. Rbta a b -> Rbta a b -> Rbta a b -> Rbta a b -> Compare;
+compare_height sx s t tx =
+  (case (skip_red sx, (skip_red s, (skip_red t, skip_red tx))) of {
+    (Emptya, (Emptya, (_, Emptya))) -> EQ;
+    (Emptya, (Emptya, (_, Branch _ _ _ _ _))) -> LT;
+    (Emptya, (Branch _ sa _ _ _, (Emptya, b))) -> EQ;
+    (Emptya, (Branch _ sa _ _ _, (Branch _ ta _ _ _, Emptya))) -> EQ;
+    (Emptya, (Branch _ sa _ _ _, (Branch _ ta _ _ _, Branch _ txa _ _ _))) ->
+      compare_height Emptya sa ta (skip_black txa);
+    (Branch _ sxa _ _ _, (Emptya, (Emptya, Emptya))) -> GT;
+    (Branch _ sxa _ _ _, (Emptya, (Emptya, Branch _ _ _ _ _))) -> LT;
+    (Branch _ sxa _ _ _, (Emptya, (Branch _ _ _ _ _, Emptya))) -> EQ;
+    (Branch _ sxa _ _ _, (Emptya, (Branch _ _ _ _ _, Branch _ _ _ _ _))) -> LT;
+    (Branch _ sxa _ _ _, (Branch _ sa _ _ _, (Emptya, xf))) -> GT;
+    (Branch _ sxa _ _ _, (Branch _ sa _ _ _, (Branch _ ta _ _ _, Emptya))) ->
+      compare_height (skip_black sxa) sa ta Emptya;
+    (Branch _ sxa _ _ _,
+      (Branch _ sa _ _ _, (Branch _ ta _ _ _, Branch _ txa _ _ _)))
+      -> compare_height (skip_black sxa) sa ta (skip_black txa);
+  });
 
 apfst :: forall a b c. (a -> b) -> (a, c) -> (b, c);
 apfst f (x, y) = (f x, y);
-
-instance Cancel_semigroup_add Nat where {
-};
-
-instance Ab_semigroup_add Nat where {
-};
-
-instance Cancel_ab_semigroup_add Nat where {
-};
-
-instance Comm_monoid_add Nat where {
-};
-
-instance Cancel_comm_monoid_add Nat where {
-};
-
-instance Mult_zero Nat where {
-};
-
-instance Semigroup_mult Nat where {
-};
-
-instance Semiring Nat where {
-};
-
-instance Semiring_0 Nat where {
-};
-
-instance Semiring_0_cancel Nat where {
-};
-
-instance Preorder Nat where {
-};
-
-instance Order Nat where {
-};
-
-instance Ordered_ab_semigroup_add Nat where {
-};
-
-instance Ordered_semiring Nat where {
-};
-
-instance Ordered_cancel_semiring Nat where {
-};
-
-instance Ab_semigroup_mult Nat where {
-};
-
-instance Comm_semiring Nat where {
-};
-
-instance Comm_semiring_0 Nat where {
-};
-
-instance Comm_semiring_0_cancel Nat where {
-};
-
-instance Ordered_comm_semiring Nat where {
-};
-
-instance Ordered_cancel_comm_semiring Nat where {
-};
-
-instance Ordered_cancel_ab_semigroup_add Nat where {
-};
-
-instance Ordered_ab_semigroup_add_imp_le Nat where {
-};
-
-instance Linorder Nat where {
-};
-
-instance Linordered_ab_semigroup_add Nat where {
-};
-
-instance Linordered_cancel_ab_semigroup_add Nat where {
-};
-
-instance Ordered_comm_monoid_add Nat where {
-};
-
-instance Linordered_semiring Nat where {
-};
-
-instance Linordered_semiring_strict Nat where {
-};
-
-instance Linordered_comm_semiring_strict Nat where {
-};
-
-instance Power Nat where {
-};
-
-instance Monoid_mult Nat where {
-};
-
-instance Numeral Nat where {
-};
-
-instance Semiring_numeral Nat where {
-};
-
-instance Zero_neq_one Nat where {
-};
-
-instance Semiring_1 Nat where {
-};
-
-instance Semiring_1_cancel Nat where {
-};
-
-instance Comm_monoid_mult Nat where {
-};
-
-instance Comm_semiring_1 Nat where {
-};
-
-instance Comm_semiring_1_cancel Nat where {
-};
-
-instance Semiring_char_0 Nat where {
-};
-
-instance Linordered_semidom Nat where {
-};
-
-instance No_zero_divisors Nat where {
-};
-
-instance Minus Nat where {
-  minus = minus_nat;
-};
-
-divmod_nat :: Nat -> Nat -> (Nat, Nat);
-divmod_nat Zero_nat n = (Zero_nat, Zero_nat);
-divmod_nat m Zero_nat = (Zero_nat, m);
-divmod_nat (Nat_of_num k) (Nat_of_num l) = divmod k l;
-
-div_nat :: Nat -> Nat -> Nat;
-div_nat m n = fst (divmod_nat m n);
-
-mod_nat :: Nat -> Nat -> Nat;
-mod_nat m n = snd (divmod_nat m n);
-
-instance Div Nat where {
-  div = div_nat;
-  mod = mod_nat;
-};
-
-instance Semiring_div Nat where {
-};
-
-instance Semiring_numeral_div Nat where {
-};
 
 rbtreeify_g :: forall a b. Nat -> [(a, b)] -> (Rbta a b, [(a, b)]);
 rbtreeify_g n kvs =
@@ -1956,49 +6907,41 @@ gen_entries [] Emptya = [];
 entries :: forall a b. Rbta a b -> [(a, b)];
 entries = gen_entries [];
 
+rbt_union_with_key ::
+  forall a b.
+    (a -> a -> Bool) -> (a -> b -> b -> b) -> Rbta a b -> Rbta a b -> Rbta a b;
+rbt_union_with_key less f t1 t2 =
+  (case compare_height t1 t1 t2 t2 of {
+    LT -> foldb (rbt_insert_with_key less (\ k v w -> f k w v)) t1 t2;
+    GT -> foldb (rbt_insert_with_key less f) t2 t1;
+    EQ -> rbtreeify (sunion_with less f (entries t1) (entries t2));
+  });
+
+join ::
+  forall a b.
+    (Corder a) => (a -> b -> b -> b) ->
+                    Mapping_rbt a b -> Mapping_rbt a b -> Mapping_rbt a b;
+join xc xd xe =
+  Mapping_RBTa
+    (rbt_union_with_key (snd (the corder)) xc (impl_ofb xd) (impl_ofb xe));
+
+union :: forall a. (Ceq a) => Set_dlist a -> Set_dlist a -> Set_dlist a;
+union = foldd insertc;
+
+inter_list ::
+  forall a. (Corder a) => Mapping_rbt a () -> [a] -> Mapping_rbt a ();
+inter_list xb xc =
+  Mapping_RBTa
+    (fold (\ k -> rbt_insert (snd (the corder)) k ())
+      (filter
+        (\ x -> not (is_none (rbt_lookup (snd (the corder)) (impl_ofb xb) x)))
+        xc)
+      Emptya);
+
 filterc ::
   forall a b.
     (Corder a) => ((a, b) -> Bool) -> Mapping_rbt a b -> Mapping_rbt a b;
-filterc x xa = Mapping_RBTa (rbtreeify (filter x (entries (impl_ofb xa))));
-
-skip_red :: forall a b. Rbta a b -> Rbta a b;
-skip_red (Branch R l k v r) = l;
-skip_red Emptya = Emptya;
-skip_red (Branch B va vb vc vd) = Branch B va vb vc vd;
-
-skip_black :: forall a b. Rbta a b -> Rbta a b;
-skip_black t =
-  let {
-    ta = skip_red t;
-  } in (case ta of {
-         Emptya -> ta;
-         Branch R l _ _ _ -> ta;
-         Branch B l _ _ _ -> l;
-       });
-
-data Compare = Lt | Gt | Eqa;
-
-compare_height ::
-  forall a b. Rbta a b -> Rbta a b -> Rbta a b -> Rbta a b -> Compare;
-compare_height sx s t tx =
-  (case (skip_red sx, (skip_red s, (skip_red t, skip_red tx))) of {
-    (Emptya, (Emptya, (_, Emptya))) -> Eqa;
-    (Emptya, (Emptya, (_, Branch _ _ _ _ _))) -> Lt;
-    (Emptya, (Branch _ sa _ _ _, (Emptya, b))) -> Eqa;
-    (Emptya, (Branch _ sa _ _ _, (Branch _ ta _ _ _, Emptya))) -> Eqa;
-    (Emptya, (Branch _ sa _ _ _, (Branch _ ta _ _ _, Branch _ txa _ _ _))) ->
-      compare_height Emptya sa ta (skip_black txa);
-    (Branch _ sxa _ _ _, (Emptya, (Emptya, Emptya))) -> Gt;
-    (Branch _ sxa _ _ _, (Emptya, (Emptya, Branch _ _ _ _ _))) -> Lt;
-    (Branch _ sxa _ _ _, (Emptya, (Branch _ _ _ _ _, Emptya))) -> Eqa;
-    (Branch _ sxa _ _ _, (Emptya, (Branch _ _ _ _ _, Branch _ _ _ _ _))) -> Lt;
-    (Branch _ sxa _ _ _, (Branch _ sa _ _ _, (Emptya, xf))) -> Gt;
-    (Branch _ sxa _ _ _, (Branch _ sa _ _ _, (Branch _ ta _ _ _, Emptya))) ->
-      compare_height (skip_black sxa) sa ta Emptya;
-    (Branch _ sxa _ _ _,
-      (Branch _ sa _ _ _, (Branch _ ta _ _ _, Branch _ txa _ _ _)))
-      -> compare_height (skip_black sxa) sa ta (skip_black txa);
-  });
+filterc xb xc = Mapping_RBTa (rbtreeify (filter xb (entries (impl_ofb xc))));
 
 sinter_with ::
   forall a b.
@@ -2023,84 +6966,29 @@ rbt_inter_with_key ::
     (a -> a -> Bool) -> (a -> b -> b -> b) -> Rbta a b -> Rbta a b -> Rbta a b;
 rbt_inter_with_key less f t1 t2 =
   (case compare_height t1 t1 t2 t2 of {
-    Lt -> rbtreeify
+    LT -> rbtreeify
             (map_filter
-              (\ (k, v) -> mapa (\ w -> (k, f k v w)) (rbt_lookupa less t2 k))
+              (\ (k, v) ->
+                map_option (\ w -> (k, f k v w)) (rbt_lookup less t2 k))
               (entries t1));
-    Gt -> rbtreeify
+    GT -> rbtreeify
             (map_filter
-              (\ (k, v) -> mapa (\ w -> (k, f k w v)) (rbt_lookupa less t1 k))
+              (\ (k, v) ->
+                map_option (\ w -> (k, f k w v)) (rbt_lookup less t1 k))
               (entries t2));
-    Eqa -> rbtreeify (sinter_with less f (entries t1) (entries t2));
+    EQ -> rbtreeify (sinter_with less f (entries t1) (entries t2));
   });
 
 meet ::
   forall a b.
     (Corder a) => (a -> b -> b -> b) ->
                     Mapping_rbt a b -> Mapping_rbt a b -> Mapping_rbt a b;
-meet x xa xb =
+meet xc xd xe =
   Mapping_RBTa
-    (rbt_inter_with_key (snd (the corder)) x (impl_ofb xa) (impl_ofb xb));
-
-memberc :: forall a. (Ceq a) => Set_dlist a -> a -> Bool;
-memberc x = list_member (the ceq) (list_of_dlist x);
+    (rbt_inter_with_key (snd (the corder)) xc (impl_ofb xd) (impl_ofb xe));
 
 filterb :: forall a. (Ceq a) => (a -> Bool) -> Set_dlist a -> Set_dlist a;
-filterb x xa = Abs_dlist (filter x (list_of_dlist xa));
-
-sunion_with ::
-  forall a b.
-    (a -> a -> Bool) -> (a -> b -> b -> b) -> [(a, b)] -> [(a, b)] -> [(a, b)];
-sunion_with less f asa [] = asa;
-sunion_with less f [] bs = bs;
-sunion_with less f ((ka, va) : asa) ((k, v) : bs) =
-  (if less k ka then (k, v) : sunion_with less f ((ka, va) : asa) bs
-    else (if less ka k then (ka, va) : sunion_with less f asa ((k, v) : bs)
-           else (ka, f ka va v) : sunion_with less f asa bs));
-
-rbt_union_with_key ::
-  forall a b.
-    (a -> a -> Bool) -> (a -> b -> b -> b) -> Rbta a b -> Rbta a b -> Rbta a b;
-rbt_union_with_key less f t1 t2 =
-  (case compare_height t1 t1 t2 t2 of {
-    Lt -> foldb (rbt_insert_with_keya less (\ k v w -> f k w v)) t1 t2;
-    Gt -> foldb (rbt_insert_with_keya less f) t2 t1;
-    Eqa -> rbtreeify (sunion_with less f (entries t1) (entries t2));
-  });
-
-join ::
-  forall a b.
-    (Corder a) => (a -> b -> b -> b) ->
-                    Mapping_rbt a b -> Mapping_rbt a b -> Mapping_rbt a b;
-join x xa xb =
-  Mapping_RBTa
-    (rbt_union_with_key (snd (the corder)) x (impl_ofb xa) (impl_ofb xb));
-
-union :: forall a. (Ceq a) => Set_dlist a -> Set_dlist a -> Set_dlist a;
-union = foldd insertc;
-
-uminus_set :: forall a. Set a -> Set a;
-uminus_set (Complement b) = b;
-uminus_set (Collect_set p) = Collect_set (\ x -> not (p x));
-uminus_set a = Complement a;
-
-lookupd :: forall a b. (Corder a) => Mapping_rbt a b -> a -> Maybe b;
-lookupd x = rbt_lookupa (snd (the corder)) (impl_ofb x);
-
-memberb :: forall a. (Corder a) => Mapping_rbt a () -> a -> Bool;
-memberb t x = lookupd t x == Just ();
-
-member :: forall a. (Ceq a, Corder a) => a -> Set a -> Bool;
-member x (Set_Monad xs) =
-  (case ceq of {
-    Nothing ->
-      error "member Set_Monad: ceq = None" (\ _ -> member x (Set_Monad xs));
-    Just eq -> list_member eq xs x;
-  });
-member xa (Complement x) = not (member xa x);
-member x (RBT_set rbt) = memberb rbt x;
-member x (DList_set dxs) = memberc dxs x;
-member x (Collect_set a) = a x;
+filterb xb xc = Abs_dlist (filter xb (list_of_dlist xc));
 
 inf_set :: forall a. (Ceq a, Corder a) => Set a -> Set a -> Set a;
 inf_set (RBT_set rbt1) (Set_Monad xs) =
@@ -2311,13 +7199,13 @@ many1_gen ::
       (Xml -> Sum_bot [Prelude.Char] a) ->
         (a -> Xml -> Sum_bot [Prelude.Char] b) ->
           (a -> [b] -> c) -> Xml -> Sum_bot [Prelude.Char] c;
-many1_gen tag p1 p2 f (Xml name atts cs text) =
+many1_gen tag p1 p2 f (XML name atts cs text) =
   (if name == tag && null atts && is_none text && not (null cs)
     then let {
            (h : t) = cs;
          } in binda (p1 h)
                 (\ x -> binda (map_sum_bot (p2 x) t) (\ xs -> returna (f x xs)))
-    else fail tag (Xml name atts cs text));
+    else fail tag (XML name atts cs text));
 
 many1 ::
   forall a b c.
@@ -2339,7 +7227,7 @@ many2 ::
         (Xml -> Sum_bot [Prelude.Char] b) ->
           (Xml -> Sum_bot [Prelude.Char] c) ->
             (a -> b -> [c] -> d) -> Xml -> Sum_bot [Prelude.Char] d;
-many2 tag p1 p2 p3 f (Xml name atts cs text) =
+many2 tag p1 p2 p3 f (XML name atts cs text) =
   (if name == tag && null atts && is_none text && length_ge_2 cs
     then let {
            (cs0 : cs1 : t) = cs;
@@ -2348,13 +7236,7 @@ many2 tag p1 p2 p3 f (Xml name atts cs text) =
                   binda (p2 cs1)
                     (\ y ->
                       binda (map_sum_bot p3 t) (\ xs -> returna (f x y xs))))
-    else fail tag (Xml name atts cs text));
-
-newtype Alist a b = Alist [(a, b)];
-
-class Default a where {
-  defaulta :: a;
-};
+    else fail tag (XML name atts cs text));
 
 membera :: forall a. (Eq a) => [a] -> a -> Bool;
 membera [] y = False;
@@ -2367,16 +7249,6 @@ bind :: forall a b. Maybe a -> (a -> Maybe b) -> Maybe b;
 bind Nothing f = Nothing;
 bind (Just x) f = f x;
 
-data Pos = Empty | PCons Nat Pos;
-
-powera :: forall a. a -> (a -> a -> a) -> a -> Nat -> a;
-powera one times a n =
-  (if equal_nat n Zero_nat then one
-    else times a (powera one times a (minus_nat n (Nat_of_num One))));
-
-power :: forall a. (Power a) => a -> Nat -> a;
-power = powera onea times;
-
 prc_nat :: forall a. (a -> Nat -> Nat) -> a -> Nat -> a -> Nat -> (Bool, Bool);
 prc_nat pr =
   (\ f n g m ->
@@ -2388,187 +7260,15 @@ prc_nat pr =
 prl_nat :: forall a. (a -> Nat -> Nat) -> a -> Bool;
 prl_nat pr = (\ f -> equal_nat (pr f Zero_nat) Zero_nat);
 
-plus_rat :: Rat -> Rat -> Rat;
-plus_rat p q =
-  Frct (let {
-          (a, c) = quotient_of p;
-          (b, d) = quotient_of q;
-        } in normalize
-               (plus_int (times_int a d) (times_int b c), times_int c d));
-
-instance Plus Rat where {
-  plus = plus_rat;
-};
-
-instance Semigroup_add Rat where {
-};
-
-instance Cancel_semigroup_add Rat where {
-};
-
-instance Ab_semigroup_add Rat where {
-};
-
-instance Cancel_ab_semigroup_add Rat where {
-};
-
-zero_rat :: Rat;
-zero_rat = Frct (Zero_int, Pos One);
-
-instance Zero Rat where {
-  zeroa = zero_rat;
-};
-
-instance Monoid_add Rat where {
-};
-
-instance Comm_monoid_add Rat where {
-};
-
-instance Cancel_comm_monoid_add Rat where {
-};
-
-instance Mult_zero Rat where {
-};
-
-instance Semigroup_mult Rat where {
-};
-
-instance Semiring Rat where {
-};
-
-instance Semiring_0 Rat where {
-};
-
-instance Semiring_0_cancel Rat where {
-};
-
-instance Ab_semigroup_mult Rat where {
-};
-
-instance Comm_semiring Rat where {
-};
-
-instance Comm_semiring_0 Rat where {
-};
-
-instance Comm_semiring_0_cancel Rat where {
-};
-
-instance Power Rat where {
-};
-
-instance Monoid_mult Rat where {
-};
-
-instance Numeral Rat where {
-};
-
-instance Semiring_numeral Rat where {
-};
-
-instance Zero_neq_one Rat where {
-};
-
-instance Semiring_1 Rat where {
-};
-
-instance Semiring_1_cancel Rat where {
-};
-
-instance Comm_monoid_mult Rat where {
-};
-
-instance Comm_semiring_1 Rat where {
-};
-
-instance Comm_semiring_1_cancel Rat where {
-};
-
-instance Comm_semiring_1_cancel_crossproduct Rat where {
-};
-
-instance No_zero_divisors Rat where {
-};
-
-uminus_rat :: Rat -> Rat;
-uminus_rat p = Frct (let {
-                       (a, b) = quotient_of p;
-                     } in (uminus_int a, b));
-
-minus_rat :: Rat -> Rat -> Rat;
-minus_rat p q =
-  Frct (let {
-          (a, c) = quotient_of p;
-          (b, d) = quotient_of q;
-        } in normalize
-               (minus_int (times_int a d) (times_int b c), times_int c d));
-
-instance Uminus Rat where {
-  uminus = uminus_rat;
-};
-
-instance Minus Rat where {
-  minus = minus_rat;
-};
-
-instance Group_add Rat where {
-};
-
-instance Ab_group_add Rat where {
-};
-
-instance Ring Rat where {
-};
-
-instance Ring_no_zero_divisors Rat where {
-};
-
-instance Neg_numeral Rat where {
-};
-
-instance Ring_1 Rat where {
-};
-
-instance Ring_1_no_zero_divisors Rat where {
-};
-
-instance Comm_ring Rat where {
-};
-
-instance Comm_ring_1 Rat where {
-};
-
-instance Idom Rat where {
-};
-
 lterms ::
   forall a b. ((a, Nat) -> [(Nat, Nat)]) -> Term a b -> [(Term a b, Nat)];
 lterms pi =
   (\ (Fun f ts) ->
     map (\ (i, a) -> (proja (Fun f ts) i, a)) (pi (f, size_list ts)));
 
-class Cenum a where {
-  cEnum :: Maybe ([a], ((a -> Bool) -> Bool, (a -> Bool) -> Bool));
-};
-
-collect :: forall a. (Cenum a) => (a -> Bool) -> Set a;
-collect p =
-  (case cEnum of {
-    Nothing -> Collect_set p;
-    Just (enum, _) -> Set_Monad (filter p enum);
-  });
-
-top_set :: forall a. (Ceq a, Corder a, Set_impla a) => Set a;
-top_set = uminus_set bot_set;
-
 ground :: forall a b. Term a b -> Bool;
 ground (Var x) = False;
 ground (Fun f ts) = all ground ts;
-
-is_Var :: forall a b. Term a b -> Bool;
-is_Var (Var x) = True;
-is_Var (Fun f ts) = False;
 
 add_vars_term_list :: forall a b. Term a b -> [b] -> [b];
 add_vars_term_list =
@@ -2583,6 +7283,10 @@ remdups (x : xs) = (if membera xs x then remdups xs else x : remdups xs);
 
 vars_term_list :: forall a b. (Eq b) => Term a b -> [b];
 vars_term_list = remdups . vars_term_lista;
+
+is_Var :: forall a b. Term a b -> Bool;
+is_Var (Var x1) = True;
+is_Var (Fun x21 x22) = False;
 
 wf_rule :: forall a b. (Eq b) => (Term a b, Term a b) -> Bool;
 wf_rule r =
@@ -2634,7 +7338,7 @@ triple ::
             (a -> b -> c -> d) -> Xml -> Sum_bot [Prelude.Char] d;
 triple tag p1 p2 p3 f xml =
   let {
-    (Xml name atts cs text) = xml;
+    (XML name atts cs text) = xml;
   } in (if name == tag && null atts && is_none text
          then (case list3elements cs of {
                 Nothing -> fail tag xml;
@@ -2664,7 +7368,7 @@ tuple4 ::
               (a -> b -> c -> d -> e) -> Xml -> Sum_bot [Prelude.Char] e;
 tuple4 tag p1 p2 p3 p4 f xml =
   let {
-    (Xml name atts cs text) = xml;
+    (XML name atts cs text) = xml;
   } in (if name == tag && null atts && is_none text
          then (case list4elements cs of {
                 Nothing -> fail tag xml;
@@ -2699,7 +7403,7 @@ tuple5 ::
                 (a -> b -> c -> d -> e -> f) -> Xml -> Sum_bot [Prelude.Char] f;
 tuple5 tag p1 p2 p3 p4 p5 f xml =
   let {
-    (Xml name atts cs text) = xml;
+    (XML name atts cs text) = xml;
   } in (if name == tag && null atts && is_none text
          then (case list5elements cs of {
                 Nothing -> fail tag xml;
@@ -2740,7 +7444,7 @@ tuple6 ::
                     Xml -> Sum_bot [Prelude.Char] g;
 tuple6 tag p1 p2 p3 p4 p5 p6 f xml =
   let {
-    (Xml name atts cs text) = xml;
+    (XML name atts cs text) = xml;
   } in (if name == tag && null atts && is_none text
          then (case list6elements cs of {
                 Nothing -> fail tag xml;
@@ -2767,10 +7471,6 @@ update k v (p : ps) = (if fst p == k then (k, v) : ps else p : update k v ps);
 emptya :: forall a b. Alist a b;
 emptya = Alist [];
 
-instance Eq Int where {
-  a == b = equal_int a b;
-};
-
 scf_list :: forall a. (Nat -> Nat) -> [a] -> [a];
 scf_list scf xs =
   concatMap (\ (x, i) -> replicate (scf i) x)
@@ -2781,134 +7481,21 @@ scf_term scf (Var x) = Var x;
 scf_term scf (Fun f ts) =
   Fun f (scf_list (scf (f, size_list ts)) (map (scf_term scf) ts));
 
-data Lab a b = Lab (Lab a b) b | FunLab (Lab a b) [Lab a b] | UnLab a
-  | Sharp (Lab a b);
-
 butlast :: forall a. [a] -> [a];
 butlast [] = [];
 butlast (x : xs) = (if null xs then [] else x : butlast xs);
 
-lexord_eq :: forall a. (a -> a -> Bool) -> [a] -> [a] -> Bool;
-lexord_eq less (x : xs) (y : ys) =
-  less x y || not (less y x) && lexord_eq less xs ys;
-lexord_eq less (x : xs) [] = False;
-lexord_eq less xs [] = null xs;
-lexord_eq less [] ys = True;
+extract :: forall a. (a -> Bool) -> [a] -> Maybe ([a], (a, [a]));
+extract p (x : xs) =
+  (if p x then Just ([], (x, xs))
+    else (case extract p xs of {
+           Nothing -> Nothing;
+           Just (ys, (y, zs)) -> Just (x : ys, (y, zs));
+         }));
+extract p [] = Nothing;
 
-lexord :: forall a. (a -> a -> Bool) -> [a] -> [a] -> Bool;
-lexord less (x : xs) (y : ys) = less x y || not (less y x) && lexord less xs ys;
-lexord less xs [] = False;
-lexord less [] ys = not (null ys);
-
-corder_list ::
-  forall a. (Corder a) => Maybe ([a] -> [a] -> Bool, [a] -> [a] -> Bool);
-corder_list = mapa (\ (_, lt) -> (lexord_eq lt, lexord lt)) corder;
-
-instance (Corder a) => Corder [a] where {
-  corder = corder_list;
-};
-
-set_impl_list :: forall a. Phantom [a] Set_impl;
-set_impl_list = Phantom Set_Choose;
-
-list_rec :: forall a b. a -> (b -> [b] -> a -> a) -> [b] -> a;
-list_rec f1 f2 [] = f1;
-list_rec f1 f2 (a : list) = f2 a list (list_rec f1 f2 list);
-
-ceq_list :: forall a. (Ceq a) => Maybe ([a] -> [a] -> Bool);
-ceq_list =
-  (case ceq of {
-    Nothing -> Nothing;
-    Just eq_0 ->
-      Just (list_rec (\ a -> (case a of {
-                               [] -> True;
-                               _ : _ -> False;
-                             }))
-             (\ x_0 _ res_0 a ->
-               (case a of {
-                 [] -> False;
-                 y_0 : y_1 -> eq_0 x_0 y_0 && res_0 y_1;
-               })));
-  });
-
-instance (Ceq a) => Ceq [a] where {
-  ceq = ceq_list;
-};
-
-less_eq_prod ::
-  forall a b.
-    (a -> a -> Bool) ->
-      (a -> a -> Bool) -> (b -> b -> Bool) -> (a, b) -> (a, b) -> Bool;
-less_eq_prod leq_a less_a leq_b =
-  (\ (x1, x2) (y1, y2) -> less_a x1 y1 || leq_a x1 y1 && leq_b x2 y2);
-
-less_prod ::
-  forall a b.
-    (a -> a -> Bool) ->
-      (a -> a -> Bool) -> (b -> b -> Bool) -> (a, b) -> (a, b) -> Bool;
-less_prod leq_a less_a less_b =
-  (\ (x1, x2) (y1, y2) -> less_a x1 y1 || leq_a x1 y1 && less_b x2 y2);
-
-corder_prod ::
-  forall a b.
-    (Corder a,
-      Corder b) => Maybe ((a, b) -> (a, b) -> Bool, (a, b) -> (a, b) -> Bool);
-corder_prod =
-  (case corder of {
-    Nothing -> Nothing;
-    Just (leq_a, lt_a) ->
-      (case corder of {
-        Nothing -> Nothing;
-        Just (leq_b, lt_b) ->
-          Just (less_eq_prod leq_a lt_a leq_b, less_prod leq_a lt_a lt_b);
-      });
-  });
-
-instance (Corder a, Corder b) => Corder (a, b) where {
-  corder = corder_prod;
-};
-
-instance Set_impla [a] where {
-  set_impl = set_impl_list;
-};
-
-prod_rec :: forall a b c. (a -> b -> c) -> (a, b) -> c;
-prod_rec f1 (a, b) = f1 a b;
-
-ceq_prod :: forall a b. (Ceq a, Ceq b) => Maybe ((a, b) -> (a, b) -> Bool);
-ceq_prod =
-  (case ceq of {
-    Nothing -> Nothing;
-    Just eq_0 ->
-      (case ceq of {
-        Nothing -> Nothing;
-        Just eq_1 ->
-          Just (prod_rec
-                 (\ x_0 x_1 (y_0, y_1) -> eq_0 x_0 y_0 && eq_1 x_1 y_1));
-      });
-  });
-
-instance (Ceq a, Ceq b) => Ceq (a, b) where {
-  ceq = ceq_prod;
-};
-
-set_impl_choose2 :: Set_impl -> Set_impl -> Set_impl;
-set_impl_choose2 Set_Monada Set_Monada = Set_Monada;
-set_impl_choose2 Set_RBT Set_RBT = Set_RBT;
-set_impl_choose2 Set_DList Set_DList = Set_DList;
-set_impl_choose2 Set_Collect Set_Collect = Set_Collect;
-set_impl_choose2 x y = Set_Choose;
-
-set_impl_prod ::
-  forall a b. (Set_impla a, Set_impla b) => Phantom (a, b) Set_impl;
-set_impl_prod =
-  Phantom
-    (set_impl_choose2 (of_phantom (set_impl :: Phantom a Set_impl))
-      (of_phantom (set_impl :: Phantom b Set_impl)));
-
-instance (Set_impla a, Set_impla b) => Set_impla (a, b) where {
-  set_impl = set_impl_prod;
-};
+hd :: forall a. [a] -> a;
+hd (x21 : x22) = x21;
 
 productb ::
   forall a b. (Ceq a, Ceq b) => Set_dlist a -> Set_dlist b -> Set_dlist (a, b);
@@ -2929,7 +7516,7 @@ productd ::
     (Corder a,
       Corder b) => (a -> d -> b -> e -> c) ->
                      Mapping_rbt a d -> Mapping_rbt b e -> Mapping_rbt (a, b) c;
-productd x xa xb = Mapping_RBTa (rbt_product x (impl_ofb xa) (impl_ofb xb));
+productd xc xd xe = Mapping_RBTa (rbt_product xc (impl_ofb xd) (impl_ofb xe));
 
 producta ::
   forall a b.
@@ -2940,8 +7527,8 @@ producta rbt1 rbt2 = productd (\ _ _ _ _ -> ()) rbt1 rbt2;
 
 productc ::
   forall a b.
-    (Ceq a, Corder a, Set_impla a, Ceq b, Corder b,
-      Set_impla b) => Set a -> Set b -> Set (a, b);
+    (Ceq a, Corder a, Set_impl a, Ceq b, Corder b,
+      Set_impl b) => Set a -> Set b -> Set (a, b);
 productc (RBT_set rbt1) (RBT_set rbt2) =
   (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
     Nothing ->
@@ -2954,6 +7541,20 @@ productc (RBT_set rbt1) (RBT_set rbt2) =
             (\ _ -> productc (RBT_set rbt1) (RBT_set rbt2));
         Just _ -> RBT_set (producta rbt1 rbt2);
       });
+  });
+productc a2 (RBT_set rbt2) =
+  (case (corder :: Maybe (b -> b -> Bool, b -> b -> Bool)) of {
+    Nothing ->
+      error "product RBT_set: corder2 = None"
+        (\ _ -> productc a2 (RBT_set rbt2));
+    Just _ -> foldc (\ y -> sup_set (image (\ x -> (x, y)) a2)) rbt2 bot_set;
+  });
+productc (RBT_set rbt1) b2 =
+  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+    Nothing ->
+      error "product RBT_set: corder1 = None"
+        (\ _ -> productc (RBT_set rbt1) b2);
+    Just _ -> foldc (\ x -> sup_set (image (\ a -> (x, a)) b2)) rbt1 bot_set;
   });
 productc (DList_set dxs) (DList_set dys) =
   (case (ceq :: Maybe (a -> a -> Bool)) of {
@@ -2968,45 +7569,38 @@ productc (DList_set dxs) (DList_set dys) =
         Just _ -> DList_set (productb dxs dys);
       });
   });
-productc a (DList_set dys) =
+productc a1 (DList_set dys) =
   (case (ceq :: Maybe (b -> b -> Bool)) of {
     Nothing ->
       error "product DList_set2: ceq = None"
-        (\ _ -> productc a (DList_set dys));
-    Just _ -> foldd (\ y -> sup_set (image (\ x -> (x, y)) a)) dys bot_set;
+        (\ _ -> productc a1 (DList_set dys));
+    Just _ -> foldd (\ y -> sup_set (image (\ x -> (x, y)) a1)) dys bot_set;
   });
-productc (DList_set dxs) b =
+productc (DList_set dxs) b1 =
   (case (ceq :: Maybe (a -> a -> Bool)) of {
     Nothing ->
       error "product DList_set1: ceq = None"
-        (\ _ -> productc (DList_set dxs) b);
-    Just _ -> foldd (\ x -> sup_set (image (\ a -> (x, a)) b)) dxs bot_set;
+        (\ _ -> productc (DList_set dxs) b1);
+    Just _ -> foldd (\ x -> sup_set (image (\ a -> (x, a)) b1)) dxs bot_set;
   });
 productc (Set_Monad xs) (Set_Monad ys) =
   Set_Monad (fold (\ x -> fold (\ y -> (\ a -> (x, y) : a)) ys) xs []);
 productc a b = Collect_set (\ (x, y) -> member x a && member y b);
 
 set_Cons ::
-  forall a. (Ceq a, Corder a, Set_impla a) => Set a -> Set [a] -> Set [a];
+  forall a. (Ceq a, Corder a, Set_impl a) => Set a -> Set [a] -> Set [a];
 set_Cons a xs =
   image (\ (aa, b) -> aa : b)
     (productc (inf_set (image (\ x -> x) a) top_set)
       (inf_set top_set (image (\ xsa -> xsa) xs)));
 
-listset :: forall a. (Ceq a, Corder a, Set_impla a) => [Set a] -> Set [a];
+listset :: forall a. (Ceq a, Corder a, Set_impl a) => [Set a] -> Set [a];
 listset [] = inserta [] (set_empty (of_phantom set_impl_list));
 listset (a : asa) = set_Cons a (listset asa);
-
-product :: forall a b. [a] -> [b] -> [(a, b)];
-product [] uu = [];
-product (x : xs) ys = map (\ a -> (x, a)) ys ++ product xs ys;
 
 remove1 :: forall a. (Eq a) => a -> [a] -> [a];
 remove1 x [] = [];
 remove1 x (y : xs) = (if x == y then xs else y : remove1 x xs);
-
-data Memory_ext a b c d =
-  Memory_ext (() -> a) (a -> b -> Maybe c) (a -> (b, c) -> a) d;
 
 l2m_lookup ::
   forall a b c. (Eq a, Eq b) => [(a, [(b, c)])] -> (a, b) -> Maybe c;
@@ -3062,327 +7656,27 @@ aux key ma v m =
       });
   });
 
-newtype Multiset a = Bag (Alist a Nat);
-
-instance Eq Nat where {
-  a == b = equal_nat a b;
-};
-
-rep_mini_alg_unique :: Mini_alg_unique -> Mini_alg;
-rep_mini_alg_unique (Abs_mini_alg_unique x) = x;
-
-rep_mini_alg :: Mini_alg -> (Rat, (Rat, Nat));
-rep_mini_alg (Abs_mini_alg x) = x;
-
 ma_coeff :: Mini_alg -> Rat;
-ma_coeff x = fst (snd (rep_mini_alg x));
+ma_coeff xa = fst (snd (rep_mini_alg xa));
 
 mau_coeff :: Mini_alg_unique -> Rat;
-mau_coeff x = ma_coeff (rep_mini_alg_unique x);
+mau_coeff xa = ma_coeff (rep_mini_alg_unique xa);
 
 root_int_maina :: Nat -> Int -> Int -> Int -> Int -> (Int, Bool);
 root_int_maina pm ipm ip x n =
   let {
-    xpm = power x pm;
+    xpm = powera x pm;
     xp = times_int xpm x;
   } in (if less_eq_int xp n then (x, equal_int xp n)
          else root_int_maina pm ipm ip
                 (div_int (plus_int (div_int n xpm) (times_int x ipm)) ip) n);
-
-class (Order a) => Dense_order a where {
-};
-
-class (Dense_order a, Linorder a) => Dense_linorder a where {
-};
-
-class (Order a) => No_top a where {
-};
-
-class (Order a) => No_bot a where {
-};
-
-class (Dense_linorder a, No_bot a,
-        No_top a) => Unbounded_dense_linorder a where {
-};
-
-class (Linordered_semiring a, Semiring_1 a) => Linordered_semiring_1 a where {
-};
-
-class (Linordered_semiring_1 a,
-        Linordered_semiring_strict a) => Linordered_semiring_1_strict a where {
-};
-
-class (Ab_group_add a, Ordered_ab_semigroup_add_imp_le a,
-        Ordered_comm_monoid_add a) => Ordered_ab_group_add a where {
-};
-
-class (Abs a, Ordered_ab_group_add a) => Ordered_ab_group_add_abs a where {
-};
-
-class (Linordered_cancel_ab_semigroup_add a,
-        Ordered_ab_group_add a) => Linordered_ab_group_add a where {
-};
-
-class (Ordered_ab_group_add a, Ordered_cancel_semiring a,
-        Ring a) => Ordered_ring a where {
-};
-
-class (Abs a, Minus a, Uminus a, Zero a, Ord a) => Abs_if a where {
-};
-
-class (Abs_if a, Linordered_ab_group_add a, Ordered_ab_group_add_abs a,
-        Linordered_semiring a, Ordered_ring a) => Linordered_ring a where {
-};
-
-class (Linordered_ring a, Linordered_semiring_strict a,
-        Ring_no_zero_divisors a) => Linordered_ring_strict a where {
-};
-
-class (Comm_ring a, Ordered_cancel_comm_semiring a,
-        Ordered_ring a) => Ordered_comm_ring a where {
-};
-
-class (Ordered_ab_group_add_abs a, Ordered_ring a) => Ordered_ring_abs a where {
-};
-
-class (Minus a, One a, Sgn a, Uminus a, Zero a, Ord a) => Sgn_if a where {
-};
-
-class (Sgn_if a, Ring_char_0 a, Idom a, Linordered_ring_strict a,
-        Linordered_semidom a, Linordered_semiring_1_strict a,
-        Ordered_comm_ring a, Ordered_ring_abs a) => Linordered_idom a where {
-};
-
-class (Unbounded_dense_linorder a, Field_char_0 a,
-        Linordered_idom a) => Linordered_field a where {
-};
-
-class (Linordered_field a) => Archimedean_field a where {
-};
-
-class (Ord a) => Non_strict_order a where {
-};
-
-class (Ab_semigroup_add a, Monoid_add a,
-        Non_strict_order a) => Ordered_ab_semigroup a where {
-};
-
-class (Semiring_0 a, Ordered_ab_semigroup a) => Ordered_semiring_0 a where {
-};
-
-class (Semiring_1 a, Ordered_semiring_0 a) => Ordered_semiring_1 a where {
-};
-
-class (Comm_semiring_1 a, Ordered_semiring_1 a) => Poly_carrier a where {
-};
-
-class (Poly_carrier a) => Large_ordered_semiring_1 a where {
-};
-
-class (Archimedean_field a,
-        Large_ordered_semiring_1 a) => Floor_ceiling a where {
-  floor :: a -> Int;
-};
-
-ceiling :: forall a. (Floor_ceiling a) => a -> Int;
-ceiling x = uminus_int (floor (uminus x));
-
-log_ceil_impl :: Nat -> Int -> Int -> Nat -> Nat;
-log_ceil_impl b x prod sum =
-  (if less_eq_int x prod then sum
-    else log_ceil_impl b x (times_int prod (of_nat b))
-           (plus_nat sum (Nat_of_num One)));
-
-log_ceil :: Nat -> Int -> Nat;
-log_ceil b x =
-  (if less_nat (Nat_of_num One) b && less_eq_int Zero_int x
-    then log_ceil_impl b x (Pos One) Zero_nat else Zero_nat);
-
-instance Non_strict_order Rat where {
-};
-
-instance Ordered_ab_semigroup Rat where {
-};
-
-instance Ordered_semiring_0 Rat where {
-};
-
-instance Ordered_semiring_1 Rat where {
-};
-
-instance Poly_carrier Rat where {
-};
-
-instance Large_ordered_semiring_1 Rat where {
-};
-
-instance Preorder Rat where {
-};
-
-instance Order Rat where {
-};
-
-instance Dense_order Rat where {
-};
-
-instance Linorder Rat where {
-};
-
-instance Dense_linorder Rat where {
-};
-
-instance No_top Rat where {
-};
-
-instance No_bot Rat where {
-};
-
-instance Unbounded_dense_linorder Rat where {
-};
-
-instance Ordered_ab_semigroup_add Rat where {
-};
-
-instance Ordered_cancel_ab_semigroup_add Rat where {
-};
-
-instance Ordered_ab_semigroup_add_imp_le Rat where {
-};
-
-instance Linordered_ab_semigroup_add Rat where {
-};
-
-instance Linordered_cancel_ab_semigroup_add Rat where {
-};
-
-instance Ordered_comm_monoid_add Rat where {
-};
-
-instance Ordered_semiring Rat where {
-};
-
-instance Ordered_cancel_semiring Rat where {
-};
-
-instance Linordered_semiring Rat where {
-};
-
-instance Linordered_semiring_strict Rat where {
-};
-
-instance Linordered_semiring_1 Rat where {
-};
-
-instance Linordered_semiring_1_strict Rat where {
-};
-
-instance Ordered_ab_group_add Rat where {
-};
-
-instance Ordered_ab_group_add_abs Rat where {
-};
-
-instance Linordered_ab_group_add Rat where {
-};
-
-instance Ordered_ring Rat where {
-};
-
-instance Abs_if Rat where {
-};
-
-instance Linordered_ring Rat where {
-};
-
-instance Linordered_ring_strict Rat where {
-};
-
-instance Ordered_comm_semiring Rat where {
-};
-
-instance Ordered_cancel_comm_semiring Rat where {
-};
-
-instance Linordered_comm_semiring_strict Rat where {
-};
-
-instance Semiring_char_0 Rat where {
-};
-
-instance Linordered_semidom Rat where {
-};
-
-instance Ordered_comm_ring Rat where {
-};
-
-instance Ordered_ring_abs Rat where {
-};
-
-instance Ring_char_0 Rat where {
-};
-
-instance Sgn_if Rat where {
-};
-
-instance Linordered_idom Rat where {
-};
-
-inverse_rat :: Rat -> Rat;
-inverse_rat p =
-  Frct (let {
-          (a, b) = quotient_of p;
-        } in (if equal_int a Zero_int then (Zero_int, Pos One)
-               else (times_int (sgn_int a) b, abs_int a)));
-
-instance Inverse Rat where {
-  inverse = inverse_rat;
-  divide = divide_rat;
-};
-
-instance Division_ring Rat where {
-};
-
-instance Field Rat where {
-};
-
-instance Field_char_0 Rat where {
-};
-
-instance Linordered_field Rat where {
-};
-
-instance Archimedean_field Rat where {
-};
-
-floor_rat :: Rat -> Int;
-floor_rat p = let {
-                (a, b) = quotient_of p;
-              } in div_int a b;
-
-instance Floor_ceiling Rat where {
-  floor = floor_rat;
-};
-
-start_value :: Int -> Nat -> Int;
-start_value n p =
-  power (Pos (Bit0 One))
-    (nat (ceiling
-           (divide_rat (of_inta (of_nat (log_ceil (Nat_of_num (Bit0 One)) n)))
-             (of_nat p))));
 
 root_int_main :: Nat -> Int -> (Int, Bool);
 root_int_main p n =
   (if equal_nat p Zero_nat then (Pos One, equal_int n (Pos One))
     else let {
            pm = minus_nat p (Nat_of_num One);
-           (x, b) =
-             root_int_maina pm (of_nat pm) (of_nat p) (start_value n p) n;
-         } in (if b then (x, b)
-                else (if equal_int
-                           (power (plus_int x (Pos One))
-                             (plus_nat pm (Nat_of_num One)))
-                           n
-                       then (plus_int x (Pos One), True) else (x, b))));
+         } in root_int_maina pm (of_nat pm) (of_nat p) (start_value n p) n);
 
 root_int_floor_pos :: Nat -> Int -> Int;
 root_int_floor_pos p x =
@@ -3391,28 +7685,20 @@ root_int_floor_pos p x =
 root_nat_floor :: Nat -> Nat -> Int;
 root_nat_floor p x = root_int_floor_pos p (of_nat x);
 
-sqrt_int_main :: Int -> Int -> (Int, Bool);
-sqrt_int_main x n =
-  let {
-    x2 = times_int x x;
-  } in (if less_eq_int x2 n then (x, equal_int x2 n)
-         else sqrt_int_main
-                (div_int (plus_int (div_int n x) x) (Pos (Bit0 One))) n);
-
 sqrt_int :: Int -> [Int];
 sqrt_int x =
   (if less_int x Zero_int then []
-    else (case sqrt_int_main x x of {
+    else (case sqrt_int_main x of {
            (y, True) ->
              (if equal_int y Zero_int then [Zero_int] else [y, uminus_int y]);
            (y, False) -> [];
          }));
 
 sqrt_nat :: Nat -> [Nat];
-sqrt_nat x = (case sqrt_int (of_nat x) of {
-               [] -> [];
-               xa : _ -> [nat xa];
-             });
+sqrt_nat x = map nat (take (Nat_of_num One) (sqrt_int (of_nat x)));
+
+dvd :: forall a. (Semiring_div a, Eq a) => a -> a -> Bool;
+dvd a b = mod b a == zeroa;
 
 prime_product_factor_main :: Nat -> Nat -> Nat -> Nat -> Nat -> (Nat, Nat);
 prime_product_factor_main factor_sq factor_pr limit n i =
@@ -3450,57 +7736,30 @@ prime_product_factor n =
     s : _ -> (s, Nat_of_num One);
   });
 
-ma_of_rat :: Rat -> Mini_alg;
-ma_of_rat x = Abs_mini_alg (x, (zero_rat, Zero_nat));
-
-equal_rat :: Rat -> Rat -> Bool;
-equal_rat a b = quotient_of a == quotient_of b;
-
-ma_normalize :: (Rat, (Rat, Nat)) -> (Rat, (Rat, Nat));
-ma_normalize x =
-  let {
-    (a, (b, c)) = x;
-  } in (if equal_rat b zero_rat then (a, (zero_rat, Zero_nat))
-         else (a, (b, c)));
-
-ma_times :: Mini_alg -> Mini_alg -> Mini_alg;
-ma_times x xa =
-  Abs_mini_alg
-    (let {
-       (p1, (q1, b1)) = rep_mini_alg x;
-     } in (\ (p2, (q2, b2)) ->
-            (if equal_rat q1 zero_rat
-              then ma_normalize (times_rat p1 p2, (times_rat p1 q2, b2))
-              else ma_normalize
-                     (plus_rat (times_rat p1 p2)
-                        (times_rat (times_rat (of_nat b2) q1) q2),
-                       (plus_rat (times_rat p1 q2) (times_rat q1 p2), b1))))
-      (rep_mini_alg xa));
-
 ma_sqrt :: Mini_alg -> Mini_alg;
-ma_sqrt x =
+ma_sqrt xa =
   Abs_mini_alg
     (let {
-       (p, (_, _)) = rep_mini_alg x;
+       (p, (_, _)) = rep_mini_alg xa;
        (a, b) = quotient_of p;
        aa = abs_int (times_int a b);
      } in (case sqrt_int aa of {
-            [] -> (zero_rat, (inverse_rat (of_inta b), nat aa));
-            s : _ -> (divide_rat (of_inta s) (of_inta b), (zero_rat, Zero_nat));
+            [] -> (zero_rat, (inverse_rat (of_int b), nat aa));
+            s : _ -> (divide_rat (of_int s) (of_int b), (zero_rat, Zero_nat));
           }));
 
 ma_rat :: Mini_alg -> Rat;
-ma_rat x = fst (rep_mini_alg x);
+ma_rat xa = fst (rep_mini_alg xa);
 
 mau_sqrt :: Mini_alg_unique -> Mini_alg_unique;
-mau_sqrt x =
+mau_sqrt xa =
   Abs_mini_alg_unique
     (let {
-       (a, b) = quotient_of (ma_rat (rep_mini_alg_unique x));
+       (a, b) = quotient_of (ma_rat (rep_mini_alg_unique xa));
        (sq, fact) = prime_product_factor (nat (times_int (abs_int a) b));
        ma = ma_of_rat
-              (divide_rat (times_rat (of_inta (sgn_int a)) (of_nat sq))
-                (of_inta b));
+              (divide_rat (times_rat (of_int (sgn_int a)) (of_nat sq))
+                (of_int b));
      } in ma_times ma (ma_sqrt (ma_of_rat (of_nat fact))));
 
 sqrt :: Real -> Real;
@@ -3509,482 +7768,17 @@ sqrt (Real_of_u r) =
     else error "cannot represent sqrt of irrational number"
            (\ _ -> sqrt (Real_of_u r)));
 
-append :: Pos -> Pos -> Pos;
-append Empty q = q;
-append (PCons i p) q = PCons i (append p q);
-
 rev :: Pos -> Pos;
 rev Empty = Empty;
 rev (PCons i p) = append (rev p) (PCons i Empty);
-
-instance Eq Rat where {
-  a == b = equal_rat a b;
-};
-
-ma_uminus :: Mini_alg -> Mini_alg;
-ma_uminus x =
-  Abs_mini_alg
-    (let {
-       (p1, (q1, b1)) = rep_mini_alg x;
-     } in (uminus_rat p1, (uminus_rat q1, b1)));
-
-mau_uminus :: Mini_alg_unique -> Mini_alg_unique;
-mau_uminus x = Abs_mini_alg_unique (ma_uminus (rep_mini_alg_unique x));
-
-uminus_real :: Real -> Real;
-uminus_real (Real_of_u r) = Real_of_u (mau_uminus r);
-
-mau_of_rat :: Rat -> Mini_alg_unique;
-mau_of_rat x = Abs_mini_alg_unique (ma_of_rat x);
-
-zero_real :: Real;
-zero_real = Real_of_u (mau_of_rat zero_rat);
-
-ma_compatible :: Mini_alg -> Mini_alg -> Bool;
-ma_compatible x xa =
-  let {
-    (_, (q1, b1)) = rep_mini_alg x;
-  } in (\ (_, (q2, b2)) ->
-         equal_rat q1 zero_rat || (equal_rat q2 zero_rat || equal_nat b1 b2))
-    (rep_mini_alg xa);
-
-mau_compatible :: Mini_alg_unique -> Mini_alg_unique -> Bool;
-mau_compatible x xa =
-  ma_compatible (rep_mini_alg_unique x) (rep_mini_alg_unique xa);
-
-mau_times :: Mini_alg_unique -> Mini_alg_unique -> Mini_alg_unique;
-mau_times x xa =
-  Abs_mini_alg_unique
-    (ma_times (rep_mini_alg_unique x) (rep_mini_alg_unique xa));
-
-times_real :: Real -> Real -> Real;
-times_real (Real_of_u r1) (Real_of_u r2) =
-  (if mau_compatible r1 r2 then Real_of_u (mau_times r1 r2)
-    else error "different base"
-           (\ _ -> times_real (Real_of_u r1) (Real_of_u r2)));
-
-ma_plus :: Mini_alg -> Mini_alg -> Mini_alg;
-ma_plus x xa =
-  Abs_mini_alg
-    (let {
-       (p1, (q1, b1)) = rep_mini_alg x;
-     } in (\ (p2, (q2, b2)) ->
-            (if equal_rat q1 zero_rat then (plus_rat p1 p2, (q2, b2))
-              else ma_normalize (plus_rat p1 p2, (plus_rat q1 q2, b1))))
-      (rep_mini_alg xa));
-
-mau_plus :: Mini_alg_unique -> Mini_alg_unique -> Mini_alg_unique;
-mau_plus x xa =
-  Abs_mini_alg_unique
-    (ma_plus (rep_mini_alg_unique x) (rep_mini_alg_unique xa));
-
-plus_real :: Real -> Real -> Real;
-plus_real (Real_of_u r1) (Real_of_u r2) =
-  (if mau_compatible r1 r2 then Real_of_u (mau_plus r1 r2)
-    else error "different base"
-           (\ _ -> plus_real (Real_of_u r1) (Real_of_u r2)));
-
-instance Plus Real where {
-  plus = plus_real;
-};
-
-instance Semigroup_add Real where {
-};
-
-instance Cancel_semigroup_add Real where {
-};
-
-instance Ab_semigroup_add Real where {
-};
-
-instance Cancel_ab_semigroup_add Real where {
-};
-
-instance Zero Real where {
-  zeroa = zero_real;
-};
-
-instance Monoid_add Real where {
-};
-
-instance Comm_monoid_add Real where {
-};
-
-instance Cancel_comm_monoid_add Real where {
-};
-
-instance Times Real where {
-  times = times_real;
-};
-
-instance Mult_zero Real where {
-};
-
-instance Semigroup_mult Real where {
-};
-
-instance Semiring Real where {
-};
-
-instance Semiring_0 Real where {
-};
-
-instance Semiring_0_cancel Real where {
-};
-
-one_real :: Real;
-one_real = Real_of_u (mau_of_rat one_rat);
-
-instance One Real where {
-  onea = one_real;
-};
-
-instance Power Real where {
-};
-
-instance Monoid_mult Real where {
-};
-
-instance Numeral Real where {
-};
-
-instance Semiring_numeral Real where {
-};
-
-instance Zero_neq_one Real where {
-};
-
-instance Semiring_1 Real where {
-};
-
-instance Semiring_1_cancel Real where {
-};
-
-instance Uminus Real where {
-  uminus = uminus_real;
-};
-
-minus_real :: Real -> Real -> Real;
-minus_real x y = plus_real x (uminus_real y);
-
-instance Minus Real where {
-  minus = minus_real;
-};
-
-instance Group_add Real where {
-};
-
-instance Neg_numeral Real where {
-};
-
-instance Ab_group_add Real where {
-};
-
-instance Ring Real where {
-};
-
-instance Ring_1 Real where {
-};
-
-sqrt_int_ceiling_pos :: Int -> Int;
-sqrt_int_ceiling_pos x =
-  (case sqrt_int_main x x of {
-    (y, True) -> y;
-    (y, False) -> plus_int y (Pos One);
-  });
-
-sqrt_int_floor_pos :: Int -> Int;
-sqrt_int_floor_pos x = fst (sqrt_int_main x x);
-
-ma_floor :: Mini_alg -> Int;
-ma_floor x =
-  let {
-    (p, (q, b)) = rep_mini_alg x;
-    ((z1, n1), (z2, n2)) = (quotient_of p, quotient_of q);
-    z2n1 = times_int z2 n1;
-    z1n2 = times_int z1 n2;
-    n12 = times_int n1 n2;
-    prod = times_int (times_int z2n1 z2n1) (of_nat b);
-  } in div_int
-         (plus_int z1n2
-           (if less_eq_int Zero_int z2n1 then sqrt_int_floor_pos prod
-             else uminus_int (sqrt_int_ceiling_pos prod)))
-         n12;
-
-mau_floor :: Mini_alg_unique -> Int;
-mau_floor x = ma_floor (rep_mini_alg_unique x);
-
-floor_real :: Real -> Int;
-floor_real (Real_of_u r) = mau_floor r;
-
-real_lt :: Real -> Real -> Bool;
-real_lt x y =
-  let {
-    fx = floor_real x;
-    fy = floor_real y;
-  } in (if less_int fx fy then True
-         else (if less_int fy fx then False
-                else real_lt
-                       (times_real x
-                         (of_int
-                           (Pos (Bit0 (Bit0
-(Bit0 (Bit0 (Bit0 (Bit0 (Bit0 (Bit0 (Bit0 (Bit0 One)))))))))))))
-                       (times_real y
-                         (of_int
-                           (Pos (Bit0 (Bit0
-(Bit0 (Bit0 (Bit0 (Bit0 (Bit0 (Bit0 (Bit0 (Bit0 One)))))))))))))));
-
-ma_identity :: Mini_alg -> Mini_alg -> Bool;
-ma_identity x xa = rep_mini_alg x == rep_mini_alg xa;
-
-mau_equal :: Mini_alg_unique -> Mini_alg_unique -> Bool;
-mau_equal x xa = ma_identity (rep_mini_alg_unique x) (rep_mini_alg_unique xa);
-
-equal_real :: Real -> Real -> Bool;
-equal_real (Real_of_u r1) (Real_of_u r2) = mau_equal r1 r2;
-
-ma_ge_0 :: Mini_alg -> Bool;
-ma_ge_0 x =
-  let {
-    (p, (q, b)) = rep_mini_alg x;
-    bqq = times_rat (times_rat (of_nat b) q) q;
-    pp = times_rat p p;
-  } in less_eq_rat zero_rat p && less_eq_rat bqq pp ||
-         less_eq_rat zero_rat q && less_eq_rat pp bqq;
-
-mau_ge_0 :: Mini_alg_unique -> Bool;
-mau_ge_0 x = ma_ge_0 (rep_mini_alg_unique x);
-
-ge_0 :: Real -> Bool;
-ge_0 (Real_of_u x) = mau_ge_0 x;
-
-less_real :: Real -> Real -> Bool;
-less_real (Real_of_u x) (Real_of_u y) =
-  not (equal_real (Real_of_u x) (Real_of_u y)) &&
-    (if mau_compatible x y then ge_0 (minus_real (Real_of_u y) (Real_of_u x))
-      else real_lt (Real_of_u x) (Real_of_u y));
-
-abs_real :: Real -> Real;
-abs_real a = (if less_real a zero_real then uminus_real a else a);
-
-instance Abs Real where {
-  absa = abs_real;
-};
-
-instance Dvd Real where {
-};
-
-less_eq_real :: Real -> Real -> Bool;
-less_eq_real (Real_of_u x) (Real_of_u y) =
-  equal_real (Real_of_u x) (Real_of_u y) ||
-    (if mau_compatible x y then ge_0 (minus_real (Real_of_u y) (Real_of_u x))
-      else real_lt (Real_of_u x) (Real_of_u y));
-
-instance Ord Real where {
-  less_eq = less_eq_real;
-  less = less_real;
-};
-
-sgn_real :: Real -> Real;
-sgn_real a =
-  (if equal_real a zero_real then zero_real
-    else (if less_real zero_real a then one_real else uminus_real one_real));
-
-instance Sgn Real where {
-  sgn = sgn_real;
-};
 
 key :: forall a b c. (a, (Term b c, Term b c)) -> Maybe (b, Nat);
 key (uu, (Fun f ts, uv)) = Just (f, size_list ts);
 key (uw, (Var ux, uy)) = Nothing;
 
-class (Corder a) => Cproper_interval a where {
-  cproper_interval :: Maybe a -> Maybe a -> Bool;
-};
-
-is_emptya :: forall a b. (Corder a) => Mapping_rbt a b -> Bool;
-is_emptya x =
-  (case impl_ofb x of {
-    Emptya -> True;
-    Branch _ _ _ _ _ -> False;
-  });
-
-class Finite_UNIV a where {
-  finite_UNIV :: Phantom a Bool;
-};
-
-class (Finite_UNIV a) => Card_UNIV a where {
-  card_UNIV :: Phantom a Nat;
-};
-
-newtype Generator a s = Generator (s -> Bool, s -> (a, s));
-
-generatora :: forall a s. Generator a s -> (s -> Bool, s -> (a, s));
-generatora (Generator x) = x;
-
-has_next :: forall a b. Generator a b -> b -> Bool;
-has_next g = fst (generatora g);
-
-next :: forall a b. Generator a b -> b -> (a, b);
-next g = snd (generatora g);
-
-exhaustive_above_fusion ::
-  forall a b. (Maybe a -> Maybe a -> Bool) -> Generator a b -> a -> b -> Bool;
-exhaustive_above_fusion proper_interval g y s =
-  (if has_next g s
-    then let {
-           (x, sa) = next g s;
-         } in not (proper_interval (Just y) (Just x)) &&
-                exhaustive_above_fusion proper_interval g x sa
-    else not (proper_interval (Just y) Nothing));
-
-exhaustive_fusion ::
-  forall a b. (Maybe a -> Maybe a -> Bool) -> Generator a b -> b -> Bool;
-exhaustive_fusion proper_interval g s =
-  has_next g s &&
-    let {
-      (x, sa) = next g s;
-    } in not (proper_interval Nothing (Just x)) &&
-           exhaustive_above_fusion proper_interval g x sa;
-
-rbt_keys_next ::
-  forall a b. ([(a, Rbta a b)], Rbta a b) -> (a, ([(a, Rbta a b)], Rbta a b));
-rbt_keys_next ((k, t) : kts, Emptya) = (k, (kts, t));
-rbt_keys_next (kts, Branch c l k v r) = rbt_keys_next ((k, r) : kts, l);
-
-rbt_has_next :: forall a b c. ([(a, Rbta b c)], Rbta b c) -> Bool;
-rbt_has_next ([], Emptya) = False;
-rbt_has_next (vb : vc, va) = True;
-rbt_has_next (v, Branch vb vc vd ve vf) = True;
-
-rbt_keys_generator :: forall a b. Generator a ([(a, Rbta a b)], Rbta a b);
-rbt_keys_generator = Generator (rbt_has_next, rbt_keys_next);
-
-card_UNIVa :: forall a. (Card_UNIV a) => Phantom a Nat;
-card_UNIVa = card_UNIV;
-
-rbt_init :: forall a b c. Rbta a b -> ([(c, Rbta a b)], Rbta a b);
-rbt_init = (\ a -> ([], a));
-
-init ::
-  forall a b c. (Corder a) => Mapping_rbt a b -> ([(c, Rbta a b)], Rbta a b);
-init x = rbt_init (impl_ofb x);
-
-finite :: forall a. (Finite_UNIV a, Ceq a, Corder a) => Set a -> Bool;
-finite (Collect_set p) =
-  of_phantom (finite_UNIV :: Phantom a Bool) ||
-    error "finite Collect_set" (\ _ -> finite (Collect_set p));
-finite (Set_Monad xs) = True;
-finite (Complement a) =
-  (if of_phantom (finite_UNIV :: Phantom a Bool) then True
-    else (if finite a then False
-           else error "finite Complement: infinite set"
-                  (\ _ -> finite (Complement a))));
-finite (RBT_set rbt) =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
-    Nothing ->
-      error "finite RBT_set: corder = None" (\ _ -> finite (RBT_set rbt));
-    Just _ -> True;
-  });
-finite (DList_set dxs) =
-  (case (ceq :: Maybe (a -> a -> Bool)) of {
-    Nothing ->
-      error "finite DList_set: ceq = None" (\ _ -> finite (DList_set dxs));
-    Just _ -> True;
-  });
-
-list_remdups :: forall a. (a -> a -> Bool) -> [a] -> [a];
-list_remdups equal (x : xs) =
-  (if list_member equal xs x then list_remdups equal xs
-    else x : list_remdups equal xs);
-list_remdups equal [] = [];
-
-length :: forall a. (Ceq a) => Set_dlist a -> Nat;
-length x = size_list (list_of_dlist x);
-
-gen_keys :: forall a b. [(a, Rbta a b)] -> Rbta a b -> [a];
-gen_keys kts (Branch c l k v r) = gen_keys ((k, r) : kts) l;
-gen_keys ((k, t) : kts) Emptya = k : gen_keys kts t;
-gen_keys [] Emptya = [];
-
-keys :: forall a b. Rbta a b -> [a];
-keys = gen_keys [];
-
-keysa :: forall a. (Corder a) => Mapping_rbt a () -> [a];
-keysa x = keys (impl_ofb x);
-
-card :: forall a. (Card_UNIV a, Ceq a, Corder a) => Set a -> Nat;
-card (Complement a) =
-  let {
-    aa = card a;
-    s = of_phantom (card_UNIVa :: Phantom a Nat);
-  } in (if less_nat Zero_nat s then minus_nat s aa
-         else (if finite a then Zero_nat
-                else error "card Complement: infinite"
-                       (\ _ -> card (Complement a))));
-card (Set_Monad xs) =
-  (case ceq of {
-    Nothing -> error "card Set_Monad: ceq = None" (\ _ -> card (Set_Monad xs));
-    Just eq -> size_list (list_remdups eq xs);
-  });
-card (RBT_set rbt) =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
-    Nothing -> error "card RBT_set: corder = None" (\ _ -> card (RBT_set rbt));
-    Just _ -> size_list (keysa rbt);
-  });
-card (DList_set dxs) =
-  (case (ceq :: Maybe (a -> a -> Bool)) of {
-    Nothing -> error "card DList_set: ceq = None" (\ _ -> card (DList_set dxs));
-    Just _ -> length dxs;
-  });
-
-is_UNIV ::
-  forall a.
-    (Card_UNIV a, Ceq a, Cproper_interval a, Set_impla a) => Set a -> Bool;
-is_UNIV (RBT_set rbt) =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
-    Nothing ->
-      error "is_UNIV RBT_set: corder = None" (\ _ -> is_UNIV (RBT_set rbt));
-    Just _ ->
-      (finite :: Set a -> Bool) (top_set :: Set a) &&
-        exhaustive_fusion cproper_interval rbt_keys_generator (init rbt);
-  });
-is_UNIV a =
-  let {
-    aa = of_phantom (card_UNIVa :: Phantom a Nat);
-    b = card a;
-  } in (if less_nat Zero_nat aa then equal_nat aa b
-         else (if less_nat Zero_nat b then False
-                else error "is_UNIV called on infinite type and set"
-                       (\ _ -> is_UNIV a)));
-
-nulla :: forall a. (Ceq a) => Set_dlist a -> Bool;
-nulla x = null (list_of_dlist x);
-
-is_empty ::
-  forall a.
-    (Card_UNIV a, Ceq a, Cproper_interval a, Set_impla a) => Set a -> Bool;
-is_empty (Complement a) = is_UNIV a;
-is_empty (RBT_set rbt) =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
-    Nothing ->
-      error "is_empty RBT_set: corder = None" (\ _ -> is_empty (RBT_set rbt));
-    Just _ -> is_emptya rbt;
-  });
-is_empty (DList_set dxs) =
-  (case (ceq :: Maybe (a -> a -> Bool)) of {
-    Nothing ->
-      error "is_empty DList_set: ceq = None" (\ _ -> is_empty (DList_set dxs));
-    Just _ -> nulla dxs;
-  });
-is_empty (Set_Monad xs) = null xs;
-
 subt_at :: forall a b. Term a b -> Pos -> Term a b;
 subt_at s Empty = s;
 subt_at (Fun f ss) (PCons i p) = subt_at (nth ss i) p;
-
-the_Var :: forall a b. Term a b -> b;
-the_Var (Var x) = x;
 
 map_term :: forall a b c. (a -> b) -> Term a c -> Term b c;
 map_term fun (Var x) = Var x;
@@ -3995,18 +7789,13 @@ map_rule ::
 map_rule fg lr = (map_term fg (fst lr), map_term fg (snd lr));
 
 children :: Xml -> [Xml];
-children (Xml uu uv cs uw) = cs;
-
-impl_ofa :: forall a b. Alist a b -> [(a, b)];
-impl_ofa (Alist x) = x;
+children (XML uu uv cs uw) = cs;
 
 lookupa :: forall a b. (Eq a) => Alist a b -> a -> Maybe b;
-lookupa x = map_of (impl_ofa x);
+lookupa xa = map_of (impl_ofa xa);
 
 updatea :: forall a b. (Eq a) => a -> b -> Alist a b -> Alist a b;
-updatea x xa xb = Alist (update x xa (impl_ofa xb));
-
-data Gctxt a b = GCHole | GCFun a [Gctxt a b];
+updatea xc xd xe = Alist (update xc xd (impl_ofa xe));
 
 zip_option :: forall a b. [a] -> [b] -> Maybe [(a, b)];
 zip_option [] [] = Just [];
@@ -4043,8 +7832,8 @@ merge_lists (GCHole : cs) (d : ds) =
   bind (merge_lists cs ds) (\ es -> Just (d : es));
 merge_lists [] [] = Just [];
 
-mergea :: forall a b. (Eq a) => Gctxt a b -> Gctxt a b -> Maybe (Gctxt a b);
-mergea c d = bind (merge_lists [c] [d]) (\ es -> Just (nth es Zero_nat));
+merge :: forall a b. (Eq a) => Gctxt a b -> Gctxt a b -> Maybe (Gctxt a b);
+merge c d = bind (merge_lists [c] [d]) (\ es -> Just (nth es Zero_nat));
 
 merge_var ::
   forall a b.
@@ -4053,20 +7842,20 @@ merge_var ::
                       [(Gctxt b a, a)] ->
                         Maybe ((Gctxt b a, a), [(Gctxt b a, a)]);
 merge_var x c ((d, y) : ps) =
-  (if x == y then bind (mergea c d) (\ e -> merge_var x e ps)
+  (if x == y then bind (merge c d) (\ e -> merge_var x e ps)
     else bind (merge_var x c ps) (\ (b, psa) -> Just (b, (d, y) : psa)));
 merge_var x c [] = Just ((c, x), []);
 
-merge_alla ::
+merge_all ::
   forall a b. (Eq a, Eq b) => [(Gctxt a b, b)] -> Maybe [(Gctxt a b, b)];
-merge_alla [] = Just [];
-merge_alla ((c, x) : ps) =
+merge_all [] = Just [];
+merge_all ((c, x) : ps) =
   bind (merge_var x c ps)
-    (\ (cx, psa) -> bind (merge_alla psa) (\ psb -> Just (cx : psb)));
+    (\ (cx, psa) -> bind (merge_all psa) (\ psb -> Just (cx : psb)));
 
 matchc ::
   forall a b. (Eq a, Eq b) => (Gctxt a b, Term a b) -> Maybe [(Gctxt a b, b)];
-matchc (c, t) = bind (match_lista [(c, t)]) merge_alla;
+matchc (c, t) = bind (match_lista [(c, t)]) merge_all;
 
 matchb :: forall a b. (Eq a, Eq b) => Gctxt a b -> Term a b -> Bool;
 matchb c t = not (is_none (matchc (c, t)));
@@ -4083,180 +7872,29 @@ distinct :: forall a. (Eq a) => [a] -> Bool;
 distinct [] = True;
 distinct (x : xs) = not (membera xs x) && distinct xs;
 
-sequences :: forall a b. (Linorder b) => (a -> b) -> [a] -> [[a]];
-sequences key (a : b : xs) =
-  (if less (key b) (key a) then desc key b [a] xs
-    else asc key b (\ ba -> a : ba) xs);
-sequences key [] = [[]];
-sequences key [v] = [[v]];
-
-asc ::
-  forall a b. (Linorder b) => (a -> b) -> a -> ([a] -> [a]) -> [a] -> [[a]];
-asc key a f (b : bs) =
-  (if not (less (key b) (key a)) then asc key b (f . (\ ba -> a : ba)) bs
-    else f [a] : sequences key (b : bs));
-asc key a f [] = f [a] : sequences key [];
-
-desc :: forall a b. (Linorder b) => (a -> b) -> a -> [a] -> [a] -> [[a]];
-desc key a asa (b : bs) =
-  (if less (key b) (key a) then desc key b (a : asa) bs
-    else (a : asa) : sequences key (b : bs));
-desc key a asa [] = (a : asa) : sequences key [];
-
-merge :: forall a b. (Linorder b) => (a -> b) -> [a] -> [a] -> [a];
-merge key (a : asa) (b : bs) =
-  (if less (key b) (key a) then b : merge key (a : asa) bs
-    else a : merge key asa (b : bs));
-merge key [] bs = bs;
-merge key (v : va) [] = v : va;
-
-merge_pairs :: forall a b. (Linorder b) => (a -> b) -> [[a]] -> [[a]];
-merge_pairs key (a : b : xs) = merge key a b : merge_pairs key xs;
-merge_pairs key [] = [];
-merge_pairs key [v] = [v];
-
-merge_all :: forall a b. (Linorder b) => (a -> b) -> [[a]] -> [a];
-merge_all key [] = [];
-merge_all key [x] = x;
-merge_all key (v : vb : vc) = merge_all key (merge_pairs key (v : vb : vc));
-
-sort_key :: forall a b. (Linorder b) => (a -> b) -> [a] -> [a];
-sort_key key = merge_all key . sequences key;
-
-sublists :: forall a. [a] -> [[a]];
-sublists [] = [[]];
-sublists (x : xs) = let {
-                      xss = sublists xs;
-                    } in map (\ a -> x : a) xss ++ xss;
-
-data Mapping a b = Assoc_List_Mapping (Alist a b)
-  | RBT_Mapping (Mapping_rbt a b) | Mapping (a -> Maybe b);
-
 mapping_empty_choose :: forall a b. (Corder a) => Mapping a b;
 mapping_empty_choose =
   (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
     Nothing -> Assoc_List_Mapping emptya;
-    Just _ -> RBT_Mapping emptye;
+    Just _ -> RBT_Mapping emptyd;
   });
 
-data Mapping_impl = Mapping_Choose | Mapping_Assoc_List | Mapping_RBT
-  | Mapping_Mapping;
-
-mapping_empty :: forall a b. (Corder a) => Mapping_impl -> Mapping a b;
-mapping_empty Mapping_RBT = RBT_Mapping emptye;
+mapping_empty :: forall a b. (Corder a) => Mapping_impla -> Mapping a b;
+mapping_empty Mapping_RBT = RBT_Mapping emptyd;
 mapping_empty Mapping_Assoc_List = Assoc_List_Mapping emptya;
 mapping_empty Mapping_Mapping = Mapping (\ _ -> Nothing);
 mapping_empty Mapping_Choose = mapping_empty_choose;
 
-class Mapping_impla a where {
-  mapping_impl :: Phantom a Mapping_impl;
-};
+emptyb :: forall a b. (Corder a, Mapping_impl a) => Mapping a b;
+emptyb = mapping_empty (of_phantom (mapping_impl :: Phantom a Mapping_impla));
 
-emptyb :: forall a b. (Corder a, Mapping_impla a) => Mapping a b;
-emptyb = mapping_empty (of_phantom (mapping_impl :: Phantom a Mapping_impl));
-
-max :: forall a. (Ord a) => a -> a -> a;
-max a b = (if less_eq a b then b else a);
-
-min :: forall a. (Ord a) => a -> a -> a;
-min a b = (if less_eq a b then a else b);
-
-instance Ab_semigroup_mult Real where {
-};
-
-instance Comm_semiring Real where {
-};
-
-instance Comm_semiring_0 Real where {
-};
-
-instance Comm_semiring_0_cancel Real where {
-};
-
-instance Comm_monoid_mult Real where {
-};
-
-instance Comm_semiring_1 Real where {
-};
-
-instance Comm_semiring_1_cancel Real where {
-};
-
-instance Comm_semiring_1_cancel_crossproduct Real where {
-};
-
-instance No_zero_divisors Real where {
-};
-
-instance Ring_no_zero_divisors Real where {
-};
-
-instance Ring_1_no_zero_divisors Real where {
-};
-
-instance Comm_ring Real where {
-};
-
-instance Comm_ring_1 Real where {
-};
-
-instance Idom Real where {
-};
-
-minus_set :: forall a. (Ceq a, Corder a) => Set a -> Set a -> Set a;
-minus_set a b = inf_set a (uminus_set b);
-
-shows_between ::
-  ([Prelude.Char] -> [Prelude.Char]) ->
-    ([Prelude.Char] -> [Prelude.Char]) ->
-      ([Prelude.Char] -> [Prelude.Char]) -> [Prelude.Char] -> [Prelude.Char];
-shows_between l p r = l . p . r;
-
-shows_sep ::
-  forall a.
-    (a -> [Prelude.Char] -> [Prelude.Char]) ->
-      ([Prelude.Char] -> [Prelude.Char]) ->
-        [a] -> [Prelude.Char] -> [Prelude.Char];
-shows_sep s sep [] = shows_string [];
-shows_sep s sep [x] = s x;
-shows_sep s sep (x : v : va) = s x . sep . shows_sep s sep (v : va);
-
-shows_list_gen ::
-  forall a.
-    (a -> [Prelude.Char] -> [Prelude.Char]) ->
-      [Prelude.Char] ->
-        [Prelude.Char] ->
-          [Prelude.Char] ->
-            [Prelude.Char] -> [a] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_gen elt e l s r xs =
-  (if null xs then shows_string e
-    else shows_between (shows_string l) (shows_sep elt (shows_string s) xs)
-           (shows_string r));
-
-shows_list_aux ::
-  forall a.
-    (a -> [Prelude.Char] -> [Prelude.Char]) ->
-      [a] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_aux s xs = shows_list_gen s ['[', ']'] ['['] [',', ' '] [']'] xs;
-
-shows_list_list ::
-  forall a. (Showa a) => [[a]] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_list = shows_list_aux (shows_prec_list Zero_nat);
-
-instance (Showa a) => Showa [a] where {
-  shows_prec = shows_prec_list;
-  shows_list = shows_list_list;
-};
+add ::
+  forall a b. Partial_object_ext a (Monoid_ext a (Ring_ext a b)) -> a -> a -> a;
+add (Partial_object_ext carrier (Monoid_ext mult one (Ring_ext zero add more)))
+  = add;
 
 shows_nl :: [Prelude.Char] -> [Prelude.Char];
 shows_nl = shows_prec_char Zero_nat '\n';
-
-ctxt_rec ::
-  forall a b c.
-    a -> (b -> [Term b c] -> Ctxt b c -> [Term b c] -> a -> a) -> Ctxt b c -> a;
-ctxt_rec f1 f2 Hole = f1;
-ctxt_rec f1 f2 (More f list1 ctxt list2) =
-  f2 f list1 ctxt list2 (ctxt_rec f1 f2 ctxt);
 
 hole_pos :: forall a b. Ctxt a b -> Pos;
 hole_pos Hole = Empty;
@@ -4270,12 +7908,12 @@ num_args :: forall a b. Term a b -> Nat;
 num_args (Var x) = Zero_nat;
 num_args (Fun f ts) = size_list ts;
 
-vars_term :: forall a b. (Ceq b, Corder b, Set_impla b) => Term a b -> Set b;
+vars_term :: forall a b. (Ceq b, Corder b, Set_impl b) => Term a b -> Set b;
 vars_term (Var x) = inserta x bot_set;
 vars_term (Fun f ts) = foldr (sup_set . vars_term) ts bot_set;
 
 vars_rule ::
-  forall a b. (Ceq b, Corder b, Set_impla b) => (Term a b, Term a b) -> Set b;
+  forall a b. (Ceq b, Corder b, Set_impl b) => (Term a b, Term a b) -> Set b;
 vars_rule r = sup_set (vars_term (fst r)) (vars_term (snd r));
 
 unapp :: forall a b. (Eq a) => a -> Term a b -> (Term a b, [Term a b]);
@@ -4286,10 +7924,6 @@ unapp a (Fun f ss) =
            (r, ts) = unapp a (nth ss Zero_nat);
          } in (r, ts ++ [nth ss (Nat_of_num One)])
     else (Fun f ss, []));
-
-min_list :: forall a. (Linorder a) => [a] -> a;
-min_list [x] = x;
-min_list (x : v : va) = min x (min_list (v : va));
 
 update_tokens :: forall a. ([a] -> [a]) -> [a] -> Sum [Prelude.Char] ([a], [a]);
 update_tokens f ts = Inr (ts, f ts);
@@ -4504,7 +8138,7 @@ parse_nodes ts =
                        (\ e ->
                          (if e == ['/', '>']
                            then bindc parse_nodes
-                                  (\ cs -> returnb (Xml n atts [] Nothing : cs))
+                                  (\ cs -> returnb (XML n atts [] Nothing : cs))
                            else bindc parse_text
                                   (\ t ->
                                     bindc parse_nodes
@@ -4515,7 +8149,7 @@ bindc (exactly ['<', '/'])
       (\ _ ->
         bindc (exactly ['>'])
           (\ _ ->
-            bindc parse_nodes (\ ns -> returnb (Xml n atts cs t : ns))))))))))))
+            bindc parse_nodes (\ ns -> returnb (XML n atts cs t : ns))))))))))))
            ts);
 
 parse_node :: [Prelude.Char] -> Sum [Prelude.Char] (Xml, [Prelude.Char]);
@@ -4528,7 +8162,7 @@ parse_node =
             (\ atts ->
               bindc oneof_closed
                 (\ e ->
-                  (if e == ['/', '>'] then returnb (Xml n atts [] Nothing)
+                  (if e == ['/', '>'] then returnb (XML n atts [] Nothing)
                     else bindc parse_text
                            (\ t ->
                              bindc parse_nodes
@@ -4537,7 +8171,7 @@ parse_node =
                                    (\ _ ->
                                      bindc (exactly n)
                                        (\ _ ->
- bindc (exactly ['>']) (\ _ -> returnb (Xml n atts cs t)))))))))));
+ bindc (exactly ['>']) (\ _ -> returnb (XML n atts cs t)))))))))));
 
 parse_doc :: [Prelude.Char] -> Sum [Prelude.Char] (Xmldoc, [Prelude.Char]);
 parse_doc =
@@ -4546,9 +8180,7 @@ parse_doc =
       bindc parse_header
         (\ h ->
           bindc parse_node
-            (\ xml -> bindc eoi (\ _ -> returnb (Xmldoc h xml)))));
-
-data Af_entry = Collapse Nat | AFList [Nat];
+            (\ xml -> bindc eoi (\ _ -> returnb (XMLDOC h xml)))));
 
 position :: Xml -> Sum_bot [Prelude.Char] Nat;
 position =
@@ -4600,7 +8232,7 @@ singleton ::
         (a -> b) -> Xml -> Sum_bot [Prelude.Char] b;
 singleton tag p1 f xml =
   let {
-    (Xml name atts cs text) = xml;
+    (XML name atts cs text) = xml;
   } in (if name == tag && null atts && is_none text
          then (case list1element cs of {
                 Nothing -> fail tag xml;
@@ -4669,35 +8301,6 @@ capRM ::
                  ((a, Nat) -> [(Term a b, Term a b)]) -> Term a b -> Gctxt a b;
 capRM nlv rm = (if nlv then capRM2 rm else (\ _ -> GCHole));
 
-digit2string :: Nat -> [Prelude.Char];
-digit2string n =
-  (if equal_nat n Zero_nat then ['0']
-    else (if equal_nat n (Nat_of_num One) then ['1']
-           else (if equal_nat n (Nat_of_num (Bit0 One)) then ['2']
-                  else (if equal_nat n (Nat_of_num (Bit1 One)) then ['3']
-                         else (if equal_nat n (Nat_of_num (Bit0 (Bit0 One)))
-                                then ['4']
-                                else (if equal_nat n
-   (Nat_of_num (Bit1 (Bit0 One)))
-                                       then ['5']
-                                       else (if equal_nat n
-          (Nat_of_num (Bit0 (Bit1 One)))
-      then ['6']
-      else (if equal_nat n (Nat_of_num (Bit1 (Bit1 One))) then ['7']
-             else (if equal_nat n (Nat_of_num (Bit0 (Bit0 (Bit0 One))))
-                    then ['8'] else ['9'])))))))));
-
-shows_nat :: Nat -> [Prelude.Char] -> [Prelude.Char];
-shows_nat n =
-  (if less_nat n (Nat_of_num (Bit0 (Bit1 (Bit0 One))))
-    then shows_string (digit2string n)
-    else shows_nat (div_nat n (Nat_of_num (Bit0 (Bit1 (Bit0 One))))) .
-           shows_string
-             (digit2string (mod_nat n (Nat_of_num (Bit0 (Bit1 (Bit0 One)))))));
-
-shows_prec_nat :: Nat -> Nat -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_nat d n = shows_nat n;
-
 class_to_term_intern ::
   forall a b. (Nat -> a) -> Nat -> Term b (Sum () a) -> (Nat, Term b a);
 class_to_term_intern iv i (Fun f ts) =
@@ -4752,16 +8355,6 @@ decompose s t =
     (Fun f ss, Fun g ts) -> (if f == g then zip_option ss ts else Nothing);
   });
 
-equal_term :: forall a b. (Eq a, Eq b) => Term a b -> Term a b -> Bool;
-equal_term (Fun f list) (Var v) = False;
-equal_term (Var v) (Fun f list) = False;
-equal_term (Fun fa lista) (Fun f list) = fa == f && lista == list;
-equal_term (Var va) (Var v) = va == v;
-
-instance (Eq a, Eq b) => Eq (Term a b) where {
-  a == b = equal_term a b;
-};
-
 unify ::
   forall a b.
     (Eq a,
@@ -4807,11 +8400,8 @@ removeAll :: forall a. (Eq a) => a -> [a] -> [a];
 removeAll x [] = [];
 removeAll x (y : xs) = (if x == y then removeAll x xs else y : removeAll x xs);
 
-class (Linorder a) => Key a where {
-};
-
 lookupb :: forall a b. (Corder a, Eq a) => Mapping a b -> a -> Maybe b;
-lookupb (RBT_Mapping t) = lookupd t;
+lookupb (RBT_Mapping t) = lookupc t;
 lookupb (Assoc_List_Mapping al) = lookupa al;
 
 updateb :: forall a b. (Corder a, Eq a) => a -> b -> Mapping a b -> Mapping a b;
@@ -4849,76 +8439,22 @@ subst_of_map d sigma x = (case sigma x of {
 
 match_list ::
   forall a b c.
-    (Corder a, Eq a, Mapping_impla a, Eq b,
+    (Corder a, Eq a, Mapping_impl a, Eq b,
       Eq c) => (a -> Term b c) ->
                  [(Term b a, Term b c)] -> Maybe (a -> Term b c);
 match_list d p =
-  mapa (subst_of_map d . lookupb) (match_term_list_code p emptyb);
+  map_option (subst_of_map d . lookupb) (match_term_list_code p emptyb);
 
 match ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => Term a b -> Term a b -> Maybe (b -> Term a b);
+      Mapping_impl b) => Term a b -> Term a b -> Maybe (b -> Term a b);
 match t l = match_list Var [(l, t)];
-
-emptyc :: forall a b c d. Memory_ext a b c d -> () -> a;
-emptyc (Memory_ext empty lookup store more) = empty;
-
-store :: forall a b c d. Memory_ext a b c d -> a -> (b, c) -> a;
-store (Memory_ext empty lookup store more) = store;
-
-count_of :: forall a. (Eq a) => [(a, Nat)] -> a -> Nat;
-count_of xs x = (case map_of xs x of {
-                  Nothing -> Zero_nat;
-                  Just n -> n;
-                });
-
-count :: forall a. (Eq a) => Multiset a -> a -> Nat;
-count (Bag xs) = count_of (impl_ofa xs);
-
-instance Eq Real where {
-  a == b = equal_real a b;
-};
-
-ma_inverse :: Mini_alg -> Mini_alg;
-ma_inverse x =
-  Abs_mini_alg
-    (let {
-       (p, (q, b)) = rep_mini_alg x;
-       d = inverse_rat
-             (minus_rat (times_rat p p) (times_rat (times_rat (of_nat b) q) q));
-     } in ma_normalize (times_rat p d, (times_rat (uminus_rat q) d, b)));
-
-mau_inverse :: Mini_alg_unique -> Mini_alg_unique;
-mau_inverse x = Abs_mini_alg_unique (ma_inverse (rep_mini_alg_unique x));
-
-inverse_real :: Real -> Real;
-inverse_real (Real_of_u r) = Real_of_u (mau_inverse r);
-
-divide_real :: Real -> Real -> Real;
-divide_real x y = times_real x (inverse_real y);
-
-instance Inverse Real where {
-  inverse = inverse_real;
-  divide = divide_real;
-};
-
-instance Division_ring Real where {
-};
-
-instance Field Real where {
-};
-
-instance Preorder Real where {
-};
-
-instance Order Real where {
-};
 
 imagea ::
   forall a b.
     (Ceq a, Corder a, Ceq b, Corder b,
-      Set_impla b) => Set (a, b) -> Set a -> Set b;
+      Set_impl b) => Set (a, b) -> Set a -> Set b;
 imagea (RBT_set rbt) c =
   (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
     Nothing ->
@@ -4951,19 +8487,9 @@ imagea (Set_Monad rxs) a =
     (fold (\ (x, y) rest -> (if member x a then y : rest else rest)) rxs []);
 imagea x y = image snd (filtera (\ (xa, _) -> member xa y) x);
 
-mk_eq :: forall a. (a -> a -> Bool) -> a -> a -> Bool;
-mk_eq le x y = le x y && le y x;
-
-equal_ctxt :: forall a b. (Eq a, Eq b) => Ctxt a b -> Ctxt a b -> Bool;
-equal_ctxt (More f list1 ctxt list2) Hole = False;
-equal_ctxt Hole (More f list1 ctxt list2) = False;
-equal_ctxt (More fa list1a ctxta list2a) (More f list1 ctxt list2) =
-  fa == f && list1a == list1 && equal_ctxt ctxta ctxt && list2a == list2;
-equal_ctxt Hole Hole = True;
-
-instance (Eq a, Eq b) => Eq (Ctxt a b) where {
-  a == b = equal_ctxt a b;
-};
+zero :: forall a b. Partial_object_ext a (Monoid_ext a (Ring_ext a b)) -> a;
+zero (Partial_object_ext carrier (Monoid_ext mult one (Ring_ext zero add more)))
+  = zero;
 
 sharp_term :: forall a b. (a -> a) -> Term a b -> Term a b;
 sharp_term shp (Var x) = Var x;
@@ -4971,18 +8497,6 @@ sharp_term shp (Fun f ss) = Fun (shp f) ss;
 
 aarity :: forall a. (a -> Nat -> [a]) -> a -> Nat -> Nat;
 aarity sm f n = minus_nat (size_list (sm f n)) (Nat_of_num One);
-
-list_diff :: forall a. (Eq a) => [a] -> [a] -> [a];
-list_diff [] ys = [];
-list_diff (x : xs) ys =
-  let {
-    zs = list_diff xs ys;
-  } in (if membera ys x then zs else x : zs);
-
-map_entry :: forall a b. (Eq a) => a -> (b -> b) -> [(a, b)] -> [(a, b)];
-map_entry k f [] = [];
-map_entry k f (p : ps) =
-  (if fst p == k then (k, f (snd p)) : ps else p : map_entry k f ps);
 
 ctxt ::
   forall a.
@@ -4998,34 +8512,6 @@ ctxt xml2name x =
           More)]
     x;
 
-data Complexity_measure a b = Derivational_Complexity [(a, Nat)]
-  | Runtime_Complexity [(a, Nat)] [(a, Nat)];
-
-newtype Complexity_class = Comp_Poly Nat;
-
-data Strategy a b = No_Strategy | Innermost | Innermost_Q [Term a b];
-
-data Location = H | A | Ba | Ra;
-
-data Fp_strategy a b = Outermost | Context_Sensitive [((a, Nat), [Nat])]
-  | Forbidden_Patterns [(Ctxt a b, (Term a b, Location))];
-
-data Input a b =
-  DP_input
-    (Bool, ([(Term a b, Term a b)], (Strategy a b, [(Term a b, Term a b)])))
-  | Inn_TRS_input
-      (Strategy a b, ([(Term a b, Term a b)], Maybe [(Term a b, Term a b)]))
-  | COMP_input ([(Term a b, Term a b)], [(Term a b, Term a b)])
-  | EQ_input ([(Term a b, Term a b)], (Term a b, Term a b))
-  | CPX_input
-      (Strategy a b,
-        ([(Term a b, Term a b)],
-          (Maybe [(Term a b, Term a b)],
-            (Complexity_measure a b, Complexity_class))))
-  | FP_TRS_input (Fp_strategy a b, [(Term a b, Term a b)])
-  | CTRS_input [((Term a b, Term a b), [(Term a b, Term a b)])]
-  | Unknown_input [Prelude.Char];
-
 xml3to4elements ::
   forall a b c d e.
     [Prelude.Char] ->
@@ -5034,7 +8520,7 @@ xml3to4elements ::
           (Xml -> Sum_bot [Prelude.Char] c) ->
             (Xml -> Sum_bot [Prelude.Char] d) ->
               (a -> b -> Maybe c -> d -> e) -> Xml -> Sum_bot [Prelude.Char] e;
-xml3to4elements tag p1 p2 p3 p4 f (Xml name atts cs text) =
+xml3to4elements tag p1 p2 p3 p4 f (XML name atts cs text) =
   let {
     l = size_list cs;
   } in (if name == tag &&
@@ -5052,7 +8538,7 @@ xml3to4elements tag p1 p2 p3 p4 f (Xml name atts cs text) =
                                    (\ x4 -> returna (f x1 x2 (Just x3) x4)))
                         else binda (p4 (nth cs (Nat_of_num (Bit0 One))))
                                (\ x4 -> returna (f x1 x2 Nothing x4)))))
-         else fail tag (Xml name atts cs text));
+         else fail tag (XML name atts cs text));
 
 relstep ::
   forall a.
@@ -5104,8 +8590,6 @@ loop xml2name =
   triple ['l', 'o', 'o', 'p'] (relsteps xml2name) (substa xml2name)
     (ctxt xml2name) (\ (s, rseq) sigma c -> (s, (rseq, (sigma, c))));
 
-newtype ProjL a = Projection [((a, Nat), Nat)];
-
 proj ::
   forall a.
     (Xml -> Sum_bot [Prelude.Char] a) ->
@@ -5121,14 +8605,10 @@ proj xml2name =
                }))
           afl));
 
-instance Semiring_char_0 Real where {
-};
-
-instance Ring_char_0 Real where {
-};
-
-instance Field_char_0 Real where {
-};
+of_rat :: forall a. (Field_char_0 a) => Rat -> a;
+of_rat p = let {
+             (a, b) = quotient_of p;
+           } in divide (of_inta a) (of_inta b);
 
 real :: Xml -> Sum_bot [Prelude.Char] Real;
 real x =
@@ -5199,7 +8679,7 @@ supteq_list (Fun f ts) = Fun f ts : concatMap supteq_list ts;
 matches ::
   forall a b c.
     (Eq a, Eq b, Corder c, Eq c,
-      Mapping_impla c) => Term a b -> Term a c -> Bool;
+      Mapping_impl c) => Term a b -> Term a c -> Bool;
 matches t p =
   (case match_list (\ _ -> t) [(p, t)] of {
     Nothing -> False;
@@ -5209,8 +8689,8 @@ matches t p =
 is_NF ::
   forall a b.
     (Eq a, Key a, Corder b, Eq b,
-      Mapping_impla b) => Bool ->
-                            [Term a b] -> (a -> [Term a b]) -> Term a b -> Bool;
+      Mapping_impl b) => Bool ->
+                           [Term a b] -> (a -> [Term a b]) -> Term a b -> Bool;
 is_NF var_cond r m =
   (if var_cond then (\ _ -> False)
     else (if null r then (\ _ -> True)
@@ -5231,9 +8711,6 @@ unlab (Lab f l) = f;
 unlab (FunLab f l) = f;
 unlab (UnLab v) = UnLab v;
 unlab (Sharp v) = Sharp v;
-
-lookupc :: forall a b c d. Memory_ext a b c d -> a -> b -> Maybe c;
-lookupc (Memory_ext empty lookup store more) = lookup;
 
 rm_iterateoi ::
   forall a b c. Rbta a b -> (c -> Bool) -> ((a, b) -> c -> c) -> c -> c;
@@ -5261,154 +8738,21 @@ values m = concatMap snd (g_to_list_rm_basic_ops m);
 single :: forall a. (Eq a) => a -> Multiset a;
 single x = Bag (updatea x (Nat_of_num One) emptya);
 
-data Tpoly a b = PVar a | PNum b | PSum [Tpoly a b] | PMult [Tpoly a b];
-
-one_pos :: Pos;
-one_pos = Empty;
-
-instance One Pos where {
-  onea = one_pos;
-};
-
-instance Abs_if Real where {
-};
-
-instance No_bot Real where {
-};
-
-instance No_top Real where {
-};
-
-instance Sgn_if Real where {
-};
-
-sorted_list_subset_fusion ::
-  forall a b c.
-    (a -> a -> Bool) ->
-      (a -> a -> Bool) -> Generator a b -> Generator a c -> b -> c -> Bool;
-sorted_list_subset_fusion less eq g1 g2 s1 s2 =
-  (if has_next g1 s1
-    then let {
-           (x, s1a) = next g1 s1;
-         } in has_next g2 s2 &&
-                let {
-                  (y, s2a) = next g2 s2;
-                } in (if eq x y
-                       then sorted_list_subset_fusion less eq g1 g2 s1a s2a
-                       else less y x &&
-                              sorted_list_subset_fusion less eq g1 g2 s1 s2a)
-    else True);
-
-list_all_fusion :: forall a b. Generator a b -> (a -> Bool) -> b -> Bool;
-list_all_fusion g p s =
-  (if has_next g s
-    then let {
-           (x, sa) = next g s;
-         } in p x && list_all_fusion g p sa
-    else True);
-
-subset_eq :: forall a. (Cenum a, Ceq a, Corder a) => Set a -> Set a -> Bool;
-subset_eq (RBT_set rbt1) (RBT_set rbt2) =
-  (case corder of {
-    Nothing ->
-      error "subset RBT_set RBT_set: corder = None"
-        (\ _ -> subset_eq (RBT_set rbt1) (RBT_set rbt2));
-    Just (le, lt) ->
-      (case ceq of {
-        Nothing ->
-          sorted_list_subset_fusion lt (mk_eq le) rbt_keys_generator
-            rbt_keys_generator (init rbt1) (init rbt2);
-        Just eq ->
-          sorted_list_subset_fusion lt eq rbt_keys_generator rbt_keys_generator
-            (init rbt1) (init rbt2);
-      });
-  });
-subset_eq (Complement a1) (Complement a2) = subset_eq a2 a1;
-subset_eq (Collect_set p) (Complement a) =
-  subset_eq a (collect (\ x -> not (p x)));
-subset_eq (Set_Monad xs) c = all (\ x -> member x c) xs;
-subset_eq (DList_set dxs) c =
-  (case (ceq :: Maybe (a -> a -> Bool)) of {
-    Nothing ->
-      error "subset DList_set1: ceq = None"
-        (\ _ -> subset_eq (DList_set dxs) c);
-    Just _ -> dlist_all (\ x -> member x c) dxs;
-  });
-subset_eq (RBT_set rbt) b =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
-    Nothing ->
-      error "subset RBT_set1: corder = None" (\ _ -> subset_eq (RBT_set rbt) b);
-    Just _ -> list_all_fusion rbt_keys_generator (\ x -> member x b) (init rbt);
-  });
-
-less_eq_set :: forall a. (Cenum a, Ceq a, Corder a) => Set a -> Set a -> Bool;
-less_eq_set = subset_eq;
-
 ctxt_apply :: forall a b. Ctxt a b -> Term a b -> Term a b;
 ctxt_apply Hole s = s;
 ctxt_apply (More f ss1 c ss2) s = Fun f (ss1 ++ ctxt_apply c s : ss2);
 
-corder_nat :: Maybe (Nat -> Nat -> Bool, Nat -> Nat -> Bool);
-corder_nat = Just (less_eq_nat, less_nat);
-
-instance Corder Nat where {
-  corder = corder_nat;
-};
-
-set_impl_nat :: Phantom Nat Set_impl;
-set_impl_nat = Phantom Set_RBT;
-
-instance Set_impla Nat where {
-  set_impl = set_impl_nat;
-};
-
-ceq_nat :: Maybe (Nat -> Nat -> Bool);
-ceq_nat = Just equal_nat;
-
-instance Ceq Nat where {
-  ceq = ceq_nat;
-};
-
 funas_term ::
-  forall a b. (Ceq a, Corder a, Set_impla a) => Term a b -> Set (a, Nat);
+  forall a b. (Ceq a, Corder a, Set_impl a) => Term a b -> Set (a, Nat);
 funas_term (Var uu) = bot_set;
 funas_term (Fun f ts) =
   sup_set (inserta (f, size_list ts) bot_set)
     (foldr (sup_set . funas_term) ts bot_set);
 
-term_rec_1 ::
-  forall a b c d.
-    (a -> b) ->
-      (c -> [Term c a] -> d -> b) ->
-        d -> (Term c a -> [Term c a] -> b -> d -> d) -> Term c a -> b;
-term_rec_1 f1 f2 f3 f4 (Var v) = f1 v;
-term_rec_1 f1 f2 f3 f4 (Fun f list) = f2 f list (term_rec_2 f1 f2 f3 f4 list);
-
-term_rec_2 ::
-  forall a b c d.
-    (a -> b) ->
-      (c -> [Term c a] -> d -> b) ->
-        d -> (Term c a -> [Term c a] -> b -> d -> d) -> [Term c a] -> d;
-term_rec_2 f1 f2 f3 f4 [] = f3;
-term_rec_2 f1 f2 f3 f4 (term : list) =
-  f4 term list (term_rec_1 f1 f2 f3 f4 term) (term_rec_2 f1 f2 f3 f4 list);
-
 hvf_top :: forall a b. (Eq a) => a -> Nat -> Term a b -> Bool;
 hvf_top a n (Fun f ts) =
   (if f == a && equal_nat (size_list ts) n then not (is_Var (hd ts)) else True);
 hvf_top a n (Var uu) = False;
-
-list_inter :: forall a. (Eq a) => [a] -> [a] -> [a];
-list_inter [] bs = [];
-list_inter (a : asa) bs =
-  (if membera bs a then a : list_inter asa bs else list_inter asa bs);
-
-list_union :: forall a. (Eq a) => [a] -> [a] -> [a];
-list_union [] ys = ys;
-list_union (x : xs) ys =
-  let {
-    zs = list_union xs ys;
-  } in (if membera zs x then zs else x : zs);
 
 crule ::
   forall a.
@@ -5421,10 +8765,6 @@ crule xml2name =
   many1 ['c', 'o', 'n', 'd', 'i', 't', 'i', 'o', 'n', 'a', 'l', 'R', 'u', 'l',
           'e']
     (rule xml2name) (rule xml2name) (\ a b -> (a, b));
-
-data Domain = Natural Nat | Integera | Arctic | Arctic_rat | Int_mat Nat Nat
-  | Arctic_mat Nat | Arctic_rat_mat Nat | Rational Rat Nat | Rat_mat Nat Nat
-  | Mini_Alg Real Nat | Mini_Alg_mat Nat Nat;
 
 estep ::
   forall a.
@@ -5453,273 +8793,6 @@ rules xml2name = many ['r', 'u', 'l', 'e', 's'] (rule xml2name) id;
 state :: Xml -> Sum_bot [Prelude.Char] [Prelude.Char];
 state = text ['s', 't', 'a', 't', 'e'];
 
-instance Ord Prelude.Char where {
-  less_eq = (\ a b -> a <= b);
-  less = (\ a b -> a < b);
-};
-
-data Const_string_sound_proof a b =
-  Const_string_sound_proof b [(a, a)] [(Term a b, Term a b)];
-
-data Arctic_delta a = MinInfty_delta | Num_arc_delta a;
-
-data Arctic = MinInfty | Num_arc Int;
-
-data Redtriple_impl a = Int_carrier [((a, Nat), (Int, [Int]))]
-  | Int_nl_carrier [((a, Nat), [([(Nat, Nat)], Int)])]
-  | Rat_carrier [((a, Nat), (Rat, [Rat]))]
-  | Rat_nl_carrier Rat [((a, Nat), [([(Nat, Nat)], Rat)])]
-  | Real_carrier [((a, Nat), (Real, [Real]))]
-  | Real_nl_carrier Real [((a, Nat), [([(Nat, Nat)], Real)])]
-  | Arctic_carrier [((a, Nat), (Arctic, [Arctic]))]
-  | Arctic_rat_carrier [((a, Nat), (Arctic_delta Rat, [Arctic_delta Rat]))]
-  | Int_mat_carrier Nat Nat [((a, Nat), ([[Int]], [[[Int]]]))]
-  | Rat_mat_carrier Nat Nat [((a, Nat), ([[Rat]], [[[Rat]]]))]
-  | Real_mat_carrier Nat Nat [((a, Nat), ([[Real]], [[[Real]]]))]
-  | Arctic_mat_carrier Nat [((a, Nat), ([[Arctic]], [[[Arctic]]]))]
-  | Arctic_rat_mat_carrier Nat
-      [((a, Nat), ([[Arctic_delta Rat]], [[[Arctic_delta Rat]]]))]
-  | Rpo [((a, Nat), (Nat, Order_tag))] [((a, Nat), Af_entry)]
-  | Kbo ([((a, Nat), (Nat, (Nat, Maybe [Nat])))], Nat) [((a, Nat), Af_entry)];
-
-data Complex_constant_removal_prf a b =
-  Complex_Constant_Removal_Proof (Term a b)
-    [((Term a b, Term a b), (Term a b, Term a b))];
-
-data List_order_type = MS_Ext | Max_Ext | Min_Ext | Dms_Ext;
-
-data Root_redtriple_impl a =
-  Scnp List_order_type [((a, Nat), [(Nat, Nat)])] (Redtriple_impl a);
-
-data Cond_constraint a b = CC_cond Bool (Term a b, Term a b)
-  | CC_rewr (Term a b) (Term a b)
-  | CC_impl [Cond_constraint a b] (Cond_constraint a b)
-  | CC_all b (Cond_constraint a b);
-
-data Cond_constraint_prf a b = Final
-  | Delete_Condition (Cond_constraint a b) (Cond_constraint_prf a b)
-  | Different_Constructor (Cond_constraint a b)
-  | Same_Constructor (Cond_constraint a b) (Cond_constraint a b)
-      (Cond_constraint_prf a b)
-  | Variable_Equation b (Term a b) (Cond_constraint a b)
-      (Cond_constraint_prf a b)
-  | Funarg_Into_Var (Cond_constraint a b) Nat b (Cond_constraint a b)
-      (Cond_constraint_prf a b)
-  | Simplify_Condition (Cond_constraint a b) [(b, Term a b)]
-      (Cond_constraint a b) (Cond_constraint_prf a b)
-  | Induction (Cond_constraint a b) [Cond_constraint a b]
-      [((Term a b, Term a b),
-         ([(Term a b, [b])], (Cond_constraint a b, Cond_constraint_prf a b)))];
-
-data Cond_red_pair_prf a b =
-  Cond_Red_Pair_Prf a
-    [(Cond_constraint a b, ([(Term a b, Term a b)], Cond_constraint_prf a b))]
-    Nat Nat;
-
-data ArithFun = Arg Nat | Const Nat | Sum [ArithFun] | Max [ArithFun]
-  | Min [ArithFun] | Prod [ArithFun]
-  | IfEqual ArithFun ArithFun ArithFun ArithFun;
-
-data Sl_inter a = SL_Inter Nat [((a, Nat), ArithFun)];
-
-data Sl_variant a b = Rootlab (Maybe (a, Nat)) | Finitelab (Sl_inter a)
-  | QuasiFinitelab (Sl_inter a) b;
-
-data Generic_assm_proof a b c d e f g h =
-  SN_assm_proof
-    (Bool,
-      ([Term (Lab a b) c],
-        ([(Term (Lab a b) c, Term (Lab a b) c)],
-          [(Term (Lab a b) c, Term (Lab a b) c)])))
-    d
-  | Finite_assm_proof
-      (Bool,
-        (Bool,
-          ([(Term (Lab a b) c, Term (Lab a b) c)],
-            ([(Term (Lab a b) c, Term (Lab a b) c)],
-              ([Term (Lab a b) c],
-                ([(Term (Lab a b) c, Term (Lab a b) c)],
-                  [(Term (Lab a b) c, Term (Lab a b) c)]))))))
-      e
-  | SN_FP_assm_proof
-      ([(Ctxt (Lab a b) c, (Term (Lab a b) c, Location))],
-        [(Term (Lab a b) c, Term (Lab a b) c)])
-      f
-  | Not_SN_assm_proof
-      (Bool, ([Term (Lab a b) c], [(Term (Lab a b) c, Term (Lab a b) c)])) d
-  | Infinite_assm_proof
-      (Bool,
-        (Bool,
-          ([(Term (Lab a b) c, Term (Lab a b) c)],
-            ([(Term (Lab a b) c, Term (Lab a b) c)],
-              ([Term (Lab a b) c],
-                ([(Term (Lab a b) c, Term (Lab a b) c)],
-                  [(Term (Lab a b) c, Term (Lab a b) c)]))))))
-      e
-  | Not_RelSN_assm_proof
-      (Bool,
-        ([Term (Lab a b) c],
-          ([(Term (Lab a b) c, Term (Lab a b) c)],
-            [(Term (Lab a b) c, Term (Lab a b) c)])))
-      f
-  | Not_SN_FP_assm_proof
-      ([(Ctxt (Lab a b) c, (Term (Lab a b) c, Location))],
-        [(Term (Lab a b) c, Term (Lab a b) c)])
-      g
-  | Unknown_assm_proof [Prelude.Char] h;
-
-data Join_info a =
-  Guided
-    [(Term a [Prelude.Char],
-       ([(Pos, ((Term a [Prelude.Char], Term a [Prelude.Char]),
-                 Term a [Prelude.Char]))],
-         (Term a [Prelude.Char],
-           [(Pos, ((Term a [Prelude.Char], Term a [Prelude.Char]),
-                    Term a [Prelude.Char]))])))]
-  | Join_NF | Join_BFS Nat;
-
-data Ta_rule a b = TA_rule b [a] a;
-
-data Tree_automaton a b = Tree_Automaton [a] [Ta_rule a b] [(a, a)];
-
-data Ta_relation a = Decision_Proc | Id_Relation | Some_Relation [(a, a)];
-
-data Boundstype = Roof | Match;
-
-data Bounds_info a b =
-  Bounds_Info Boundstype Nat [b] (Tree_automaton b (a, Nat)) (Ta_relation b);
-
-data Trs_termination_proof a b c =
-  DP_Trans Bool Bool [(Term (Lab a b) c, Term (Lab a b) c)]
-    (Dp_termination_proof a b c)
-  | Rule_Removal (Redtriple_impl (Lab a b))
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Trs_termination_proof a b c)
-  | String_Reversal (Trs_termination_proof a b c)
-  | Constant_String (Const_string_sound_proof (Lab a b) c)
-      (Trs_termination_proof a b c)
-  | Bounds (Bounds_info (Lab a b) c)
-  | Uncurry
-      (Lab a b,
-        ([((Lab a b, Nat), [Lab a b])],
-          ([(Term (Lab a b) c, Term (Lab a b) c)],
-            [(Term (Lab a b) c, Term (Lab a b) c)])))
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Trs_termination_proof a b c)
-  | Semlab (Sl_variant (Lab a b) c) [Term (Lab a b) c]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Trs_termination_proof a b c)
-  | R_is_Empty
-  | Fcc [Ctxt (Lab a b) c] [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Trs_termination_proof a b c)
-  | Split [(Term (Lab a b) c, Term (Lab a b) c)] (Trs_termination_proof a b c)
-      (Trs_termination_proof a b c)
-  | Switch_Innermost (Join_info (Lab a b)) (Trs_termination_proof a b c)
-  | Drop_Equality (Trs_termination_proof a b c)
-  | Remove_Nonapplicable_Rules [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Trs_termination_proof a b c)
-  | Assume_SN
-      (Bool,
-        ([Term (Lab a b) c],
-          ([(Term (Lab a b) c, Term (Lab a b) c)],
-            [(Term (Lab a b) c, Term (Lab a b) c)])))
-      [Generic_assm_proof a b c (Trs_termination_proof a b c)
-         (Dp_termination_proof a b c) (Fptrs_termination_proof a b c) ()
-         (Unknown_proof a b c)];
-
-data Fptrs_termination_proof a b c =
-  Assume_FP_SN
-    ([(Ctxt (Lab a b) c, (Term (Lab a b) c, Location))],
-      [(Term (Lab a b) c, Term (Lab a b) c)])
-    [Generic_assm_proof a b c (Trs_termination_proof a b c)
-       (Dp_termination_proof a b c) (Fptrs_termination_proof a b c) ()
-       (Unknown_proof a b c)];
-
-data Dp_termination_proof a b c = P_is_Empty
-  | Subterm_Criterion_Proc (ProjL (Lab a b))
-      [((Term (Lab a b) c, Term (Lab a b) c),
-         [(Pos, ((Term (Lab a b) c, Term (Lab a b) c), Term (Lab a b) c))])]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
-  | Redpair_Proc
-      (Sum (Root_redtriple_impl (Lab a b)) (Redtriple_impl (Lab a b)))
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
-  | Redpair_UR_Proc
-      (Sum (Root_redtriple_impl (Lab a b)) (Redtriple_impl (Lab a b)))
-      [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
-  | Usable_Rules_Proc [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Dp_termination_proof a b c)
-  | Dep_Graph_Proc
-      [(Maybe (Dp_termination_proof a b c),
-         [(Term (Lab a b) c, Term (Lab a b) c)])]
-  | Mono_Redpair_Proc (Redtriple_impl (Lab a b))
-      [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
-  | Mono_Redpair_UR_Proc (Redtriple_impl (Lab a b))
-      [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
-  | Size_Change_Subterm_Proc
-      [((Term (Lab a b) c, Term (Lab a b) c), ([(Nat, Nat)], [(Nat, Nat)]))]
-  | Size_Change_Redpair_Proc (Redtriple_impl (Lab a b))
-      (Maybe [(Term (Lab a b) c, Term (Lab a b) c)])
-      [((Term (Lab a b) c, Term (Lab a b) c), ([(Nat, Nat)], [(Nat, Nat)]))]
-  | Uncurry_Proc (Maybe Nat)
-      (Lab a b,
-        ([((Lab a b, Nat), [Lab a b])],
-          ([(Term (Lab a b) c, Term (Lab a b) c)],
-            [(Term (Lab a b) c, Term (Lab a b) c)])))
-      [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
-  | Fcc_Proc (Lab a b) [Ctxt (Lab a b) c] [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
-  | Split_Proc [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
-      (Dp_termination_proof a b c)
-  | Semlab_Proc (Sl_variant (Lab a b) c) [(Term (Lab a b) c, Term (Lab a b) c)]
-      [Term (Lab a b) c] [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Dp_termination_proof a b c)
-  | Switch_Innermost_Proc (Join_info (Lab a b)) (Dp_termination_proof a b c)
-  | Rewriting_Proc (Maybe [(Term (Lab a b) c, Term (Lab a b) c)])
-      (Term (Lab a b) c, Term (Lab a b) c) (Term (Lab a b) c, Term (Lab a b) c)
-      (Term (Lab a b) c, Term (Lab a b) c) (Term (Lab a b) c, Term (Lab a b) c)
-      Pos (Dp_termination_proof a b c)
-  | Instantiation_Proc (Term (Lab a b) c, Term (Lab a b) c)
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
-  | Forward_Instantiation_Proc (Term (Lab a b) c, Term (Lab a b) c)
-      [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Maybe [(Term (Lab a b) c, Term (Lab a b) c)])
-      (Dp_termination_proof a b c)
-  | Narrowing_Proc (Term (Lab a b) c, Term (Lab a b) c) Pos
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
-  | Assume_Finite
-      (Bool,
-        (Bool,
-          ([(Term (Lab a b) c, Term (Lab a b) c)],
-            ([(Term (Lab a b) c, Term (Lab a b) c)],
-              ([Term (Lab a b) c],
-                ([(Term (Lab a b) c, Term (Lab a b) c)],
-                  [(Term (Lab a b) c, Term (Lab a b) c)]))))))
-      [Generic_assm_proof a b c (Trs_termination_proof a b c)
-         (Dp_termination_proof a b c) (Fptrs_termination_proof a b c) ()
-         (Unknown_proof a b c)]
-  | Unlab_Proc [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
-  | Q_Reduction_Proc [Term (Lab a b) c] (Dp_termination_proof a b c)
-  | Complex_Constant_Removal_Proc (Complex_constant_removal_prf (Lab a b) c)
-      (Dp_termination_proof a b c)
-  | General_Redpair_Proc (Redtriple_impl (Lab a b))
-      [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Cond_red_pair_prf (Lab a b) c)
-      [Dp_termination_proof a b c]
-  | To_Trs_Proc (Trs_termination_proof a b c);
-
-data Unknown_proof a b c =
-  Assume_Unknown [Prelude.Char]
-    [Generic_assm_proof a b c (Trs_termination_proof a b c)
-       (Dp_termination_proof a b c) (Fptrs_termination_proof a b c) ()
-       (Unknown_proof a b c)];
-
-data Cr_proof a b c = SN_WCR (Join_info (Lab a b)) (Trs_termination_proof a b c)
-  | Weakly_Orthogonal | Strongly_Closed Nat;
-
 isOK :: forall a b. Sum a b -> Bool;
 isOK m = (case m of {
            Inl _ -> False;
@@ -5729,6 +8802,9 @@ isOK m = (case m of {
 mapM :: forall a b c. (a -> Sum b c) -> [a] -> Sum b [c];
 mapM f [] = Inr [];
 mapM f (x : xs) = bindb (f x) (\ y -> bindb (mapM f xs) (\ ys -> Inr (y : ys)));
+
+one :: forall a b. Partial_object_ext a (Monoid_ext a b) -> a;
+one (Partial_object_ext carrier (Monoid_ext mult one more)) = one;
 
 list_update :: forall a. [a] -> Nat -> a -> [a];
 list_update [] i y = [];
@@ -5762,15 +8838,6 @@ vec n x = equal_nat (size_list x) n;
 mat :: forall a. Nat -> Nat -> [[a]] -> Bool;
 mat nr nc m = equal_nat (size_list m) nc && all (vec nr) m;
 
-extract :: forall a. (a -> Bool) -> [a] -> Maybe ([a], (a, [a]));
-extract p [] = Nothing;
-extract p (x : xs) =
-  (if p x then Just ([], (x, xs))
-    else (case extract p xs of {
-           Nothing -> Nothing;
-           Just (ys, (y, zs)) -> Just (x : ys, (y, zs));
-         }));
-
 eq_monom :: forall a. (Eq a) => [(a, Nat)] -> [(a, Nat)] -> Bool;
 eq_monom [] n = null n;
 eq_monom ((x, p) : m) n =
@@ -5799,21 +8866,10 @@ to_list :: Pos -> [Nat];
 to_list Empty = [];
 to_list (PCons i p) = i : to_list p;
 
-ma_is_rat :: Mini_alg -> Bool;
-ma_is_rat x = let {
-                (_, (q, _)) = rep_mini_alg x;
-              } in equal_rat q zero_rat;
-
-mau_is_rat :: Mini_alg_unique -> Bool;
-mau_is_rat x = ma_is_rat (rep_mini_alg_unique x);
-
-is_rat :: Real -> Bool;
-is_rat (Real_of_u x) = mau_is_rat x;
-
 relcomp ::
   forall a b c.
-    (Ceq a, Corder a, Set_impla a, Ceq b, Corder b, Ceq c, Corder c,
-      Set_impla c) => Set (a, b) -> Set (b, c) -> Set (a, c);
+    (Ceq a, Corder a, Set_impl a, Ceq b, Corder b, Ceq c, Corder c,
+      Set_impl c) => Set (a, b) -> Set (b, c) -> Set (a, c);
 relcomp (Set_Monad xs6) (DList_set dxs4) =
   (case ceq of {
     Nothing ->
@@ -6012,13 +9068,9 @@ relcomp (RBT_set rbt1) (RBT_set rbt2) =
 shows_lines :: forall a. (Showa a) => [a] -> [Prelude.Char] -> [Prelude.Char];
 shows_lines = shows_sep (shows_prec Zero_nat) shows_nl;
 
-shows_paren ::
-  ([Prelude.Char] -> [Prelude.Char]) -> [Prelude.Char] -> [Prelude.Char];
-shows_paren p = shows_prec_char Zero_nat '(' . p . shows_prec_char Zero_nat ')';
-
-sum_map :: forall a b c d. (a -> b) -> (c -> d) -> Sum a c -> Sum b d;
-sum_map f1 f2 (Inl a) = Inl (f1 a);
-sum_map f1 f2 (Inr a) = Inr (f2 a);
+map_sum :: forall a b c d. (a -> b) -> (c -> d) -> Sum a c -> Sum b d;
+map_sum f1 f2 (Inl a) = Inl (f1 a);
+map_sum f1 f2 (Inr a) = Inr (f2 a);
 
 linear_term_impl ::
   forall a b. (Ceq a, Corder a) => Set a -> Term b a -> Maybe (Set a);
@@ -6031,7 +9083,7 @@ linear_term_impl xs (Fun f (t : ts)) =
     Just ys -> linear_term_impl ys (Fun f ts);
   });
 
-linear_term :: forall a b. (Ceq b, Corder b, Set_impla b) => Term a b -> Bool;
+linear_term :: forall a b. (Ceq b, Corder b, Set_impl b) => Term a b -> Bool;
 linear_term t = not (is_none (linear_term_impl bot_set t));
 
 map_term_wa :: forall a b c. ((a, Nat) -> b) -> Term a c -> Term b c;
@@ -6058,7 +9110,7 @@ poss_list (Fun f ss) =
 rewrite ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(Term a b, Term a b)] -> Term a b -> [Term a b];
+      Mapping_impl b) => [(Term a b, Term a b)] -> Term a b -> [Term a b];
 rewrite r s =
   concatMap
     (\ (l, ra) ->
@@ -6084,7 +9136,7 @@ max_list [] = Zero_nat;
 max_list (x : xs) = max x (max_list xs);
 
 num_children :: Xml -> Nat;
-num_children (Xml uu uv cs uw) = size_list cs;
+num_children (XML uu uv cs uw) = size_list cs;
 
 map_default :: forall a b. (Eq a) => a -> b -> (b -> b) -> [(a, b)] -> [(a, b)];
 map_default k v f [] = [(k, v)];
@@ -6131,21 +9183,6 @@ rsteps xml2name =
     (singleton ['s', 't', 'a', 'r', 't', 'T', 'e', 'r', 'm'] (term xml2name) id)
     (rstep xml2name) (\ a b -> (a, b));
 
-data Non_join_info a b c = Diff_NFs
-  | Tcap_Non_Unif (Term a b -> Term a b -> b -> Term a b)
-  | Tree_Aut_Intersect_Empty (Tree_automaton c a) (Ta_relation c)
-      (Tree_automaton c a) (Ta_relation c)
-  | Finite_Model_Gt (Sl_variant a b) | Reduction_Pair_Gt (Redtriple_impl a)
-  | Usable_Rules_Reach_NJ (Non_join_info a b c)
-  | Argument_Filter_NJ [((a, Nat), Af_entry)] (Non_join_info a b c);
-
-data Ncr_proof a b c d = SN_NWCR (Trs_termination_proof a b c)
-  | Non_Join (Term (Lab a b) c)
-      [(Pos, ((Term (Lab a b) c, Term (Lab a b) c), Term (Lab a b) c))]
-      [(Pos, ((Term (Lab a b) c, Term (Lab a b) c), Term (Lab a b) c))]
-      (Non_join_info (Lab a b) c d)
-  | NCR_Disj_Subtrs [(Term (Lab a b) c, Term (Lab a b) c)] (Ncr_proof a b c d);
-
 check :: forall a. Bool -> a -> Sum a ();
 check b e = (if b then Inr () else Inl e);
 
@@ -6184,277 +9221,8 @@ check_edges ss g c d =
       c)
     (\ x -> Inl (snd x));
 
-lex_ext_unbounded ::
-  forall a. (a -> a -> (Bool, Bool)) -> [a] -> [a] -> (Bool, Bool);
-lex_ext_unbounded f [] [] = (False, True);
-lex_ext_unbounded f (uu : uv) [] = (True, True);
-lex_ext_unbounded f [] (uw : ux) = (False, False);
-lex_ext_unbounded f (a : asa) (b : bs) =
-  (case f a b of {
-    (True, nstri) -> (True, True);
-    (False, True) -> lex_ext_unbounded f asa bs;
-    (False, False) -> (False, False);
-  });
-
-subtract_entries_raw ::
-  forall a b. (Eq a, Minus b) => [(a, b)] -> [(a, b)] -> [(a, b)];
-subtract_entries_raw xs ys =
-  foldr (\ (k, v) -> map_entry k (\ va -> minus va v)) ys xs;
-
-subtract_entries ::
-  forall a b. (Eq a, Minus b) => Alist a b -> Alist a b -> Alist a b;
-subtract_entries x xa = Alist (subtract_entries_raw (impl_ofa x) (impl_ofa xa));
-
-minus_multiset :: forall a. (Eq a) => Multiset a -> Multiset a -> Multiset a;
-minus_multiset (Bag xs) (Bag ys) = Bag (subtract_entries xs ys);
-
-inf_multiset :: forall a. (Eq a) => Multiset a -> Multiset a -> Multiset a;
-inf_multiset a b = minus_multiset a (minus_multiset a b);
-
-instance (Eq a) => Eq (Multiset a) where {
-  a == b = equal_multiset a b;
-};
-
-less_eq_multiset :: forall a. (Eq a) => Multiset a -> Multiset a -> Bool;
-less_eq_multiset (Bag xs) a =
-  all (\ (x, n) -> less_eq_nat n (count a x)) (impl_ofa xs);
-less_eq_multiset a b = inf_multiset a b == a;
-
-equal_multiset :: forall a. (Eq a) => Multiset a -> Multiset a -> Bool;
-equal_multiset a b = less_eq_multiset a b && less_eq_multiset b a;
-
-fold_impl :: forall a b. (a -> Nat -> b -> b) -> b -> [(a, Nat)] -> b;
-fold_impl fn e ((a, n) : ms) = fold_impl fn (fn a n e) ms;
-fold_impl fn e [] = e;
-
-dAList_Multiset_fold ::
-  forall a b. (a -> Nat -> b -> b) -> b -> Alist a Nat -> b;
-dAList_Multiset_fold f e al = fold_impl f e (impl_ofa al);
-
-zero_multiset :: forall a. Multiset a;
-zero_multiset = Bag emptya;
-
-join_raw ::
-  forall a b. (Eq a) => (a -> (b, b) -> b) -> [(a, b)] -> [(a, b)] -> [(a, b)];
-join_raw f xs ys =
-  foldr (\ (k, v) -> map_default k v (\ va -> f k (va, v))) ys xs;
-
-joina ::
-  forall a b.
-    (Eq a) => (a -> (b, b) -> b) -> Alist a b -> Alist a b -> Alist a b;
-joina x xa xb = Alist (join_raw x (impl_ofa xa) (impl_ofa xb));
-
-plus_multiset :: forall a. (Eq a) => Multiset a -> Multiset a -> Multiset a;
-plus_multiset (Bag xs) (Bag ys) =
-  Bag (joina (\ _ (a, b) -> plus_nat a b) xs ys);
-
-union_mset :: forall a. (Eq a) => Multiset (Multiset a) -> Multiset a;
-union_mset (Bag ms) =
-  dAList_Multiset_fold (\ a n -> funpow n (plus_multiset a)) zero_multiset ms;
-
-multiset_of :: forall a. (Eq a) => [a] -> Multiset a;
-multiset_of (a : x) = plus_multiset (multiset_of x) (single a);
-multiset_of [] = zero_multiset;
-
-vars_term_ms :: forall a b. (Eq b) => Term a b -> Multiset b;
-vars_term_ms (Var x) = single x;
-vars_term_ms (Fun f ts) = union_mset (multiset_of (map vars_term_ms ts));
-
-kbo_impl ::
-  forall a b.
-    (Eq b) => ((a, Nat) -> Nat) ->
-                Nat ->
-                  ((a, Nat) -> Nat) ->
-                    (a -> Bool) ->
-                      ((a, Nat) -> Nat -> Nat) ->
-                        Term a b -> Term a b -> (Bool, Bool);
-kbo_impl w w0 prc least scf s t =
-  let {
-    wt = weight w w0 scf t;
-    ws = weight w w0 scf s;
-  } in (if less_eq_multiset (vars_term_ms (scf_term scf t))
-             (vars_term_ms (scf_term scf s)) &&
-             less_eq_nat wt ws
-         then (if less_nat wt ws then (True, True)
-                else (case s of {
-                       Var _ ->
-                         (False,
-                           (case t of {
-                             Var _ -> True;
-                             Fun g ts -> null ts && least g;
-                           }));
-                       Fun f ss ->
-                         (case t of {
-                           Var _ -> (True, True);
-                           Fun g ts ->
-                             let {
-                               pf = prc (f, size_list ss);
-                               pg = prc (g, size_list ts);
-                             } in (if less_nat pg pf then (True, True)
-                                    else (if less_eq_nat pg pf
-   then lex_ext_unbounded (kbo_impl w w0 prc least scf) ss ts
-   else (False, False)));
-                         });
-                     }))
-         else (False, False));
-
-lab_rec_1 ::
-  forall a b c d.
-    (Lab a b -> b -> c -> c) ->
-      (Lab a b -> [Lab a b] -> c -> d -> c) ->
-        (a -> c) ->
-          (Lab a b -> c -> c) ->
-            d -> (Lab a b -> [Lab a b] -> c -> d -> d) -> Lab a b -> c;
-lab_rec_1 f1 f2 f3 f4 f5 f6 (Lab lab l) =
-  f1 lab l (lab_rec_1 f1 f2 f3 f4 f5 f6 lab);
-lab_rec_1 f1 f2 f3 f4 f5 f6 (FunLab lab list) =
-  f2 lab list (lab_rec_1 f1 f2 f3 f4 f5 f6 lab)
-    (lab_rec_2 f1 f2 f3 f4 f5 f6 list);
-lab_rec_1 f1 f2 f3 f4 f5 f6 (UnLab f) = f3 f;
-lab_rec_1 f1 f2 f3 f4 f5 f6 (Sharp lab) =
-  f4 lab (lab_rec_1 f1 f2 f3 f4 f5 f6 lab);
-
-lab_rec_2 ::
-  forall a b c d.
-    (Lab a b -> b -> c -> c) ->
-      (Lab a b -> [Lab a b] -> c -> d -> c) ->
-        (a -> c) ->
-          (Lab a b -> c -> c) ->
-            d -> (Lab a b -> [Lab a b] -> c -> d -> d) -> [Lab a b] -> d;
-lab_rec_2 f1 f2 f3 f4 f5 f6 [] = f5;
-lab_rec_2 f1 f2 f3 f4 f5 f6 (lab : list) =
-  f6 lab list (lab_rec_1 f1 f2 f3 f4 f5 f6 lab)
-    (lab_rec_2 f1 f2 f3 f4 f5 f6 list);
-
-equal_lab :: forall a b. (Eq a, Eq b) => Lab a b -> Lab a b -> Bool;
-equal_lab (Sharp lab) (UnLab f) = False;
-equal_lab (UnLab f) (Sharp lab) = False;
-equal_lab (Sharp laba) (FunLab lab list) = False;
-equal_lab (FunLab laba list) (Sharp lab) = False;
-equal_lab (UnLab f) (FunLab lab list) = False;
-equal_lab (FunLab lab list) (UnLab f) = False;
-equal_lab (Sharp laba) (Lab lab l) = False;
-equal_lab (Lab laba l) (Sharp lab) = False;
-equal_lab (UnLab f) (Lab lab l) = False;
-equal_lab (Lab lab l) (UnLab f) = False;
-equal_lab (FunLab laba list) (Lab lab l) = False;
-equal_lab (Lab laba l) (FunLab lab list) = False;
-equal_lab (Sharp laba) (Sharp lab) = equal_lab laba lab;
-equal_lab (UnLab fa) (UnLab f) = fa == f;
-equal_lab (FunLab laba lista) (FunLab lab list) =
-  equal_lab laba lab && lista == list;
-equal_lab (Lab laba la) (Lab lab l) = equal_lab laba lab && la == l;
-
-instance (Eq a, Eq b) => Eq (Lab a b) where {
-  a == b = equal_lab a b;
-};
-
-less_eq_lab ::
-  forall a b. (Eq a, Ord a, Eq b, Ord b) => Lab a b -> Lab a b -> Bool;
-less_eq_lab =
-  (\ x y ->
-    lab_rec_1
-      (\ x_0 x_1 res_0 a ->
-        (case a of {
-          Lab y_0 y_1 -> res_0 y_0 || equal_lab x_0 y_0 && less x_1 y_1;
-          FunLab _ _ -> True;
-          UnLab _ -> True;
-          Sharp _ -> True;
-        }))
-      (\ x_0 _ res_0 res_1 a ->
-        (case a of {
-          Lab _ _ -> False;
-          FunLab y_0 y_1 -> res_0 y_0 || equal_lab x_0 y_0 && res_1 y_1;
-          UnLab _ -> True;
-          Sharp _ -> True;
-        }))
-      (\ x_0 a ->
-        (case a of {
-          Lab _ _ -> False;
-          FunLab _ _ -> False;
-          UnLab aa -> less x_0 aa;
-          Sharp _ -> True;
-        }))
-      (\ _ a b ->
-        (case b of {
-          Lab _ _ -> False;
-          FunLab _ _ -> False;
-          UnLab _ -> False;
-          Sharp ba -> a ba;
-        }))
-      (\ a -> (case a of {
-                [] -> False;
-                _ : _ -> True;
-              }))
-      (\ x_0 _ res_0 res_1 a ->
-        (case a of {
-          [] -> False;
-          y_0 : y_1 -> res_0 y_0 || equal_lab x_0 y_0 && res_1 y_1;
-        }))
-      x y ||
-      equal_lab x y);
-
-less_lab ::
-  forall a b. (Eq a, Ord a, Eq b, Ord b) => Lab a b -> Lab a b -> Bool;
-less_lab =
-  lab_rec_1
-    (\ x_0 x_1 res_0 a ->
-      (case a of {
-        Lab y_0 y_1 -> res_0 y_0 || equal_lab x_0 y_0 && less x_1 y_1;
-        FunLab _ _ -> True;
-        UnLab _ -> True;
-        Sharp _ -> True;
-      }))
-    (\ x_0 _ res_0 res_1 a ->
-      (case a of {
-        Lab _ _ -> False;
-        FunLab y_0 y_1 -> res_0 y_0 || equal_lab x_0 y_0 && res_1 y_1;
-        UnLab _ -> True;
-        Sharp _ -> True;
-      }))
-    (\ x_0 a ->
-      (case a of {
-        Lab _ _ -> False;
-        FunLab _ _ -> False;
-        UnLab aa -> less x_0 aa;
-        Sharp _ -> True;
-      }))
-    (\ _ a b ->
-      (case b of {
-        Lab _ _ -> False;
-        FunLab _ _ -> False;
-        UnLab _ -> False;
-        Sharp ba -> a ba;
-      }))
-    (\ a -> (case a of {
-              [] -> False;
-              _ : _ -> True;
-            }))
-    (\ x_0 _ res_0 res_1 a ->
-      (case a of {
-        [] -> False;
-        y_0 : y_1 -> res_0 y_0 || equal_lab x_0 y_0 && res_1 y_1;
-      }));
-
-instance (Eq a, Ord a, Eq b, Ord b) => Ord (Lab a b) where {
-  less_eq = less_eq_lab;
-  less = less_lab;
-};
-
-instance (Eq a, Order a, Eq b, Order b) => Preorder (Lab a b) where {
-};
-
-instance (Eq a, Order a, Eq b, Order b) => Order (Lab a b) where {
-};
-
-instance (Eq a, Linorder a, Eq b, Linorder b) => Linorder (Lab a b) where {
-};
-
-instance (Eq a, Key a, Eq b, Key b) => Key (Lab a b) where {
-};
-
-instance Key Nat where {
-};
+mult :: forall a b. Partial_object_ext a (Monoid_ext a b) -> a -> a -> a;
+mult (Partial_object_ext carrier (Monoid_ext mult one more)) = mult;
 
 matcha :: forall a b. (Term a b, Term a b) -> Term a b -> Bool;
 matcha = (\ _ _ -> True);
@@ -6471,48 +9239,16 @@ fresh_string :: [Prelude.Char] -> [[Prelude.Char]] -> [Prelude.Char];
 fresh_string pre =
   (\ s -> hd (fresh_strings_list pre (Nat_of_num One) s (Nat_of_num One)));
 
-option_rec :: forall a b. a -> (b -> a) -> Maybe b -> a;
-option_rec f1 f2 Nothing = f1;
-option_rec f1 f2 (Just a) = f2 a;
-
 mapMa :: forall a b. (a -> Maybe b) -> [a] -> Maybe [b];
 mapMa f [] = Just [];
 mapMa f (x : xs) =
   bind (f x) (\ y -> bind (mapMa f xs) (\ ys -> Just (y : ys)));
 
-equal_pos :: Pos -> Pos -> Bool;
-equal_pos (PCons nat pos) Empty = False;
-equal_pos Empty (PCons nat pos) = False;
-equal_pos (PCons nata posa) (PCons nat pos) =
-  equal_nat nata nat && equal_pos posa pos;
-equal_pos Empty Empty = True;
-
-instance Eq Pos where {
-  a == b = equal_pos a b;
-};
-
-less_eq_pos :: Pos -> Pos -> Bool;
-less_eq_pos (PCons i q1) (PCons j q2) = equal_nat i j && less_eq_pos q1 q2;
-less_eq_pos (PCons i q1) Empty = False;
-less_eq_pos Empty p = True;
-
-less_pos :: Pos -> Pos -> Bool;
-less_pos p q = less_eq_pos p q && not (equal_pos p q);
-
-times_pos :: Pos -> Pos -> Pos;
-times_pos p q = append p q;
-
-instance Times Pos where {
-  times = times_pos;
-};
-
-instance Power Pos where {
-};
-
-size_pos :: Pos -> Nat;
-size_pos Empty = Zero_nat;
-size_pos (PCons nat pos) =
-  plus_nat (size_pos pos) (plus_nat Zero_nat (Nat_of_num One));
+equal_order_tag :: Order_tag -> Order_tag -> Bool;
+equal_order_tag Lex Mul = False;
+equal_order_tag Mul Lex = False;
+equal_order_tag Mul Mul = True;
+equal_order_tag Lex Lex = True;
 
 any_nstri_efficient_m ::
   forall a b. (a -> b -> ((Bool, Bool), b)) -> [a] -> b -> (Bool, b);
@@ -6625,14 +9361,14 @@ lex_ext_efficient_m f (a : asa) (b : bs) m =
                        else ((False, False), ma))))
          ba;
 
+lookupd :: forall a b c d. Memory_ext a b c d -> a -> b -> Maybe c;
+lookupd (Memory_ext empty lookup store more) = lookup;
+
+store :: forall a b c d. Memory_ext a b c d -> a -> (b, c) -> a;
+store (Memory_ext empty lookup store more) = store;
+
 diag_l :: forall a b. (a, b) -> ((a, a), b);
 diag_l (a, b) = ((a, a), b);
-
-equal_order_tag :: Order_tag -> Order_tag -> Bool;
-equal_order_tag Mul Lex = False;
-equal_order_tag Lex Mul = False;
-equal_order_tag Mul Mul = True;
-equal_order_tag Lex Lex = True;
 
 rpo_efficient_m ::
   forall a b c.
@@ -6642,7 +9378,7 @@ rpo_efficient_m ::
                    (b -> Nat -> Order_tag) ->
                      Term b c -> Term b c -> a -> ((Bool, Bool), a);
 rpo_efficient_m model pr tag s t m =
-  (case lookupc model m (s, t) of {
+  (case lookupd model m (s, t) of {
     Nothing ->
       let {
         (res, res_m) =
@@ -6690,6 +9426,9 @@ cf = tag f maa;
     Just v -> (v, m);
   });
 
+emptye :: forall a b c d. Memory_ext a b c d -> () -> a;
+emptye (Memory_ext empty lookup store more) = empty;
+
 efficient_rpo_2 ::
   forall a b.
     (Eq a,
@@ -6697,7 +9436,7 @@ efficient_rpo_2 ::
                  (a -> Nat -> Order_tag) ->
                    Term a b -> Term a b -> (Bool, Bool);
 efficient_rpo_2 pr tag p q =
-  fst (rpo_efficient_m l2m pr tag p q (emptyc l2m ()));
+  fst (rpo_efficient_m l2m pr tag p q (emptye l2m ()));
 
 rpo_unbounded_impl ::
   forall a b.
@@ -6715,13 +9454,10 @@ rpo_unbounded ::
                    Term a b -> Term a b -> (Bool, Bool);
 rpo_unbounded = rpo_unbounded_impl;
 
-instance Linorder Real where {
-};
-
 converse ::
   forall a b.
-    (Ceq a, Corder a, Set_impla a, Ceq b, Corder b,
-      Set_impla b) => Set (a, b) -> Set (b, a);
+    (Ceq a, Corder a, Set_impl a, Ceq b, Corder b,
+      Set_impl b) => Set (a, b) -> Set (b, a);
 converse r = image (\ (x, y) -> (y, x)) r;
 
 shows_concat ::
@@ -6729,19 +9465,12 @@ shows_concat ::
 shows_concat [] = id;
 shows_concat (s : ss) = s . shows_concat ss;
 
-equal_sum :: forall a b. (Eq a, Eq b) => Sum a b -> Sum a b -> Bool;
-equal_sum (Inr b) (Inl a) = False;
-equal_sum (Inl a) (Inr b) = False;
-equal_sum (Inr ba) (Inr b) = ba == b;
-equal_sum (Inl aa) (Inl a) = aa == a;
-
-instance (Eq a, Eq b) => Eq (Sum a b) where {
-  a == b = equal_sum a b;
-};
-
 subt_at_ctxt :: forall a b. Ctxt a b -> Pos -> Ctxt a b;
 subt_at_ctxt c Empty = c;
 subt_at_ctxt (More f bef c aft) (PCons i p) = subt_at_ctxt c p;
+
+the_Var :: forall a b. Term a b -> b;
+the_Var (Var x1) = x1;
 
 in_poss :: forall a b. Pos -> Term a b -> Bool;
 in_poss Empty uu = True;
@@ -6749,27 +9478,10 @@ in_poss (PCons i p) (Fun f ts) =
   less_nat i (size_list ts) && in_poss p (nth ts i);
 in_poss (PCons i p) (Var uv) = False;
 
-data Redtriple_ext a b c =
-  Redtriple_ext (Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    ((a, Nat) -> Nat -> Bool)
-    ([(Term a b, Term a b)] -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    ([Prelude.Char] -> [Prelude.Char])
-    (Complexity_measure a b ->
-      Sum ([Prelude.Char] -> [Prelude.Char]) Complexity_class)
-    c;
-
-s :: forall a b c.
-       Redtriple_ext a b c ->
-         (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-s (Redtriple_ext valid s ns nst af mono desc cpx more) = s;
-
 instance_rule ::
   forall a b c.
     (Eq a, Eq b, Corder c, Eq c,
-      Mapping_impla c) => (Term a b, Term a b) -> (Term a c, Term a c) -> Bool;
+      Mapping_impl c) => (Term a b, Term a b) -> (Term a c, Term a c) -> Bool;
 instance_rule lr st =
   not (is_none
         (match_list (\ _ -> fst lr) [(fst st, fst lr), (snd st, snd lr)]));
@@ -6810,25 +9522,6 @@ replace_impl a bs m =
 
 doc_of_string :: [Prelude.Char] -> Sum [Prelude.Char] Xmldoc;
 doc_of_string s = bindb (parse_doc s) (\ (doc, _) -> Inr doc);
-
-data Pat_rule_pos = Pat_Base | Pat_Pump | Pat_Close;
-
-data Pat_eqv_prf a b = Pat_Dom_Renaming [(b, Term a b)]
-  | Pat_Irrelevant [(b, Term a b)] [(b, Term a b)]
-  | Pat_Simplify [(b, Term a b)] [(b, Term a b)];
-
-data Pat_rule_prf a b = Pat_OrigRule (Term a b, Term a b) Bool
-  | Pat_InitPump (Pat_rule_prf a b) [(b, Term a b)] [(b, Term a b)]
-  | Pat_InitPumpCtxt (Pat_rule_prf a b) [(b, Term a b)] Pos b
-  | Pat_Equiv (Pat_rule_prf a b) Bool (Pat_eqv_prf a b)
-  | Pat_Narrow (Pat_rule_prf a b) (Pat_rule_prf a b) Pos
-  | Pat_Inst (Pat_rule_prf a b) [(b, Term a b)] Pat_rule_pos
-  | Pat_Rewr (Pat_rule_prf a b)
-      (Term a b, [(Pos, ((Term a b, Term a b), Term a b))]) Pat_rule_pos b
-  | Pat_Exp_Sigma (Pat_rule_prf a b) Nat;
-
-data Non_loop_prf a b =
-  Non_loop_prf (Pat_rule_prf a b) [(b, Term a b)] [(b, Term a b)] Nat Nat Pos;
 
 pat_eqv_prf ::
   forall a.
@@ -6951,20 +9644,20 @@ nonloop xml2name =
 
 xml_lab :: forall a b. (Showa a, Showa b) => Lab a [b] -> Xml;
 xml_lab (UnLab x) =
-  Xml ['n', 'a', 'm', 'e'] [] [] (Just (shows_prec Zero_nat x []));
-xml_lab (Sharp x) = Xml ['s', 'h', 'a', 'r', 'p'] [] [xml_lab x] Nothing;
+  XML ['n', 'a', 'm', 'e'] [] [] (Just (shows_prec Zero_nat x []));
+xml_lab (Sharp x) = XML ['s', 'h', 'a', 'r', 'p'] [] [xml_lab x] Nothing;
 xml_lab (FunLab x l) =
-  Xml ['l', 'a', 'b', 'e', 'l', 'e', 'd', 'S', 'y', 'm', 'b', 'o', 'l'] []
+  XML ['l', 'a', 'b', 'e', 'l', 'e', 'd', 'S', 'y', 'm', 'b', 'o', 'l'] []
     [xml_lab x,
-      Xml ['s', 'y', 'm', 'b', 'o', 'l', 'L', 'a', 'b', 'e', 'l'] []
+      XML ['s', 'y', 'm', 'b', 'o', 'l', 'L', 'a', 'b', 'e', 'l'] []
         (map xml_lab l) Nothing]
     Nothing;
 xml_lab (Lab x l) =
-  Xml ['l', 'a', 'b', 'e', 'l', 'e', 'd', 'S', 'y', 'm', 'b', 'o', 'l'] []
+  XML ['l', 'a', 'b', 'e', 'l', 'e', 'd', 'S', 'y', 'm', 'b', 'o', 'l'] []
     [xml_lab x,
-      Xml ['n', 'u', 'm', 'b', 'e', 'r', 'L', 'a', 'b', 'e', 'l'] []
+      XML ['n', 'u', 'm', 'b', 'e', 'r', 'L', 'a', 'b', 'e', 'l'] []
         (map (\ n ->
-               Xml ['n', 'u', 'm', 'b', 'e', 'r'] [] []
+               XML ['n', 'u', 'm', 'b', 'e', 'r'] [] []
                  (Just (shows_prec Zero_nat n [])))
           l)
         Nothing]
@@ -6972,56 +9665,17 @@ xml_lab (Lab x l) =
 
 xml_single_pos :: Nat -> Xml;
 xml_single_pos i =
-  Xml ['p', 'o', 's', 'i', 't', 'i', 'o', 'n'] [] []
+  XML ['p', 'o', 's', 'i', 't', 'i', 'o', 'n'] [] []
     (Just (shows_prec_nat Zero_nat (plus_nat i (Nat_of_num One)) []));
 
 xml_pos :: Pos -> Xml;
 xml_pos p =
-  Xml ['p', 'o', 's', 'i', 't', 'i', 'o', 'n', 'I', 'n', 'T', 'e', 'r', 'm'] []
+  XML ['p', 'o', 's', 'i', 't', 'i', 'o', 'n', 'I', 'n', 'T', 'e', 'r', 'm'] []
     (map xml_single_pos (to_list p)) Nothing;
 
-subset ::
+eq_set ::
   forall a. (Card_UNIV a, Cenum a, Ceq a, Corder a) => Set a -> Set a -> Bool;
-subset = subset_eq;
-
-instance Preorder Prelude.Char where {
-};
-
-instance Order Prelude.Char where {
-};
-
-carrier :: forall a b. Partial_object_ext a b -> Set a;
-carrier (Partial_object_ext carrier more) = carrier;
-
-data Dpp_ops_ext a b c d =
-  Dpp_ops_ext
-    (a -> (Bool,
-            (Bool,
-              (Set (Term b c, Term b c),
-                (Set (Term b c, Term b c),
-                  (Set (Term b c),
-                    (Set (Term b c, Term b c), Set (Term b c, Term b c))))))))
-    (a -> [(Term b c, Term b c)]) (a -> [(Term b c, Term b c)])
-    (a -> [(Term b c, Term b c)]) (a -> [Term b c])
-    (a -> [(Term b c, Term b c)]) (a -> [(Term b c, Term b c)])
-    (a -> [(Term b c, Term b c)]) (a -> Bool) (a -> Bool) (a -> Bool)
-    (a -> Term b c -> Bool) (a -> Bool)
-    (a -> (b, Nat) -> [(Term b c, Term b c)])
-    (a -> (b, Nat) -> [(Term b c, Term b c)]) (a -> [(Term b c, Term b c)] -> a)
-    (a -> (Term b c, Term b c) -> [(Term b c, Term b c)] -> a)
-    (a -> [(Term b c, Term b c)] -> a)
-    (a -> [(Term b c, Term b c)] -> [(Term b c, Term b c)] -> a)
-    (a -> [(Term b c, Term b c)] -> [(Term b c, Term b c)] -> a)
-    (a -> [(Term b c, Term b c)] ->
-            ([(Term b c, Term b c)], [(Term b c, Term b c)]))
-    (a -> [(Term b c, Term b c)] ->
-            ([(Term b c, Term b c)], [(Term b c, Term b c)]))
-    (Bool ->
-      Bool ->
-        [(Term b c, Term b c)] ->
-          [(Term b c, Term b c)] ->
-            [Term b c] -> [(Term b c, Term b c)] -> [(Term b c, Term b c)] -> a)
-    (a -> Bool) (a -> Bool) (a -> Bool) d;
+eq_set = set_eq;
 
 rules_no_left_vara :: forall a b c d. Dpp_ops_ext a b c d -> a -> Bool;
 rules_no_left_vara
@@ -7066,127 +9720,12 @@ fun_of_map m d a = (case m a of {
 term_map :: forall a b. (Key a) => [Term a b] -> a -> [Term a b];
 term_map ts = fun_of_map (lookup (elem_list_to_rm ((fst . the) . root) ts)) [];
 
-instance Linorder Prelude.Char where {
-};
+min :: forall a. (Ord a) => a -> a -> a;
+min a b = (if less_eq a b then a else b);
 
-instance Key Prelude.Char where {
-};
-
-less_eq_list :: forall a. (Eq a, Order a) => [a] -> [a] -> Bool;
-less_eq_list (x : xs) (y : ys) = less x y || x == y && less_eq_list xs ys;
-less_eq_list [] xs = True;
-less_eq_list (x : xs) [] = False;
-
-less_list :: forall a. (Eq a, Order a) => [a] -> [a] -> Bool;
-less_list (x : xs) (y : ys) = less x y || x == y && less_list xs ys;
-less_list [] (x : xs) = True;
-less_list xs [] = False;
-
-instance (Eq a, Order a) => Ord [a] where {
-  less_eq = less_eq_list;
-  less = less_list;
-};
-
-instance (Eq a, Order a) => Preorder [a] where {
-};
-
-instance (Eq a, Order a) => Order [a] where {
-};
-
-instance (Eq a, Linorder a) => Linorder [a] where {
-};
-
-instance (Eq a, Key a) => Key [a] where {
-};
-
-less_eq_proda :: forall a b. (Ord a, Ord b) => (a, b) -> (a, b) -> Bool;
-less_eq_proda (x1, y1) (x2, y2) = less x1 x2 || less_eq x1 x2 && less_eq y1 y2;
-
-less_proda :: forall a b. (Ord a, Ord b) => (a, b) -> (a, b) -> Bool;
-less_proda (x1, y1) (x2, y2) = less x1 x2 || less_eq x1 x2 && less y1 y2;
-
-instance (Ord a, Ord b) => Ord (a, b) where {
-  less_eq = less_eq_proda;
-  less = less_proda;
-};
-
-instance (Preorder a, Preorder b) => Preorder (a, b) where {
-};
-
-instance (Order a, Order b) => Order (a, b) where {
-};
-
-instance (Linorder a, Linorder b) => Linorder (a, b) where {
-};
-
-instance (Key a, Key b) => Key (a, b) where {
-};
-
-less_eq_term ::
-  forall a b. (Eq a, Ord a, Eq b, Ord b) => Term a b -> Term a b -> Bool;
-less_eq_term =
-  (\ x y ->
-    term_rec_1
-      (\ x_0 a -> (case a of {
-                    Var aa -> less x_0 aa;
-                    Fun _ _ -> True;
-                  }))
-      (\ x_0 _ res_0 a ->
-        (case a of {
-          Var _ -> False;
-          Fun y_0 y_1 -> less x_0 y_0 || x_0 == y_0 && res_0 y_1;
-        }))
-      (\ a -> (case a of {
-                [] -> False;
-                _ : _ -> True;
-              }))
-      (\ x_0 _ res_0 res_1 a ->
-        (case a of {
-          [] -> False;
-          y_0 : y_1 -> res_0 y_0 || equal_term x_0 y_0 && res_1 y_1;
-        }))
-      x y ||
-      equal_term x y);
-
-less_term ::
-  forall a b. (Eq a, Ord a, Eq b, Ord b) => Term a b -> Term a b -> Bool;
-less_term =
-  term_rec_1
-    (\ x_0 a -> (case a of {
-                  Var aa -> less x_0 aa;
-                  Fun _ _ -> True;
-                }))
-    (\ x_0 _ res_0 a ->
-      (case a of {
-        Var _ -> False;
-        Fun y_0 y_1 -> less x_0 y_0 || x_0 == y_0 && res_0 y_1;
-      }))
-    (\ a -> (case a of {
-              [] -> False;
-              _ : _ -> True;
-            }))
-    (\ x_0 _ res_0 res_1 a ->
-      (case a of {
-        [] -> False;
-        y_0 : y_1 -> res_0 y_0 || equal_term x_0 y_0 && res_1 y_1;
-      }));
-
-instance (Eq a, Ord a, Eq b, Ord b) => Ord (Term a b) where {
-  less_eq = less_eq_term;
-  less = less_term;
-};
-
-instance (Eq a, Order a, Eq b, Order b) => Preorder (Term a b) where {
-};
-
-instance (Eq a, Order a, Eq b, Order b) => Order (Term a b) where {
-};
-
-instance (Eq a, Linorder a, Eq b, Linorder b) => Linorder (Term a b) where {
-};
-
-instance (Eq a, Key a, Eq b, Key b) => Key (Term a b) where {
-};
+min_list :: forall a. (Linorder a) => [a] -> a;
+min_list [x] = x;
+min_list (x : v : va) = min x (min_list (v : va));
 
 height :: forall a. (a, Nat) -> Nat;
 height (f, h) = h;
@@ -7204,23 +9743,6 @@ vec1I ze on n i =
 
 mat1I :: forall a. a -> a -> Nat -> [[a]];
 mat1I ze on n = map (vec1I ze on n) (upt Zero_nat n);
-
-data Dependance = Ignore | Increase | Decrease | Wild;
-
-shows_term ::
-  forall a b.
-    (a -> [Prelude.Char] -> [Prelude.Char]) ->
-      (b -> [Prelude.Char] -> [Prelude.Char]) ->
-        Term a b -> [Prelude.Char] -> [Prelude.Char];
-shows_term fun var (Var x) = var x;
-shows_term fun var (Fun f ts) =
-  fun f .
-    shows_list_gen id [] ['('] [',', ' '] [')'] (map (shows_term fun var) ts);
-
-shows_prec_term ::
-  forall a b.
-    (Showa a, Showa b) => Nat -> Term a b -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_term d t = shows_term (shows_prec Zero_nat) (shows_prec Zero_nat) t;
 
 check_poly_ge ::
   forall a b.
@@ -7470,23 +9992,6 @@ scnp_af_to_af pia pi =
                 } in (\ i -> isa i || membera is i)
            else membera is));
 
-quicksort_acc :: forall a. (a -> a -> Bool) -> [a] -> [a] -> [a];
-quicksort_acc less ac (x : v : va) = quicksort_part less ac x [] [] [] (v : va);
-quicksort_acc less ac [x] = x : ac;
-quicksort_acc less ac [] = ac;
-
-quicksort_part ::
-  forall a. (a -> a -> Bool) -> [a] -> a -> [a] -> [a] -> [a] -> [a] -> [a];
-quicksort_part less ac x lts eqs gts (z : zs) =
-  (if less x z then quicksort_part less ac x lts eqs (z : gts) zs
-    else (if less z x then quicksort_part less ac x (z : lts) eqs gts zs
-           else quicksort_part less ac x lts (z : eqs) gts zs));
-quicksort_part less ac x lts eqs gts [] =
-  quicksort_acc less (eqs ++ x : quicksort_acc less ac gts) lts;
-
-quicksort :: forall a. (a -> a -> Bool) -> [a] -> [a];
-quicksort less = quicksort_acc less [];
-
 mk_subst ::
   forall a b c. (Eq a) => (a -> Term b c) -> [(a, Term b c)] -> a -> Term b c;
 mk_subst d xts =
@@ -7495,116 +10000,17 @@ mk_subst d xts =
             Just t -> t;
           }));
 
-shows_list_term ::
-  forall a b.
-    (Showa a, Showa b) => [Term a b] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_term = shows_list_aux (shows_prec_term Zero_nat);
-
-instance (Showa a, Showa b) => Showa (Term a b) where {
-  shows_prec = shows_prec_term;
-  shows_list = shows_list_term;
-};
-
-set_impl_term :: forall a b. Phantom (Term a b) Set_impl;
-set_impl_term = Phantom Set_RBT;
-
-instance Set_impla (Term a b) where {
-  set_impl = set_impl_term;
-};
-
-corder_term ::
-  forall a b.
-    (Eq a, Linorder a, Eq b,
-      Linorder b) => Maybe (Term a b -> Term a b -> Bool,
-                             Term a b -> Term a b -> Bool);
-corder_term = Just (less_eq_term, less_term);
-
-instance (Eq a, Linorder a, Eq b, Linorder b) => Corder (Term a b) where {
-  corder = corder_term;
-};
-
 mk_subst_domain ::
   forall a b. (Eq a, Eq b) => [(a, Term b a)] -> [(a, Term b a)];
 mk_subst_domain sigma =
   let {
     tau = mk_subst Var sigma;
-  } in remdups
-         (filter (\ (x, t) -> not (equal_term (Var x) t))
-           (map (\ (x, _) -> (x, tau x)) sigma));
-
-cEnum_term ::
-  forall a b.
-    Maybe ([Term a b],
-            ((Term a b -> Bool) -> Bool, (Term a b -> Bool) -> Bool));
-cEnum_term = Nothing;
-
-instance Cenum (Term a b) where {
-  cEnum = cEnum_term;
-};
-
-cEnum_prod ::
-  forall a b.
-    (Cenum a,
-      Cenum b) => Maybe ([(a, b)],
-                          (((a, b) -> Bool) -> Bool, ((a, b) -> Bool) -> Bool));
-cEnum_prod =
-  (case cEnum of {
-    Nothing -> Nothing;
-    Just (enum_a, (enum_all_a, enum_ex_a)) ->
-      (case cEnum of {
-        Nothing -> Nothing;
-        Just (enum_b, (enum_all_b, enum_ex_b)) ->
-          Just (product enum_a enum_b,
-                 ((\ p -> enum_all_a (\ x -> enum_all_b (\ y -> p (x, y)))),
-                   (\ p -> enum_ex_a (\ x -> enum_ex_b (\ y -> p (x, y))))));
-      });
-  });
-
-instance (Cenum a, Cenum b) => Cenum (a, b) where {
-  cEnum = cEnum_prod;
-};
-
-ceq_term :: forall a b. (Eq a, Eq b) => Maybe (Term a b -> Term a b -> Bool);
-ceq_term = Just equal_term;
-
-instance (Eq a, Eq b) => Ceq (Term a b) where {
-  ceq = ceq_term;
-};
-
-list_all2_fusion ::
-  forall a b c d.
-    (a -> b -> Bool) -> Generator a c -> Generator b d -> c -> d -> Bool;
-list_all2_fusion p g1 g2 s1 s2 =
-  (if has_next g1 s1
-    then has_next g2 s2 &&
-           let {
-             (x, s1a) = next g1 s1;
-             (y, s2a) = next g2 s2;
-           } in p x y && list_all2_fusion p g1 g2 s1a s2a
-    else not (has_next g2 s2));
-
-set_eq :: forall a. (Cenum a, Ceq a, Corder a) => Set a -> Set a -> Bool;
-set_eq (RBT_set rbt1) (RBT_set rbt2) =
-  (case corder of {
-    Nothing ->
-      error "set_eq RBT_set RBT_set: corder = None"
-        (\ _ -> set_eq (RBT_set rbt1) (RBT_set rbt2));
-    Just (le, _) ->
-      (case ceq of {
-        Nothing ->
-          list_all2_fusion (mk_eq le) rbt_keys_generator rbt_keys_generator
-            (init rbt1) (init rbt2);
-        Just eq ->
-          list_all2_fusion eq rbt_keys_generator rbt_keys_generator (init rbt1)
-            (init rbt2);
-      });
-  });
-set_eq (Complement a) (Complement b) = set_eq a b;
-set_eq a b = less_eq_set a b && less_eq_set b a;
+  } in filter (\ (x, t) -> not (equal_term (Var x) t))
+         (map (\ x -> (x, tau x)) (remdups (map fst sigma)));
 
 subst_eq ::
   forall a b.
-    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Eq b,
+    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Eq b,
       Linorder b) => [(a, Term b a)] -> [(a, Term b a)] -> Bool;
 subst_eq sigma tau =
   let {
@@ -7614,64 +10020,6 @@ subst_eq sigma tau =
 
 full_af :: forall a. (a, Nat) -> Nat -> Bool;
 full_af fn i = True;
-
-data Root_redtriple_ext a b c =
-  Root_redtriple_ext (Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    ((a, Nat) -> Nat -> Bool) ((a, Nat) -> Nat -> Bool)
-    ([Prelude.Char] -> [Prelude.Char]) c;
-
-af :: forall a b c. Root_redtriple_ext a b c -> (a, Nat) -> Nat -> Bool;
-af (Root_redtriple_ext valid s ns nst af aft desc more) = af;
-
-ns :: forall a b c.
-        Redtriple_ext a b c ->
-          (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-ns (Redtriple_ext valid s ns nst af mono desc cpx more) = ns;
-
-sa :: forall a b c.
-        Root_redtriple_ext a b c ->
-          (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-sa (Root_redtriple_ext valid s ns nst af aft desc more) = s;
-
-defs_list :: forall a b. (Eq a) => [(Term a b, Term a b)] -> [(a, Nat)];
-defs_list [] = [];
-defs_list ((Fun f ss, r) : ts) =
-  let {
-    fs = defs_list ts;
-    n = size_list ss;
-  } in (if membera fs (f, n) then fs else (f, n) : fs);
-defs_list ((Var x, r) : ts) = defs_list ts;
-
-shows_rule ::
-  forall a b.
-    (a -> [Prelude.Char] -> [Prelude.Char]) ->
-      (b -> [Prelude.Char] -> [Prelude.Char]) ->
-        [Prelude.Char] ->
-          (Term a b, Term a b) -> [Prelude.Char] -> [Prelude.Char];
-shows_rule fun var arr (l, r) =
-  shows_term fun var l . shows_string arr . shows_term fun var r;
-
-shows_rules ::
-  forall a b.
-    (a -> [Prelude.Char] -> [Prelude.Char]) ->
-      (b -> [Prelude.Char] -> [Prelude.Char]) ->
-        [Prelude.Char] ->
-          [(Term a b, Term a b)] -> [Prelude.Char] -> [Prelude.Char];
-shows_rules fun var arr trs =
-  shows_list_gen (shows_rule fun var arr) [] [] [newline] [] trs . shows_nl;
-
-shows_trs ::
-  forall a b.
-    (a -> [Prelude.Char] -> [Prelude.Char]) ->
-      (b -> [Prelude.Char] -> [Prelude.Char]) ->
-        [Prelude.Char] ->
-          [Prelude.Char] ->
-            [(Term a b, Term a b)] -> [Prelude.Char] -> [Prelude.Char];
-shows_trs fun var name arr r =
-  shows_string name . shows_nl . shows_nl . shows_rules fun var arr r;
 
 apply_args :: forall a b. a -> Term a b -> [Term a b] -> Term a b;
 apply_args a t [] = t;
@@ -7687,7 +10035,7 @@ xml2nd_choice ::
         [Prelude.Char] ->
           (Xml -> Sum_bot [Prelude.Char] b) ->
             (a -> Maybe b -> c) -> Xml -> Sum_bot [Prelude.Char] c;
-xml2nd_choice tag p1 cn p2 f (Xml name atts cs text) =
+xml2nd_choice tag p1 cn p2 f (XML name atts cs text) =
   let {
     l = size_list cs;
   } in (if name == tag &&
@@ -7700,7 +10048,7 @@ xml2nd_choice tag p1 cn p2 f (Xml name atts cs text) =
  (nth cs (minus_nat l (Nat_of_num One))))
                                    (\ x2 -> returna (f x1 (Just x2)))
                         else returna (f x1 Nothing))))
-         else fail tag (Xml name atts cs text));
+         else fail tag (XML name atts cs text));
 
 sum_lpoly ::
   forall a.
@@ -7771,10 +10119,10 @@ strategy xml2name =
 
 xml_term ::
   forall a b c. (Showa a, Showa b, Showa c) => Term (Lab a [b]) c -> Xml;
-xml_term (Var x) = Xml ['v', 'a', 'r'] [] [] (Just (shows_prec Zero_nat x []));
+xml_term (Var x) = XML ['v', 'a', 'r'] [] [] (Just (shows_prec Zero_nat x []));
 xml_term (Fun f ts) =
-  Xml ['f', 'u', 'n', 'a', 'p', 'p'] []
-    (xml_lab f : map (\ t -> Xml ['a', 'r', 'g'] [] [xml_term t] Nothing) ts)
+  XML ['f', 'u', 'n', 'a', 'p', 'p'] []
+    (xml_lab f : map (\ t -> XML ['a', 'r', 'g'] [] [xml_term t] Nothing) ts)
     Nothing;
 
 xml_rule ::
@@ -7783,18 +10131,25 @@ xml_rule ::
       Showa c) => (Term (Lab a [b]) c, Term (Lab a [b]) c) -> Xml;
 xml_rule =
   (\ (l, r) ->
-    Xml ['r', 'u', 'l', 'e'] []
-      [Xml ['l', 'h', 's'] [] [xml_term l] Nothing,
-        Xml ['r', 'h', 's'] [] [xml_term r] Nothing]
+    XML ['r', 'u', 'l', 'e'] []
+      [XML ['l', 'h', 's'] [] [xml_term l] Nothing,
+        XML ['r', 'h', 's'] [] [xml_term r] Nothing]
       Nothing);
 
-class Countable a where {
-};
+subset ::
+  forall a. (Card_UNIV a, Cenum a, Ceq a, Corder a) => Set a -> Set a -> Bool;
+subset = subset_eq;
 
 existsM :: forall a b. (a -> Sum b ()) -> [a] -> Sum [b] ();
 existsM f [] = Inl [];
 existsM f (x : xs) =
   catcha (f x) (\ e -> catcha (existsM f xs) (\ xa -> Inl (e : xa)));
+
+nF_subset ::
+  forall a b.
+    (Eq a, Corder b, Eq b, Mapping_impl b) => [Term a b] -> [Term a b] -> Bool;
+nF_subset ls q =
+  all (\ l -> any (\ t -> any (\ u -> matches u t) (supteq_list l)) q) ls;
 
 icap_impl ::
   forall a.
@@ -7822,11 +10177,107 @@ icap_impl nf isQnf ls s sx (Fun f ts) =
              ls
          then Var (Inl ()) else t);
 
-nF_subset ::
+lex_ext_unbounded ::
+  forall a. (a -> a -> (Bool, Bool)) -> [a] -> [a] -> (Bool, Bool);
+lex_ext_unbounded f [] [] = (False, True);
+lex_ext_unbounded f (uu : uv) [] = (True, True);
+lex_ext_unbounded f [] (uw : ux) = (False, False);
+lex_ext_unbounded f (a : asa) (b : bs) =
+  (case f a b of {
+    (True, nstri) -> (True, True);
+    (False, True) -> lex_ext_unbounded f asa bs;
+    (False, False) -> (False, False);
+  });
+
+zero_multiset :: forall a. Multiset a;
+zero_multiset = Bag emptya;
+
+join_raw ::
+  forall a b. (Eq a) => (a -> (b, b) -> b) -> [(a, b)] -> [(a, b)] -> [(a, b)];
+join_raw f xs ys =
+  foldr (\ (k, v) -> map_default k v (\ va -> f k (va, v))) ys xs;
+
+joina ::
   forall a b.
-    (Eq a, Corder b, Eq b, Mapping_impla b) => [Term a b] -> [Term a b] -> Bool;
-nF_subset ls q =
-  all (\ l -> any (\ t -> any (\ u -> matches u t) (supteq_list l)) q) ls;
+    (Eq a) => (a -> (b, b) -> b) -> Alist a b -> Alist a b -> Alist a b;
+joina xc xd xe = Alist (join_raw xc (impl_ofa xd) (impl_ofa xe));
+
+plus_multiset :: forall a. (Eq a) => Multiset a -> Multiset a -> Multiset a;
+plus_multiset (Bag xs) (Bag ys) =
+  Bag (joina (\ _ (a, b) -> plus_nat a b) xs ys);
+
+fold_impl :: forall a b. (a -> Nat -> b -> b) -> b -> [(a, Nat)] -> b;
+fold_impl fn e ((a, n) : ms) = fold_impl fn (fn a n e) ms;
+fold_impl fn e [] = e;
+
+folde :: forall a b. (a -> Nat -> b -> b) -> b -> Alist a Nat -> b;
+folde f e al = fold_impl f e (impl_ofa al);
+
+union_mset :: forall a. (Eq a) => Multiset (Multiset a) -> Multiset a;
+union_mset (Bag ms) =
+  folde (\ a n -> funpow n (plus_multiset a)) zero_multiset ms;
+
+multiset_of :: forall a. (Eq a) => [a] -> Multiset a;
+multiset_of (a : x) = plus_multiset (multiset_of x) (single a);
+multiset_of [] = zero_multiset;
+
+vars_term_ms :: forall a b. (Eq b) => Term a b -> Multiset b;
+vars_term_ms (Var x) = single x;
+vars_term_ms (Fun f ts) = union_mset (multiset_of (map vars_term_ms ts));
+
+listsum :: forall a. (Monoid_add a) => [a] -> a;
+listsum xs = foldr plus xs zeroa;
+
+weight ::
+  forall a b.
+    ((a, Nat) -> Nat) -> Nat -> ((a, Nat) -> Nat -> Nat) -> Term a b -> Nat;
+weight w w0 scf (Fun f ts) =
+  let {
+    n = size_list ts;
+    scff = scf (f, n);
+  } in plus_nat (w (f, n))
+         (listsum
+           (map (\ (ti, i) -> times_nat (weight w w0 scf ti) (scff i))
+             (zip ts (upt Zero_nat n))));
+weight w w0 scf (Var x) = w0;
+
+kbo_impl ::
+  forall a b.
+    (Eq b) => ((a, Nat) -> Nat) ->
+                Nat ->
+                  ((a, Nat) -> Nat) ->
+                    (a -> Bool) ->
+                      ((a, Nat) -> Nat -> Nat) ->
+                        Term a b -> Term a b -> (Bool, Bool);
+kbo_impl w w0 prc least scf s t =
+  let {
+    wt = weight w w0 scf t;
+    ws = weight w w0 scf s;
+  } in (if less_eq_multiset (vars_term_ms (scf_term scf t))
+             (vars_term_ms (scf_term scf s)) &&
+             less_eq_nat wt ws
+         then (if less_nat wt ws then (True, True)
+                else (case s of {
+                       Var _ ->
+                         (False,
+                           (case t of {
+                             Var _ -> True;
+                             Fun g ts -> null ts && least g;
+                           }));
+                       Fun f ss ->
+                         (case t of {
+                           Var _ -> (True, True);
+                           Fun g ts ->
+                             let {
+                               pf = prc (f, size_list ss);
+                               pg = prc (g, size_list ts);
+                             } in (if less_nat pg pf then (True, True)
+                                    else (if less_eq_nat pg pf
+   then lex_ext_unbounded (kbo_impl w w0 prc least scf) ss ts
+   else (False, False)));
+                         });
+                     }))
+         else (False, False));
 
 kbo_strict ::
   forall a b.
@@ -7848,21 +10299,16 @@ kbo_strict pr w w0 least scf =
           shows_string [' ', '>', 'K', 'B', 'O', ' '] .
             shows_prec_term Zero_nat t . shows_nl));
 
+list_diff :: forall a. (Eq a) => [a] -> [a] -> [a];
+list_diff [] ys = [];
+list_diff (x : xs) ys =
+  let {
+    zs = list_diff xs ys;
+  } in (if membera ys x then zs else x : zs);
+
 eval :: forall a b c. (a -> [b] -> b) -> (c -> b) -> Term a c -> b;
 eval i alpha (Var x) = alpha x;
 eval i alpha (Fun f ts) = i f (map (eval i alpha) ts);
-
-data Ordered_semiring_ext a b =
-  Ordered_semiring_ext (a -> a -> Bool) (a -> a -> Bool) (a -> a -> a) b;
-
-gt :: forall a b.
-        Partial_object_ext a
-          (Monoid_ext a (Ring_ext a (Ordered_semiring_ext a b))) ->
-          a -> a -> Bool;
-gt (Partial_object_ext carrier
-     (Monoid_ext mult one
-       (Ring_ext zero add (Ordered_semiring_ext geq gt max more))))
-  = gt;
 
 poly_vars_list :: forall a b. (Eq a) => [([(a, Nat)], b)] -> [a];
 poly_vars_list p = remdups (concatMap (map fst . fst) p);
@@ -7870,9 +10316,7 @@ poly_vars_list p = remdups (concatMap (map fst . fst) p);
 concat_lists :: forall a. [[a]] -> [[a]];
 concat_lists [] = [[]];
 concat_lists (asa : xs) =
-  let {
-    a = concat_lists xs;
-  } in concatMap (\ vec -> map (\ aa -> aa : vec) asa) a;
+  concatMap (\ vec -> map (\ a -> a : vec) asa) (concat_lists xs);
 
 square_possibilities ::
   forall a b.
@@ -7963,10 +10407,6 @@ check_quadratic_ge_const sq i st =
                                      'i', 'n', 'g', ' ', 'c', 'o', 'n', 's',
                                      't', 'a', 'n', 't', 's']))
                            (\ _ -> check_quadratic sq psx)));
-
-data C_constraint a b =
-  Conditional_C Bool (Term a b, Term a b) (Term a b, Term a b)
-  | Unconditional_C Bool (Term a b, Term a b);
 
 check_ns ::
   forall a b c.
@@ -8069,9 +10509,6 @@ pos_suffix p q =
     Just qa -> Just (rev qa);
   });
 
-data Cert_result = Certified [Prelude.Char] | Unsupported [Prelude.Char]
-  | Error [Prelude.Char];
-
 sqrt_real :: Real -> [Real];
 sqrt_real x =
   (if is_rat x && less_eq_real zero_real x
@@ -8128,57 +10565,41 @@ scnp_desc af mu =
             shows_nl af .
             shows_nl;
 
-data Tp_ops_ext a b c d =
-  Tp_ops_ext
-    (a -> (Bool,
-            (Set (Term b c),
-              (Set (Term b c, Term b c), Set (Term b c, Term b c)))))
-    (a -> [Term b c]) (a -> [(Term b c, Term b c)])
-    (a -> [(Term b c, Term b c)]) (a -> [(Term b c, Term b c)]) (a -> Bool)
-    (a -> Term b c -> Bool) (a -> Bool)
-    (a -> (b, Nat) -> [(Term b c, Term b c)])
-    (a -> [(Term b c, Term b c)] -> [(Term b c, Term b c)] -> a)
-    (a -> [(Term b c, Term b c)] ->
-            ([(Term b c, Term b c)], [(Term b c, Term b c)]))
-    (Bool ->
-      [Term b c] -> [(Term b c, Term b c)] -> [(Term b c, Term b c)] -> a)
-    (a -> Bool) d;
-
-split_rulesa ::
+split_rulesb ::
   forall a b c d.
     Tp_ops_ext a b c d ->
       a -> [(Term b c, Term b c)] ->
              ([(Term b c, Term b c)], [(Term b c, Term b c)]);
-split_rulesa
+split_rulesb
   (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules rules_map
     delete_R_Rw split_rules mk nfs more)
   = split_rules;
 
-delete_R_Rwa ::
+delete_R_Rwb ::
   forall a b c d.
     Tp_ops_ext a b c d ->
       a -> [(Term b c, Term b c)] -> [(Term b c, Term b c)] -> a;
-delete_R_Rwa
+delete_R_Rwb
   (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules rules_map
     delete_R_Rw split_rules mk nfs more)
   = delete_R_Rw;
 
-nfsa :: forall a b c d. Tp_ops_ext a b c d -> a -> Bool;
-nfsa (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules
+nfsb :: forall a b c d. Tp_ops_ext a b c d -> a -> Bool;
+nfsb (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules
        rules_map delete_R_Rw split_rules mk nfs more)
   = nfs;
 
-mka ::
+mkb ::
   forall a b c d.
     Tp_ops_ext a b c d ->
       Bool ->
         [Term b c] -> [(Term b c, Term b c)] -> [(Term b c, Term b c)] -> a;
-mka (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules
+mkb (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules
       rules_map delete_R_Rw split_rules mk nfs more)
   = mk;
 
-qa :: forall a b c d. Tp_ops_ext a b c d -> a -> [Term b c];
-qa (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules rules_map
+qb :: forall a b c d. Tp_ops_ext a b c d -> a -> [Term b c];
+qb (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules rules_map
      delete_R_Rw split_rules mk nfs more)
   = q;
 
@@ -8188,39 +10609,14 @@ split_tt ::
       Showa c) => Tp_ops_ext a b c () -> a -> [(Term b c, Term b c)] -> (a, a);
 split_tt i tp r_remove =
   let {
-    (r, rw) = split_rulesa i tp r_remove;
-    tp1 = mka i (nfsa i tp) (qa i tp) r rw;
-    a = delete_R_Rwa i tp r_remove r_remove;
+    (r, rw) = split_rulesb i tp r_remove;
+    tp1 = mkb i (nfsb i tp) (qb i tp) r rw;
+    a = delete_R_Rwb i tp r_remove r_remove;
   } in (tp1, a);
 
 supt_impl :: forall a b. (Eq a, Eq b) => Term a b -> Term a b -> Bool;
 supt_impl (Var x) t = False;
 supt_impl (Fun f ss) t = membera ss t || any (\ s -> supt_impl s t) ss;
-
-afa :: forall a b c. Redtriple_ext a b c -> (a, Nat) -> Nat -> Bool;
-afa (Redtriple_ext valid s ns nst af mono desc cpx more) = af;
-
-aft :: forall a b c. Root_redtriple_ext a b c -> (a, Nat) -> Nat -> Bool;
-aft (Root_redtriple_ext valid s ns nst af aft desc more) = aft;
-
-cpx ::
-  forall a b c.
-    Redtriple_ext a b c ->
-      Complexity_measure a b ->
-        Sum ([Prelude.Char] -> [Prelude.Char]) Complexity_class;
-cpx (Redtriple_ext valid s ns nst af mono desc cpx more) = cpx;
-
-nsa ::
-  forall a b c.
-    Root_redtriple_ext a b c ->
-      (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-nsa (Root_redtriple_ext valid s ns nst af aft desc more) = ns;
-
-nst ::
-  forall a b c.
-    Redtriple_ext a b c ->
-      (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-nst (Redtriple_ext valid s ns nst af mono desc cpx more) = nst;
 
 r_rhs :: forall a b. Ta_rule a b -> a;
 r_rhs (TA_rule f qs q) = q;
@@ -8228,7 +10624,33 @@ r_rhs (TA_rule f qs q) = q;
 r_sym :: forall a b. Ta_rule a b -> (b, Nat);
 r_sym (TA_rule f qs q) = (f, size_list qs);
 
-data Ta_ext a b c = Ta_ext (Set a) (Set (Ta_rule a b)) (Set (a, a)) c;
+shows_rule ::
+  forall a b.
+    (a -> [Prelude.Char] -> [Prelude.Char]) ->
+      (b -> [Prelude.Char] -> [Prelude.Char]) ->
+        [Prelude.Char] ->
+          (Term a b, Term a b) -> [Prelude.Char] -> [Prelude.Char];
+shows_rule fun var arr (l, r) =
+  shows_term fun var l . shows_string arr . shows_term fun var r;
+
+shows_rules ::
+  forall a b.
+    (a -> [Prelude.Char] -> [Prelude.Char]) ->
+      (b -> [Prelude.Char] -> [Prelude.Char]) ->
+        [Prelude.Char] ->
+          [(Term a b, Term a b)] -> [Prelude.Char] -> [Prelude.Char];
+shows_rules fun var arr trs =
+  shows_list_gen (shows_rule fun var arr) [] [] [newline] [] trs . shows_nl;
+
+shows_trs ::
+  forall a b.
+    (a -> [Prelude.Char] -> [Prelude.Char]) ->
+      (b -> [Prelude.Char] -> [Prelude.Char]) ->
+        [Prelude.Char] ->
+          [Prelude.Char] ->
+            [(Term a b, Term a b)] -> [Prelude.Char] -> [Prelude.Char];
+shows_trs fun var name arr r =
+  shows_string name . shows_nl . shows_nl . shows_rules fun var arr r;
 
 aarity_term ::
   forall a b. (Eq a) => a -> (a -> Nat -> [a]) -> Term a b -> Maybe Nat;
@@ -8342,7 +10764,7 @@ xml2to3elements ::
         (Xml -> Sum_bot [Prelude.Char] b) ->
           (Xml -> Sum_bot [Prelude.Char] c) ->
             (a -> b -> Maybe c -> d) -> Xml -> Sum_bot [Prelude.Char] d;
-xml2to3elements tag p1 p2 p3 f (Xml name atts cs text) =
+xml2to3elements tag p1 p2 p3 f (XML name atts cs text) =
   let {
     l = size_list cs;
   } in (if name == tag &&
@@ -8357,7 +10779,7 @@ xml2to3elements tag p1 p2 p3 f (Xml name atts cs text) =
                         then binda (p3 (nth cs (Nat_of_num (Bit0 One))))
                                (\ x3 -> returna (f x1 x2 (Just x3)))
                         else returna (f x1 x2 Nothing))))
-         else fail tag (Xml name atts cs text));
+         else fail tag (XML name atts cs text));
 
 knuth_bendix_order ::
   forall a.
@@ -8374,156 +10796,64 @@ knuth_bendix_order xml2name =
               Nothing -> [];
               Just af -> af;
             });
-      } in Kbo (prw w0) a);
+      } in KBO (prw w0) a);
 
-set_impl_arctic_delta :: forall a. Phantom (Arctic_delta a) Set_impl;
-set_impl_arctic_delta = Phantom Set_RBT;
-
-instance Set_impla (Arctic_delta a) where {
-  set_impl = set_impl_arctic_delta;
-};
-
-times_arctic_delta ::
-  forall a.
-    (Linordered_field a) => Arctic_delta a -> Arctic_delta a -> Arctic_delta a;
-times_arctic_delta MinInfty_delta y = MinInfty_delta;
-times_arctic_delta (Num_arc_delta v) MinInfty_delta = MinInfty_delta;
-times_arctic_delta (Num_arc_delta x) (Num_arc_delta y) =
-  Num_arc_delta (plus x y);
-
-instance (Linordered_field a) => Times (Arctic_delta a) where {
-  times = times_arctic_delta;
-};
-
-equal_arctic_delta ::
-  forall a. (Eq a) => Arctic_delta a -> Arctic_delta a -> Bool;
-equal_arctic_delta (Num_arc_delta a) MinInfty_delta = False;
-equal_arctic_delta MinInfty_delta (Num_arc_delta a) = False;
-equal_arctic_delta (Num_arc_delta aa) (Num_arc_delta a) = aa == a;
-equal_arctic_delta MinInfty_delta MinInfty_delta = True;
-
-instance (Eq a) => Eq (Arctic_delta a) where {
-  a == b = equal_arctic_delta a b;
-};
-
-arctic_delta_rec :: forall a b. a -> (b -> a) -> Arctic_delta b -> a;
-arctic_delta_rec f1 f2 MinInfty_delta = f1;
-arctic_delta_rec f1 f2 (Num_arc_delta a) = f2 a;
-
-corder_arctic_delta ::
-  forall a.
-    (Eq a,
-      Linorder a) => Maybe (Arctic_delta a -> Arctic_delta a -> Bool,
-                             Arctic_delta a -> Arctic_delta a -> Bool);
-corder_arctic_delta =
-  Just ((\ x y ->
-          arctic_delta_rec
-            (\ a ->
-              (case a of {
-                MinInfty_delta -> False;
-                Num_arc_delta _ -> True;
-              }))
-            (\ x_0 a ->
-              (case a of {
-                MinInfty_delta -> False;
-                Num_arc_delta aa -> less x_0 aa;
-              }))
-            x y ||
-            equal_arctic_delta x y),
-         arctic_delta_rec
-           (\ a ->
-             (case a of {
-               MinInfty_delta -> False;
-               Num_arc_delta _ -> True;
-             }))
-           (\ x_0 a ->
-             (case a of {
-               MinInfty_delta -> False;
-               Num_arc_delta aa -> less x_0 aa;
-             })));
-
-instance (Eq a, Linorder a) => Corder (Arctic_delta a) where {
-  corder = corder_arctic_delta;
-};
-
-data Interpretation a = Int_linear_poly ((a, Nat), (Int, [Int]))
-  | Rat_linear_poly ((a, Nat), (Rat, [Rat]))
-  | Arctic_linear_poly ((a, Nat), (Arctic, [Arctic]))
-  | Arctic_rat_linear_poly ((a, Nat), (Arctic_delta Rat, [Arctic_delta Rat]))
-  | Real_linear_poly ((a, Nat), (Real, [Real]))
-  | Int_matrix ((a, Nat), ([[Int]], [[[Int]]]))
-  | Rat_matrix ((a, Nat), ([[Rat]], [[[Rat]]]))
-  | Arctic_matrix ((a, Nat), ([[Arctic]], [[[Arctic]]]))
-  | Arctic_rat_matrix ((a, Nat), ([[Arctic_delta Rat]], [[[Arctic_delta Rat]]]))
-  | Real_matrix ((a, Nat), ([[Real]], [[[Real]]]))
-  | Int_non_linear_poly ((a, Nat), [([(Nat, Nat)], Int)])
-  | Rat_non_linear_poly ((a, Nat), [([(Nat, Nat)], Rat)])
-  | Real_non_linear_poly ((a, Nat), [([(Nat, Nat)], Real)]);
-
-arctic_rat_linear_polya ::
+arctic_rat_linear_poly ::
   forall a.
     Interpretation a -> ((a, Nat), (Arctic_delta Rat, [Arctic_delta Rat]));
-arctic_rat_linear_polya (Arctic_rat_linear_poly x) = x;
+arctic_rat_linear_poly (Arctic_rat_linear_poly x4) = x4;
 
-zero_arctic_delta :: forall a. (Linordered_field a) => Arctic_delta a;
-zero_arctic_delta = MinInfty_delta;
-
-instance (Linordered_field a) => Zero (Arctic_delta a) where {
-  zeroa = zero_arctic_delta;
-};
-
-plus_arctic_delta ::
-  forall a.
-    (Linordered_field a) => Arctic_delta a -> Arctic_delta a -> Arctic_delta a;
-plus_arctic_delta MinInfty_delta y = y;
-plus_arctic_delta (Num_arc_delta v) MinInfty_delta = Num_arc_delta v;
-plus_arctic_delta (Num_arc_delta x) (Num_arc_delta y) = Num_arc_delta (max x y);
-
-instance (Linordered_field a) => Plus (Arctic_delta a) where {
-  plus = plus_arctic_delta;
-};
-
-one_arctic_delta :: forall a. (Linordered_field a) => Arctic_delta a;
-one_arctic_delta = Num_arc_delta zeroa;
-
-instance (Linordered_field a) => One (Arctic_delta a) where {
-  onea = one_arctic_delta;
-};
-
-real_non_linear_polya ::
+real_non_linear_poly ::
   forall a. Interpretation a -> ((a, Nat), [([(Nat, Nat)], Real)]);
-real_non_linear_polya (Real_non_linear_poly x) = x;
+real_non_linear_poly (Real_non_linear_poly x13) = x13;
+
+rat_non_linear_poly ::
+  forall a. Interpretation a -> ((a, Nat), [([(Nat, Nat)], Rat)]);
+rat_non_linear_poly (Rat_non_linear_poly x12) = x12;
+
+int_non_linear_poly ::
+  forall a. Interpretation a -> ((a, Nat), [([(Nat, Nat)], Int)]);
+int_non_linear_poly (Int_non_linear_poly x11) = x11;
+
+arctic_linear_poly ::
+  forall a. Interpretation a -> ((a, Nat), (Arctic, [Arctic]));
+arctic_linear_poly (Arctic_linear_poly x3) = x3;
+
+arctic_rat_matrix ::
+  forall a.
+    Interpretation a ->
+      ((a, Nat), ([[Arctic_delta Rat]], [[[Arctic_delta Rat]]]));
+arctic_rat_matrix (Arctic_rat_matrix x9) = x9;
+
+real_linear_poly :: forall a. Interpretation a -> ((a, Nat), (Real, [Real]));
+real_linear_poly (Real_linear_poly x5) = x5;
+
+rat_linear_poly :: forall a. Interpretation a -> ((a, Nat), (Rat, [Rat]));
+rat_linear_poly (Rat_linear_poly x2) = x2;
+
+int_linear_poly :: forall a. Interpretation a -> ((a, Nat), (Int, [Int]));
+int_linear_poly (Int_linear_poly x1) = x1;
+
+arctic_matrix ::
+  forall a. Interpretation a -> ((a, Nat), ([[Arctic]], [[[Arctic]]]));
+arctic_matrix (Arctic_matrix x8) = x8;
+
+real_matrix :: forall a. Interpretation a -> ((a, Nat), ([[Real]], [[[Real]]]));
+real_matrix (Real_matrix x10) = x10;
+
+rat_matrix :: forall a. Interpretation a -> ((a, Nat), ([[Rat]], [[[Rat]]]));
+rat_matrix (Rat_matrix x7) = x7;
+
+int_matrix :: forall a. Interpretation a -> ((a, Nat), ([[Int]], [[[Int]]]));
+int_matrix (Int_matrix x6) = x6;
 
 class_semiring ::
   forall a b.
     (Ceq a, Corder a, One a, Plus a, Times a, Zero a,
-      Set_impla a) => Itself a ->
-                        b -> Partial_object_ext a (Monoid_ext a (Ring_ext a b));
+      Set_impl a) => Itself a ->
+                       b -> Partial_object_ext a (Monoid_ext a (Ring_ext a b));
 class_semiring uu b =
   Partial_object_ext top_set (Monoid_ext times onea (Ring_ext zeroa plus b));
-
-ceq_arctic_delta ::
-  forall a. (Eq a) => Maybe (Arctic_delta a -> Arctic_delta a -> Bool);
-ceq_arctic_delta = Just equal_arctic_delta;
-
-instance (Eq a) => Ceq (Arctic_delta a) where {
-  ceq = ceq_arctic_delta;
-};
-
-rat_non_linear_polya ::
-  forall a. Interpretation a -> ((a, Nat), [([(Nat, Nat)], Rat)]);
-rat_non_linear_polya (Rat_non_linear_poly x) = x;
-
-int_non_linear_polya ::
-  forall a. Interpretation a -> ((a, Nat), [([(Nat, Nat)], Int)]);
-int_non_linear_polya (Int_non_linear_poly x) = x;
-
-set_impl_arctic :: Phantom Arctic Set_impl;
-set_impl_arctic = Phantom Set_RBT;
-
-instance Set_impla Arctic where {
-  set_impl = set_impl_arctic;
-};
 
 real_domain :: Xml -> Sum_bot [Prelude.Char] Real;
 real_domain =
@@ -8615,108 +10945,6 @@ interpretation_type =
               })))])
     id;
 
-arctic_linear_polya ::
-  forall a. Interpretation a -> ((a, Nat), (Arctic, [Arctic]));
-arctic_linear_polya (Arctic_linear_poly x) = x;
-
-arctic_rat_matrixa ::
-  forall a.
-    Interpretation a ->
-      ((a, Nat), ([[Arctic_delta Rat]], [[[Arctic_delta Rat]]]));
-arctic_rat_matrixa (Arctic_rat_matrix x) = x;
-
-times_arctic :: Arctic -> Arctic -> Arctic;
-times_arctic MinInfty y = MinInfty;
-times_arctic (Num_arc v) MinInfty = MinInfty;
-times_arctic (Num_arc x) (Num_arc y) = Num_arc (plus_int x y);
-
-instance Times Arctic where {
-  times = times_arctic;
-};
-
-equal_arctic :: Arctic -> Arctic -> Bool;
-equal_arctic (Num_arc int) MinInfty = False;
-equal_arctic MinInfty (Num_arc int) = False;
-equal_arctic (Num_arc inta) (Num_arc int) = equal_int inta int;
-equal_arctic MinInfty MinInfty = True;
-
-instance Eq Arctic where {
-  a == b = equal_arctic a b;
-};
-
-set_impl_real :: Phantom Real Set_impl;
-set_impl_real = Phantom Set_RBT;
-
-instance Set_impla Real where {
-  set_impl = set_impl_real;
-};
-
-arctic_rec :: forall a. a -> (Int -> a) -> Arctic -> a;
-arctic_rec f1 f2 MinInfty = f1;
-arctic_rec f1 f2 (Num_arc int) = f2 int;
-
-corder_arctic :: Maybe (Arctic -> Arctic -> Bool, Arctic -> Arctic -> Bool);
-corder_arctic =
-  Just ((\ x y ->
-          arctic_rec
-            (\ a -> (case a of {
-                      MinInfty -> False;
-                      Num_arc _ -> True;
-                    }))
-            (\ x_0 a ->
-              (case a of {
-                MinInfty -> False;
-                Num_arc aa -> less_int x_0 aa;
-              }))
-            x y ||
-            equal_arctic x y),
-         arctic_rec
-           (\ a -> (case a of {
-                     MinInfty -> False;
-                     Num_arc _ -> True;
-                   }))
-           (\ x_0 a ->
-             (case a of {
-               MinInfty -> False;
-               Num_arc aa -> less_int x_0 aa;
-             })));
-
-instance Corder Arctic where {
-  corder = corder_arctic;
-};
-
-real_linear_polya :: forall a. Interpretation a -> ((a, Nat), (Real, [Real]));
-real_linear_polya (Real_linear_poly x) = x;
-
-zero_arctic :: Arctic;
-zero_arctic = MinInfty;
-
-instance Zero Arctic where {
-  zeroa = zero_arctic;
-};
-
-plus_arctic :: Arctic -> Arctic -> Arctic;
-plus_arctic MinInfty y = y;
-plus_arctic (Num_arc v) MinInfty = Num_arc v;
-plus_arctic (Num_arc x) (Num_arc y) = Num_arc (max x y);
-
-instance Plus Arctic where {
-  plus = plus_arctic;
-};
-
-set_impl_rat :: Phantom Rat Set_impl;
-set_impl_rat = Phantom Set_RBT;
-
-instance Set_impla Rat where {
-  set_impl = set_impl_rat;
-};
-
-rat_linear_polya :: forall a. Interpretation a -> ((a, Nat), (Rat, [Rat]));
-rat_linear_polya (Rat_linear_poly x) = x;
-
-int_linear_polya :: forall a. Interpretation a -> ((a, Nat), (Int, [Int]));
-int_linear_polya (Int_linear_poly x) = x;
-
 arctic_rat_coeff :: Xml -> Sum_bot [Prelude.Char] (Arctic_delta Rat);
 arctic_rat_coeff =
   options
@@ -8726,56 +10954,6 @@ arctic_rat_coeff =
         leaf ['m', 'i', 'n', 'u', 's', 'I', 'n', 'f', 'i', 'n', 'i', 't', 'y']
           MinInfty_delta)];
 
-one_arctic :: Arctic;
-one_arctic = Num_arc Zero_int;
-
-instance One Arctic where {
-  onea = one_arctic;
-};
-
-corder_real :: Maybe (Real -> Real -> Bool, Real -> Real -> Bool);
-corder_real = Just (less_eq_real, less_real);
-
-instance Corder Real where {
-  corder = corder_real;
-};
-
-corder_int :: Maybe (Int -> Int -> Bool, Int -> Int -> Bool);
-corder_int = Just (less_eq_int, less_int);
-
-instance Corder Int where {
-  corder = corder_int;
-};
-
-corder_rat :: Maybe (Rat -> Rat -> Bool, Rat -> Rat -> Bool);
-corder_rat = Just (less_eq_rat, less_rat);
-
-instance Corder Rat where {
-  corder = corder_rat;
-};
-
-ceq_arctic :: Maybe (Arctic -> Arctic -> Bool);
-ceq_arctic = Just equal_arctic;
-
-instance Ceq Arctic where {
-  ceq = ceq_arctic;
-};
-
-arctic_matrixa ::
-  forall a. Interpretation a -> ((a, Nat), ([[Arctic]], [[[Arctic]]]));
-arctic_matrixa (Arctic_matrix x) = x;
-
-ceq_real :: Maybe (Real -> Real -> Bool);
-ceq_real = Just equal_real;
-
-instance Ceq Real where {
-  ceq = ceq_real;
-};
-
-real_matrixa ::
-  forall a. Interpretation a -> ((a, Nat), ([[Real]], [[[Real]]]));
-real_matrixa (Real_matrix x) = x;
-
 arctic_coeff :: Xml -> Sum_bot [Prelude.Char] Arctic;
 arctic_coeff =
   options
@@ -8784,27 +10962,6 @@ arctic_coeff =
       (['m', 'i', 'n', 'u', 's', 'I', 'n', 'f', 'i', 'n', 'i', 't', 'y'],
         leaf ['m', 'i', 'n', 'u', 's', 'I', 'n', 'f', 'i', 'n', 'i', 't', 'y']
           MinInfty)];
-
-ceq_rat :: Maybe (Rat -> Rat -> Bool);
-ceq_rat = Just equal_rat;
-
-instance Ceq Rat where {
-  ceq = ceq_rat;
-};
-
-rat_matrixa :: forall a. Interpretation a -> ((a, Nat), ([[Rat]], [[[Rat]]]));
-rat_matrixa (Rat_matrix x) = x;
-
-int_matrixa :: forall a. Interpretation a -> ((a, Nat), ([[Int]], [[[Int]]]));
-int_matrixa (Int_matrix x) = x;
-
-cEnum_list ::
-  forall a. Maybe ([[a]], (([a] -> Bool) -> Bool, ([a] -> Bool) -> Bool));
-cEnum_list = Nothing;
-
-instance Cenum [a] where {
-  cEnum = cEnum_list;
-};
 
 vec_plusI :: forall a. (a -> a -> a) -> [a] -> [a] -> [a];
 vec_plusI pl v w = map (\ xy -> pl (fst xy) (snd xy)) (zip v w);
@@ -8871,20 +11028,6 @@ fit_length c n uu =
                    (zero c);
            b : bs -> b : fit_length c (minus_nat n (Nat_of_num One)) bs;
          }));
-
-set_impl_int :: Phantom Int Set_impl;
-set_impl_int = Phantom Set_RBT;
-
-instance Set_impla Int where {
-  set_impl = set_impl_int;
-};
-
-ceq_int :: Maybe (Int -> Int -> Bool);
-ceq_int = Just equal_int;
-
-instance Ceq Int where {
-  ceq = ceq_int;
-};
 
 interpretation ::
   forall a.
@@ -9031,25 +11174,24 @@ interpretation bi xml2name =
       (case typea of {
         Natural deg ->
           (if less_eq_nat deg (Nat_of_num One) && not bi
-            then Int_carrier (map int_linear_polya pi)
-            else Int_nl_carrier (map int_non_linear_polya pi));
-        Integera -> Int_nl_carrier (map int_non_linear_polya pi);
-        Arctic -> Arctic_carrier (map arctic_linear_polya pi);
-        Arctic_rat -> Arctic_rat_carrier (map arctic_rat_linear_polya pi);
-        Int_mat n sd -> Int_mat_carrier n sd (map int_matrixa pi);
-        Arctic_mat n -> Arctic_mat_carrier n (map arctic_matrixa pi);
-        Arctic_rat_mat n ->
-          Arctic_rat_mat_carrier n (map arctic_rat_matrixa pi);
+            then Int_carrier (map int_linear_poly pi)
+            else Int_nl_carrier (map int_non_linear_poly pi));
+        Integera -> Int_nl_carrier (map int_non_linear_poly pi);
+        Arctic -> Arctic_carrier (map arctic_linear_poly pi);
+        Arctic_rat -> Arctic_rat_carrier (map arctic_rat_linear_poly pi);
+        Int_mat n sd -> Int_mat_carrier n sd (map int_matrix pi);
+        Arctic_mat n -> Arctic_mat_carrier n (map arctic_matrix pi);
+        Arctic_rat_mat n -> Arctic_rat_mat_carrier n (map arctic_rat_matrix pi);
         Rational d deg ->
           (if less_eq_nat deg (Nat_of_num One) && not bi
-            then Rat_carrier (map rat_linear_polya pi)
-            else Rat_nl_carrier d (map rat_non_linear_polya pi));
-        Rat_mat n sd -> Rat_mat_carrier n sd (map rat_matrixa pi);
+            then Rat_carrier (map rat_linear_poly pi)
+            else Rat_nl_carrier d (map rat_non_linear_poly pi));
+        Rat_mat n sd -> Rat_mat_carrier n sd (map rat_matrix pi);
         Mini_Alg d deg ->
           (if less_eq_nat deg (Nat_of_num One) && not bi
-            then Real_carrier (map real_linear_polya pi)
-            else Real_nl_carrier d (map real_non_linear_polya pi));
-        Mini_Alg_mat n sd -> Real_mat_carrier n sd (map real_matrixa pi);
+            then Real_carrier (map real_linear_poly pi)
+            else Real_nl_carrier d (map real_non_linear_poly pi));
+        Mini_Alg_mat n sd -> Real_mat_carrier n sd (map real_matrix pi);
       }));
 
 status_precedence ::
@@ -9076,7 +11218,7 @@ xml1to2elements ::
       (Xml -> Sum_bot [Prelude.Char] a) ->
         (Xml -> Sum_bot [Prelude.Char] b) ->
           (a -> Maybe b -> c) -> Xml -> Sum_bot [Prelude.Char] c;
-xml1to2elements tag p1 p2 f (Xml name atts cs text) =
+xml1to2elements tag p1 p2 f (XML name atts cs text) =
   let {
     l = size_list cs;
   } in (if name == tag &&
@@ -9089,7 +11231,7 @@ xml1to2elements tag p1 p2 f (Xml name atts cs text) =
                     then binda (p2 (nth cs (Nat_of_num One)))
                            (\ x2 -> returna (f x1 (Just x2)))
                     else returna (f x1 Nothing)))
-         else fail tag (Xml name atts cs text));
+         else fail tag (XML name atts cs text));
 
 path_order ::
   forall a.
@@ -9104,7 +11246,7 @@ path_order xml2name =
               Nothing -> [];
               Just af -> af;
             });
-      } in Rpo prec_tau a);
+      } in RPO prec_tau a);
 
 redtriple ::
   forall a.
@@ -9295,8 +11437,8 @@ xml2pre_trs_input xml2name x =
   let {
     e = fail ['t', 'r', 's', 'I', 'n', 'p', 'u', 't'] x;
   } in binda (case x of {
-               Xml taga [] [] option -> e;
-               Xml taga [] (c : cs) Nothing ->
+               XML taga [] [] option -> e;
+               XML taga [] (c : cs) Nothing ->
                  (if less_eq_nat (size_list cs) (Nat_of_num (Bit0 One)) &&
                        taga == ['t', 'r', 's', 'I', 'n', 'p', 'u', 't']
                    then binda (singleton ['t', 'r', 's'] (rules xml2name) id c)
@@ -9319,8 +11461,8 @@ else binda (singleton
                                     (if null csb then returna (str, (r, s_opt))
                                       else e))))
                    else e);
-               Xml taga [] (c : cs) (Just _) -> e;
-               Xml taga (_ : _) list3 option -> e;
+               XML taga [] (c : cs) (Just _) -> e;
+               XML taga (_ : _) list3 option -> e;
              })
          (\ a ->
            (case a of {
@@ -9485,7 +11627,7 @@ xml_crule ::
                     Xml;
 xml_crule =
   (\ (c, rs) ->
-    Xml ['c', 'o', 'n', 'd', 'i', 't', 'i', 'o', 'n', 'a', 'l', 'R', 'u', 'l',
+    XML ['c', 'o', 'n', 'd', 'i', 't', 'i', 'o', 'n', 'a', 'l', 'R', 'u', 'l',
           'e']
       [] (map xml_rule (c : rs)) Nothing);
 
@@ -9495,7 +11637,7 @@ xml_rules ::
       Showa c) => [Prelude.Char] ->
                     [(Term (Lab a [b]) c, Term (Lab a [b]) c)] -> Xml;
 xml_rules tag rls =
-  Xml tag [] [Xml ['r', 'u', 'l', 'e', 's'] [] (map xml_rule rls) Nothing]
+  XML tag [] [XML ['r', 'u', 'l', 'e', 's'] [] (map xml_rule rls) Nothing]
     Nothing;
 
 missing ::
@@ -9514,34 +11656,6 @@ toomuch ::
 toomuch s x =
   shows_string ['s', 'u', 'p', 'e', 'r', 'f', 'l', 'u', 'o', 'u', 's', ' '] .
     shows_string s . shows_string [' '] . x . x;
-
-ceq_set ::
-  forall a. (Cenum a, Ceq a, Corder a) => Maybe (Set a -> Set a -> Bool);
-ceq_set =
-  (case (ceq :: Maybe (a -> a -> Bool)) of {
-    Nothing -> Nothing;
-    Just _ -> Just set_eq;
-  });
-
-instance (Cenum a, Ceq a, Corder a) => Ceq (Set a) where {
-  ceq = ceq_set;
-};
-
-mapping_impl_list :: forall a. Phantom [a] Mapping_impl;
-mapping_impl_list = Phantom Mapping_Choose;
-
-instance Mapping_impla [a] where {
-  mapping_impl = mapping_impl_list;
-};
-
-corder_char ::
-  Maybe (Prelude.Char -> Prelude.Char -> Bool,
-          Prelude.Char -> Prelude.Char -> Bool);
-corder_char = Just ((\ a b -> a <= b), (\ a b -> a < b));
-
-instance Corder Prelude.Char where {
-  corder = corder_char;
-};
 
 ins_rm_basic_ops :: forall a. (Linorder a) => a -> Rbt a () -> Rbt a ();
 ins_rm_basic_ops x s = insert x () s;
@@ -9588,15 +11702,12 @@ icap_impla r q =
            sx = ceta_set_of (concatMap vars_term_list sa);
          } in (\ t -> ic sa sx (map_vars (\ a -> 'x' : a) t)));
 
-newtype Subst_incr f v = Abs_subst_incr
-  (v -> Term f v, (Set v, Term f v -> [v]));
-
 rep_subst_incr ::
-  forall f v. Subst_incr f v -> (v -> Term f v, (Set v, Term f v -> [v]));
+  forall a b. Subst_incr a b -> (b -> Term a b, (Set b, Term a b -> [b]));
 rep_subst_incr (Abs_subst_incr x) = x;
 
 si_W :: forall a b. Subst_incr a b -> Term a b -> [b];
-si_W x = snd (snd (rep_subst_incr x));
+si_W xa = snd (snd (rep_subst_incr xa));
 
 kbo_nstrict ::
   forall a b.
@@ -9618,73 +11729,23 @@ kbo_nstrict pr w w0 least scf =
           shows_string [' ', '>', '=', 'K', 'B', 'O', ' '] .
             shows_prec_term Zero_nat t . shows_nl));
 
+list_inter :: forall a. (Eq a) => [a] -> [a] -> [a];
+list_inter [] bs = [];
+list_inter (a : asa) bs =
+  (if membera bs a then a : list_inter asa bs else list_inter asa bs);
+
+list_union :: forall a. (Eq a) => [a] -> [a] -> [a];
+list_union [] ys = ys;
+list_union (x : xs) ys =
+  let {
+    zs = list_union xs ys;
+  } in (if membera zs x then zs else x : zs);
+
 sub_vec :: forall a. Nat -> [a] -> [a];
 sub_vec = take;
 
 sub_mat :: forall a. Nat -> Nat -> [[a]] -> [[a]];
 sub_mat nr nc m = map (sub_vec nr) (take nc m);
-
-data Dp_proof_step a = OC1 ([a], [a]) Bool
-  | OC2 ([a], [a]) ([a], [a]) ([a], [a]) [a] [a] [a]
-  | OC2p ([a], [a]) ([a], [a]) ([a], [a]) [a] [a] [a]
-  | OC3 ([a], [a]) ([a], [a]) ([a], [a]) [a] [a]
-  | OC3p ([a], [a]) ([a], [a]) ([a], [a]) [a] [a]
-  | OCDP1 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      ([a], [a])
-  | OCDP2 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      ([a], [a])
-  | Wpeq (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-  | Lift (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-  | DPOC1_1 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      ([a], [a]) [a] [a]
-  | DPOC1_2 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      ([a], [a]) [a] [a] [a]
-  | DPOC2 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      ([a], [a]) [a] [a]
-  | DPOC3_1 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      ([a], [a]) [a] [a]
-  | DPOC3_2 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      ([a], [a]) [a] [a] [a]
-  | DPDP1_1 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a]))) [a] [a]
-  | DPDP1_2 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a]))) [a] [a]
-  | DPDP2_1 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a]))) [a] [a]
-  | DPDP2_2 (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-      (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a]))) [a]
-      [a];
-
-geq ::
-  forall a b.
-    Partial_object_ext a
-      (Monoid_ext a (Ring_ext a (Ordered_semiring_ext a b))) ->
-      a -> a -> Bool;
-geq (Partial_object_ext carrier
-      (Monoid_ext mult one
-        (Ring_ext zero add (Ordered_semiring_ext geq gt max more))))
-  = geq;
-
-maxa ::
-  forall a b.
-    Partial_object_ext a
-      (Monoid_ext a (Ring_ext a (Ordered_semiring_ext a b))) ->
-      a -> a -> a;
-maxa (Partial_object_ext carrier
-       (Monoid_ext mult one
-         (Ring_ext zero add (Ordered_semiring_ext geq gt max more))))
-  = max;
 
 default_I :: forall a. (Poly_carrier a) => a -> Nat -> [([(Nat, Nat)], a)];
 default_I def n =
@@ -9692,7 +11753,7 @@ default_I def n =
 
 eval_monom :: forall a b. (Comm_semiring_1 b) => (a -> b) -> [(a, Nat)] -> b;
 eval_monom alpha [] = onea;
-eval_monom alpha ((x, p) : m) = times (eval_monom alpha m) (power (alpha x) p);
+eval_monom alpha ((x, p) : m) = times (eval_monom alpha m) (powera (alpha x) p);
 
 eval_poly ::
   forall a b. (Comm_semiring_1 b) => (a -> b) -> [([(a, Nat)], b)] -> b;
@@ -9701,7 +11762,7 @@ eval_poly alpha (mc : p) =
   plus (times (eval_monom alpha (fst mc)) (snd mc)) (eval_poly alpha p);
 
 poly_vars ::
-  forall a b. (Ceq a, Corder a, Set_impla a) => [([(a, Nat)], b)] -> Set a;
+  forall a b. (Ceq a, Corder a, Set_impl a) => [([(a, Nat)], b)] -> Set a;
 poly_vars p = set (concatMap (map fst . fst) p);
 
 proper_prefix_list :: Pos -> [Pos];
@@ -9711,18 +11772,8 @@ proper_prefix_list (PCons i p) = Empty : map (PCons i) (proper_prefix_list p);
 prefix_list :: Pos -> [Pos];
 prefix_list p = p : proper_prefix_list p;
 
-instance Dense_order Real where {
-};
-
 scnp_arity :: forall a. [((a, Nat), [(Nat, Nat)])] -> Nat;
 scnp_arity af = max_list (map (\ (_, a) -> size_list a) af);
-
-set_impl_set :: forall a. Phantom (Set a) Set_impl;
-set_impl_set = Phantom Set_Choose;
-
-instance Set_impla (Set a) where {
-  set_impl = set_impl_set;
-};
 
 check_supt ::
   forall a b.
@@ -9738,41 +11789,9 @@ check_supt s t =
           ' '] .
         shows_prec_term Zero_nat s);
 
-shows_ctxt ::
-  forall a b.
-    (a -> [Prelude.Char] -> [Prelude.Char]) ->
-      (b -> [Prelude.Char] -> [Prelude.Char]) ->
-        Ctxt a b -> [Prelude.Char] -> [Prelude.Char];
-shows_ctxt fun var Hole = shows_string ['[', ']'];
-shows_ctxt fun var (More f ss1 d ss2) =
-  fun f .
-    shows_string ['('] .
-      shows_list_gen (shows_term fun var) [] [] [',', ' '] [',', ' '] ss1 .
-        shows_ctxt fun var d .
-          shows_list_gen (shows_term fun var) [')'] [',', ' '] [',', ' '] [')']
-            ss2;
-
-desca :: forall a b c. Redtriple_ext a b c -> [Prelude.Char] -> [Prelude.Char];
-desca (Redtriple_ext valid s ns nst af mono desc cpx more) = desc;
-
-mono ::
-  forall a b c.
-    Redtriple_ext a b c ->
-      [(Term a b, Term a b)] -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-mono (Redtriple_ext valid s ns nst af mono desc cpx more) = mono;
-
-nsta ::
-  forall a b c.
-    Root_redtriple_ext a b c ->
-      (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-nsta (Root_redtriple_ext valid s ns nst af aft desc more) = nst;
-
-ta_eps :: forall a b c. Ta_ext a b c -> Set (a, a);
-ta_eps (Ta_ext ta_final ta_rules ta_eps more) = ta_eps;
-
 compute_trancl ::
   forall a.
-    (Cenum a, Ceq a, Corder a, Set_impla a) => Set a -> Set (a, a) -> Set a;
+    (Cenum a, Ceq a, Corder a, Set_impl a) => Set a -> Set (a, a) -> Set a;
 compute_trancl a r =
   let {
     b = imagea r a;
@@ -9783,62 +11802,18 @@ compute_trancl a r =
                     (\ ab -> not (member (fst ab) a) && not (member (snd ab) b))
                     r)));
 
-equal_ta_rule :: forall a b. (Eq a, Eq b) => Ta_rule a b -> Ta_rule a b -> Bool;
-equal_ta_rule (TA_rule fa lista qa) (TA_rule f list q) =
-  fa == f && lista == list && qa == q;
-
-ta_rule_rec :: forall a b c. (a -> [b] -> b -> c) -> Ta_rule b a -> c;
-ta_rule_rec f1 (TA_rule f list q) = f1 f list q;
-
-less_eq_ta_rule ::
-  forall a b.
-    (Eq a, Order a, Eq b, Ord b) => Ta_rule a b -> Ta_rule a b -> Bool;
-less_eq_ta_rule =
-  (\ x y ->
-    ta_rule_rec
-      (\ x_0 x_1 x_2 (TA_rule y_0 y_1 y_2) ->
-        less x_0 y_0 ||
-          x_0 == y_0 && (less_list x_1 y_1 || x_1 == y_1 && less x_2 y_2))
-      x y ||
-      equal_ta_rule x y);
-
-less_ta_rule ::
-  forall a b.
-    (Eq a, Order a, Eq b, Ord b) => Ta_rule a b -> Ta_rule a b -> Bool;
-less_ta_rule =
-  ta_rule_rec
-    (\ x_0 x_1 x_2 (TA_rule y_0 y_1 y_2) ->
-      less x_0 y_0 ||
-        x_0 == y_0 && (less_list x_1 y_1 || x_1 == y_1 && less x_2 y_2));
-
-corder_ta_rule ::
-  forall a b.
-    (Eq a, Linorder a, Eq b,
-      Linorder b) => Maybe (Ta_rule a b -> Ta_rule a b -> Bool,
-                             Ta_rule a b -> Ta_rule a b -> Bool);
-corder_ta_rule = Just (less_eq_ta_rule, less_ta_rule);
-
-instance (Eq a, Linorder a, Eq b, Linorder b) => Corder (Ta_rule a b) where {
-  corder = corder_ta_rule;
-};
-
 r_lhs_states :: forall a b. Ta_rule a b -> [a];
 r_lhs_states (TA_rule f qs q) = qs;
-
-ceq_ta_rule ::
-  forall a b. (Eq a, Eq b) => Maybe (Ta_rule a b -> Ta_rule a b -> Bool);
-ceq_ta_rule = Just equal_ta_rule;
-
-instance (Eq a, Eq b) => Ceq (Ta_rule a b) where {
-  ceq = ceq_ta_rule;
-};
 
 ta_rules :: forall a b c. Ta_ext a b c -> Set (Ta_rule a b);
 ta_rules (Ta_ext ta_final ta_rules ta_eps more) = ta_rules;
 
+ta_eps :: forall a b c. Ta_ext a b c -> Set (a, a);
+ta_eps (Ta_ext ta_final ta_rules ta_eps more) = ta_eps;
+
 ta_res ::
   forall a b.
-    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Eq b,
+    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Eq b,
       Linorder b) => Ta_ext a b () -> Term b a -> Set a;
 ta_res ta (Fun f ts) =
   let {
@@ -9867,7 +11842,7 @@ ta_res ta (Var q) =
 eq_rule_mod_vars ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => (Term a b, Term a b) -> (Term a b, Term a b) -> Bool;
+      Mapping_impl b) => (Term a b, Term a b) -> (Term a b, Term a b) -> Bool;
 eq_rule_mod_vars lr st = instance_rule lr st && instance_rule st lr;
 
 generate_var :: Nat -> [Prelude.Char];
@@ -9888,8 +11863,6 @@ uncurry_term a sm t =
         fm = get_symbol sm f n m;
       } in apply_args a (Fun fm (uss ++ take m uts)) (drop m uts);
   });
-
-data Filtered a = FPair a Nat;
 
 conversion ::
   forall a.
@@ -9933,7 +11906,7 @@ xml1or2many_elements ::
         (Xml -> Sum_bot [Prelude.Char] b) ->
           (Xml -> Sum_bot [Prelude.Char] c) ->
             (a -> Maybe b -> [c] -> d) -> Xml -> Sum_bot [Prelude.Char] d;
-xml1or2many_elements tag p1 p2 p3 f (Xml name atts cs text) =
+xml1or2many_elements tag p1 p2 p3 f (XML name atts cs text) =
   (if name == tag && null atts && is_none text && not (null cs)
     then let {
            (cs0 : tt) = cs;
@@ -9950,7 +11923,7 @@ xml1or2many_elements tag p1 p2 p3 f (Xml name atts cs text) =
                           binda (map_sum_bot p3 tt)
                             (\ xs -> returna (f x Nothing xs)));
                   }))
-    else fail tag (Xml name atts cs text));
+    else fail tag (XML name atts cs text));
 
 sl_variant ::
   forall a.
@@ -10008,16 +11981,12 @@ transition xml2lhs =
 max_tag :: Nat;
 max_tag = Nat_of_num (Bit1 (Bit0 (Bit1 (Bit1 One))));
 
-ceq_char :: Maybe (Prelude.Char -> Prelude.Char -> Bool);
-ceq_char = Just (\ a b -> a == b);
-
-instance Ceq Prelude.Char where {
-  ceq = ceq_char;
-};
-
 all_interval_nat :: (Nat -> Bool) -> Nat -> Nat -> Bool;
 all_interval_nat p i j =
   less_eq_nat j i || p i && all_interval_nat p (plus_nat i (Nat_of_num One)) j;
+
+shows_prec_pos :: Nat -> Pos -> [Prelude.Char] -> [Prelude.Char];
+shows_prec_pos d p = shows_pos p;
 
 vars_rule_lista :: forall a b. (Term a b, Term a b) -> [b];
 vars_rule_lista r = vars_term_lista (fst r) ++ vars_term_lista (snd r);
@@ -10025,12 +11994,9 @@ vars_rule_lista r = vars_term_lista (fst r) ++ vars_term_lista (snd r);
 vars_rule_list :: forall a b. (Eq b) => (Term a b, Term a b) -> [b];
 vars_rule_list r = remdups (vars_rule_lista r);
 
-shows_prec_pos :: Nat -> Pos -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_pos d p = shows_pos p;
-
 check_prop_rstep_rule ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => Bool ->
                     (Term a b -> Sum ([Prelude.Char] -> [Prelude.Char]) ()) ->
                       Pos ->
@@ -10109,7 +12075,7 @@ check_prop_rstep_rule nfs pa p rule s t =
 
 check_prop_rstep ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => Bool ->
                     (Term a b -> Sum ([Prelude.Char] -> [Prelude.Char]) ()) ->
                       [(Term a b, Term a b)] ->
@@ -10143,7 +12109,7 @@ check_prop_rstep nfs pa r p rule s t =
 
 check_qrstep_subst ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => (Term a b -> Sum (Term a b, Term a b) ()) ->
                     Bool ->
                       [(Term a b, Term a b)] ->
@@ -10176,7 +12142,7 @@ check_qrstep_subst cni nfs =
 
 check_rqrstep_subst ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => (Term a b -> Sum (Term a b, Term a b) ()) ->
                     Bool ->
                       [(Term a b, Term a b)] ->
@@ -10188,7 +12154,7 @@ check_rqrstep_subst cni nfs = (\ r -> check_qrstep_subst cni nfs r Empty);
 
 check_qsteps_subst ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => (Term a b -> Sum (Term a b, Term a b) ()) ->
                     Bool ->
                       [(Term a b, Term a b)] ->
@@ -10220,7 +12186,7 @@ check_qsteps_subst cni nfs pa ra ((p, (r, (False, t))) : prts) s u =
 
 check_qrsteps_subst ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => (Term a b -> Sum (Term a b, Term a b) ()) ->
                     Bool ->
                       [(Term a b, Term a b)] ->
@@ -10234,7 +12200,7 @@ check_qrsteps_subst cni nfs r prts s u =
 
 check_qrstep ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => (Term a b -> Bool) ->
                     Bool ->
                       [(Term a b, Term a b)] ->
@@ -10254,7 +12220,7 @@ check_qrstep nf nfs =
 
 check_rqrstep ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => (Term a b -> Bool) ->
                     Bool ->
                       [(Term a b, Term a b)] ->
@@ -10266,7 +12232,7 @@ check_rqrstep nf nfs r rule s t = check_qrstep nf nfs r Empty rule s t;
 
 check_qsteps ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => (Term a b -> Bool) ->
                     Bool ->
                       [(Term a b, Term a b)] ->
@@ -10298,7 +12264,7 @@ check_qsteps nf nfs pa ra ((p, (r, (False, t))) : prts) s u =
 
 check_qrsteps ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => (Term a b -> Bool) ->
                     Bool ->
                       [(Term a b, Term a b)] ->
@@ -10311,7 +12277,7 @@ check_qrsteps nf nfs r prts s u =
     s u;
 
 si_subst :: forall a b. Subst_incr a b -> b -> Term a b;
-si_subst x = fst (rep_subst_incr x);
+si_subst xa = fst (rep_subst_incr xa);
 
 match_prob_of_rp_impl ::
   forall a b.
@@ -10323,6 +12289,32 @@ match_prob_of_rp_impl mu (t, Fun v va) =
     sterms = remdups (t : map (si_subst mu) (si_W mu t));
     uterms = concatMap (filter (\ ta -> not (is_Var ta)) . supteq_list) sterms;
   } in map (\ u -> (u, Fun v va)) (remdups uterms);
+
+si_v_incr :: forall a b. Subst_incr a b -> Set b;
+si_v_incr xa = fst (snd (rep_subst_incr xa));
+
+simplify_mp ::
+  forall a b.
+    (Eq a, Ceq b,
+      Corder b) => Subst_incr a b ->
+                     [(Term a b, Term a b)] ->
+                       [(Term a b, Term a b)] ->
+                         Maybe ([(Term a b, Term a b)], Nat);
+simplify_mp mu_incr ((Var x, Fun f ls) : mp) solved =
+  bind (guarda (member x (si_v_incr mu_incr)))
+    (\ _ ->
+      let {
+        m = map (\ (s, a) -> (subst_apply_term s (si_subst mu_incr), a));
+      } in bind (simplify_mp mu_incr (m ((Var x, Fun f ls) : mp)) (m solved))
+             (\ (smp, i) -> Just (smp, plus_nat i (Nat_of_num One))));
+simplify_mp mu_incr ((Fun g ts, Fun f ls) : mp) solved =
+  bind (guarda (f == g))
+    (\ _ ->
+      bind (zip_option ts ls)
+        (\ pairs -> simplify_mp mu_incr (pairs ++ mp) solved));
+simplify_mp mu_incr ((s, Var x) : mp) solved =
+  simplify_mp mu_incr mp ((s, Var x) : solved);
+simplify_mp mu_incr [] solved = Just (solved, Zero_nat);
 
 conflicts ::
   forall a b.
@@ -10373,7 +12365,7 @@ ident_solve mu_incr =
     ident_solvea mu_incr
       (set_empty
         (of_phantom
-          (set_impl_prod :: Phantom (Term a b, (Term a b, Nat)) Set_impl)))
+          (set_impl_prod :: Phantom (Term a b, (Term a b, Nat)) Set_impla)))
       (s, (t, Zero_nat)));
 
 ident_decision ::
@@ -10397,32 +12389,6 @@ ident_prob_of_smp ((t, l) : other) =
         else Nothing))
     other ++
     ident_prob_of_smp other;
-
-si_v_incr :: forall a b. Subst_incr a b -> Set b;
-si_v_incr x = fst (snd (rep_subst_incr x));
-
-simplify_mp ::
-  forall a b.
-    (Eq a, Ceq b,
-      Corder b) => Subst_incr a b ->
-                     [(Term a b, Term a b)] ->
-                       [(Term a b, Term a b)] ->
-                         Maybe ([(Term a b, Term a b)], Nat);
-simplify_mp mu_incr ((Var x, Fun f ls) : mp) solved =
-  bind (guarda (member x (si_v_incr mu_incr)))
-    (\ _ ->
-      let {
-        m = map (\ (s, a) -> (subst_apply_term s (si_subst mu_incr), a));
-      } in bind (simplify_mp mu_incr (m ((Var x, Fun f ls) : mp)) (m solved))
-             (\ (smp, i) -> Just (smp, plus_nat i (Nat_of_num One))));
-simplify_mp mu_incr ((Fun g ts, Fun f ls) : mp) solved =
-  bind (guarda (f == g))
-    (\ _ ->
-      bind (zip_option ts ls)
-        (\ pairs -> simplify_mp mu_incr (pairs ++ mp) solved));
-simplify_mp mu_incr ((s, Var x) : mp) solved =
-  simplify_mp mu_incr mp ((s, Var x) : solved);
-simplify_mp mu_incr [] solved = Just (solved, Zero_nat);
 
 gmatch_decision ::
   forall a b.
@@ -10525,17 +12491,17 @@ w_impl d =
 
 subst_incr ::
   forall a b.
-    (Ceq a, Corder a, Eq a, Set_impla a,
+    (Ceq a, Corder a, Eq a, Set_impl a,
       Eq b) => [(a, Term b a)] -> Subst_incr b a;
-subst_incr x =
+subst_incr xa =
   Abs_subst_incr
     (let {
-       dom = mk_subst_domain x;
-     } in (mk_subst Var x, (set (v_incr_impl dom), w_impl dom)));
+       dom = mk_subst_domain xa;
+     } in (mk_subst Var xa, (set (v_incr_impl dom), w_impl dom)));
 
 redex_rps_decision ::
   forall a b.
-    (Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Eq b,
+    (Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Eq b,
       Linorder b) => [(a, Term b a)] ->
                        [(Term b a, Term b a)] -> Sum (Term b a, Term b a) ();
 redex_rps_decision mu =
@@ -10548,7 +12514,7 @@ redex_rps_decision mu =
 
 check_NF_iteration ::
   forall a b.
-    (Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Eq b,
+    (Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Eq b,
       Linorder b) => [(a, Term b a)] ->
                        [Term b a] -> Term b a -> Sum (Term b a, Term b a) ();
 check_NF_iteration mu =
@@ -10558,8 +12524,8 @@ check_NF_iteration mu =
 
 check_loop ::
   forall a b.
-    (Eq a, Linorder a, Showa a, Ceq b, Corder b, Eq b, Mapping_impla b,
-      Linorder b, Set_impla b,
+    (Eq a, Linorder a, Showa a, Ceq b, Corder b, Eq b, Mapping_impl b,
+      Linorder b, Set_impl b,
       Showa b) => [Term a b] ->
                     Bool ->
                       Term a b ->
@@ -10580,16 +12546,6 @@ check_loop q nfs s rseq sigma c r =
                (ctxt_apply c (subst_apply_term s (mk_subst Var sigma)))
         else check_qrsteps_subst (check_NF_iteration sigma q) nfs r rseq s
                (ctxt_apply c (subst_apply_term s (mk_subst Var sigma)))));
-
-data Dp_loop_prf a b =
-  DP_loop_prf (Term a b) [(Pos, ((Term a b, Term a b), (Bool, Term a b)))]
-    [(b, Term a b)] (Ctxt a b);
-
-str :: forall a b. (a -> a) -> b -> Term a b -> Term a b;
-str d x (Fun f (v : vb : vc)) = Fun (d f) [Var x];
-str d x (Fun f []) = Fun (d f) [Var x];
-str d x (Fun f [t]) = Fun f [str d x t];
-str d uu (Var x) = Var x;
 
 delete_value ::
   forall a b.
@@ -10617,26 +12573,6 @@ insert_value key v m =
       });
   });
 
-data Non_inf_order_ext a b c =
-  Non_inf_order_ext (Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    ((Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    (C_constraint a b -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    ((a, Nat) -> Nat -> Dependance) ([Prelude.Char] -> [Prelude.Char]) c;
-
-afb :: forall a b c. Non_inf_order_ext a b c -> (a, Nat) -> Nat -> Dependance;
-afb (Non_inf_order_ext valid ns cc af desc more) = af;
-
-cc :: forall a b c.
-        Non_inf_order_ext a b c ->
-          C_constraint a b -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-cc (Non_inf_order_ext valid ns cc af desc more) = cc;
-
-nsb ::
-  forall a b c.
-    Non_inf_order_ext a b c ->
-      (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-nsb (Non_inf_order_ext valid ns cc af desc more) = ns;
-
 check_ge_v :: forall a. (Poly_carrier a) => a -> [([(Nat, Nat)], a)] -> Bool;
 check_ge_v v p =
   (case p of {
@@ -10655,14 +12591,14 @@ check_poly_weak_anti_mono_discrete p v =
 
 check_poly_weak_anti_mono ::
   forall a b.
-    (Ceq a, Corder a, Set_impla a,
+    (Ceq a, Corder a, Set_impl a,
       Ordered_semiring_0 b) => [([(a, Nat)], b)] -> a -> Bool;
 check_poly_weak_anti_mono p v =
   all (\ (m, c) -> less_eq c zeroa || not (member v (image fst (set m)))) p;
 
 check_poly_weak_anti_mono_smart ::
   forall a b.
-    (Ceq a, Corder a, Eq a, Set_impla a, Eq b,
+    (Ceq a, Corder a, Eq a, Set_impl a, Eq b,
       Poly_carrier b) => Bool -> [([(a, Nat)], b)] -> a -> Bool;
 check_poly_weak_anti_mono_smart discrete =
   (if discrete then check_poly_weak_anti_mono_discrete
@@ -10678,14 +12614,14 @@ check_poly_weak_mono_discrete p v =
 
 check_poly_weak_mono ::
   forall a b.
-    (Ceq a, Corder a, Set_impla a,
+    (Ceq a, Corder a, Set_impl a,
       Ordered_semiring_0 b) => [([(a, Nat)], b)] -> a -> Bool;
 check_poly_weak_mono p v =
   all (\ (m, c) -> less_eq zeroa c || not (member v (image fst (set m)))) p;
 
 check_poly_weak_mono_smart ::
   forall a b.
-    (Ceq a, Corder a, Eq a, Set_impla a, Eq b,
+    (Ceq a, Corder a, Eq a, Set_impl a, Eq b,
       Poly_carrier b) => Bool -> [([(a, Nat)], b)] -> a -> Bool;
 check_poly_weak_mono_smart discrete =
   (if discrete then check_poly_weak_mono_discrete else check_poly_weak_mono);
@@ -10748,222 +12684,6 @@ then Decrease else Wild))
     iii = fun_of_map_funa (ceta_map_of fsres) (\ _ _ -> Increase) nth;
   } in iii;
 
-data Rule_removal_nonterm_reltrs_prf a b =
-  Rule_removal_nonterm_reltrs_prf (Maybe [(Term a b, Term a b)])
-    (Maybe [(Term a b, Term a b)]);
-
-newtype Dp_trans_nontermination_tt_prf a b c = DP_trans_nontermination_tt_prf
-  [(Term (Lab a b) c, Term (Lab a b) c)];
-
-data Const_string_complete_proof a b =
-  Const_string_complete_proof [(a, a)] [(Term a b, Term a b)];
-
-newtype Rule_removal_nonterm_trs_prf a b = Rule_removal_nonterm_trs_prf
-  [(Term a b, Term a b)];
-
-newtype Q_increase_nonterm_trs_prf a b = Q_increase_nonterm_trs_prf [Term a b];
-
-newtype Instantiation_complete_proc_prf a b = Instantiation_complete_proc_prf
-  [(Term a b, Term a b)];
-
-data Rule_removal_nonterm_dp_prf a b =
-  Rule_removal_nonterm_dp_prf (Maybe [(Term a b, Term a b)])
-    (Maybe [(Term a b, Term a b)]);
-
-newtype Q_increase_nonterm_dp_prf a b = Q_increase_nonterm_dp_prf [Term a b];
-
-newtype Dp_q_reduction_nonterm_prf a b = DP_q_reduction_nonterm_prf [Term a b];
-
-data Rewriting_complete_proc_prf a b =
-  Rewriting_complete_proc_prf (Maybe [(Term a b, Term a b)])
-    (Term a b, Term a b) (Term a b, Term a b) (Term a b, Term a b)
-    (Term a b, Term a b) Pos;
-
-data Narrowing_complete_proc_prf a b =
-  Narrowing_complete_proc_prf (Term a b, Term a b) Pos [(Term a b, Term a b)];
-
-data Fp_loop_prf a b =
-  FP_loop_prf (Ctxt a b) [(b, Term a b)] (Term a b)
-    [(Pos, ((Term a b, Term a b), Term a b))];
-
-data Non_loop_srs_proof a = SE_OC ([a], [a]) [a] [a] [Dp_proof_step a]
-  | SE_DP (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a]))) [a]
-      [a] [Dp_proof_step a];
-
-data Trs_loop_prf a b =
-  TRS_loop_prf (Term a b) [(Pos, ((Term a b, Term a b), Term a b))]
-    [(b, Term a b)] (Ctxt a b);
-
-data Rel_trs_loop_prf a b =
-  Rel_trs_loop_prf (Term a b) [(Pos, ((Term a b, Term a b), (Bool, Term a b)))]
-    [(b, Term a b)] (Ctxt a b);
-
-data Reltrs_nontermination_proof a b c = Rel_Loop (Rel_trs_loop_prf (Lab a b) c)
-  | Rel_TRS_String_Reversal (Reltrs_nontermination_proof a b c)
-  | Rel_Not_Well_Formed
-  | Rel_Rule_Removal (Rule_removal_nonterm_reltrs_prf (Lab a b) c)
-      (Reltrs_nontermination_proof a b c)
-  | Rel_R_Not_SN (Trs_nontermination_proof a b c)
-  | Rel_TRS_Assume_Not_SN
-      (Bool,
-        ([Term (Lab a b) c],
-          ([(Term (Lab a b) c, Term (Lab a b) c)],
-            [(Term (Lab a b) c, Term (Lab a b) c)])))
-      [Generic_assm_proof a b c (Trs_nontermination_proof a b c)
-         (Dp_nontermination_proof a b c) (Reltrs_nontermination_proof a b c)
-         (Fp_nontermination_proof a b c) (Neg_unknown_proof a b c)];
-
-data Trs_nontermination_proof a b c = TRS_Loop (Trs_loop_prf (Lab a b) c)
-  | TRS_Not_Well_Formed
-  | TRS_Rule_Removal (Rule_removal_nonterm_trs_prf (Lab a b) c)
-      (Trs_nontermination_proof a b c)
-  | TRS_String_Reversal (Trs_nontermination_proof a b c)
-  | TRS_Constant_String (Const_string_complete_proof (Lab a b) c)
-      (Trs_nontermination_proof a b c)
-  | TRS_DP_Trans (Dp_trans_nontermination_tt_prf a b c)
-      (Dp_nontermination_proof a b c)
-  | TRS_Termination_Switch (Join_info (Lab a b))
-      (Trs_nontermination_proof a b c)
-  | TRS_Nonloop (Non_loop_prf (Lab a b) c)
-  | TRS_Nonloop_SRS (Non_loop_srs_proof (Lab a b))
-  | TRS_Q_Increase (Q_increase_nonterm_trs_prf (Lab a b) c)
-      (Trs_nontermination_proof a b c)
-  | TRS_Assume_Not_SN
-      (Bool, ([Term (Lab a b) c], [(Term (Lab a b) c, Term (Lab a b) c)]))
-      [Generic_assm_proof a b c (Trs_nontermination_proof a b c)
-         (Dp_nontermination_proof a b c) (Reltrs_nontermination_proof a b c)
-         (Fp_nontermination_proof a b c) (Neg_unknown_proof a b c)];
-
-data Fp_nontermination_proof a b c = FPTRS_Loop (Fp_loop_prf (Lab a b) c)
-  | FPTRS_Rule_Removal (Rule_removal_nonterm_trs_prf (Lab a b) c)
-      (Fp_nontermination_proof a b c)
-  | FPTRS_Assume_Not_SN
-      ([(Ctxt (Lab a b) c, (Term (Lab a b) c, Location))],
-        [(Term (Lab a b) c, Term (Lab a b) c)])
-      [Generic_assm_proof a b c (Trs_nontermination_proof a b c)
-         (Dp_nontermination_proof a b c) (Reltrs_nontermination_proof a b c)
-         (Fp_nontermination_proof a b c) (Neg_unknown_proof a b c)];
-
-data Dp_nontermination_proof a b c = DP_Loop (Dp_loop_prf (Lab a b) c)
-  | DP_Nonloop (Non_loop_prf (Lab a b) c)
-  | DP_Rule_Removal (Rule_removal_nonterm_dp_prf (Lab a b) c)
-      (Dp_nontermination_proof a b c)
-  | DP_Q_Increase (Q_increase_nonterm_dp_prf (Lab a b) c)
-      (Dp_nontermination_proof a b c)
-  | DP_Q_Reduction (Dp_q_reduction_nonterm_prf (Lab a b) c)
-      (Dp_nontermination_proof a b c)
-  | DP_Termination_Switch (Join_info (Lab a b)) (Dp_nontermination_proof a b c)
-  | DP_Instantiation (Instantiation_complete_proc_prf (Lab a b) c)
-      (Dp_nontermination_proof a b c)
-  | DP_Rewriting (Rewriting_complete_proc_prf (Lab a b) c)
-      (Dp_nontermination_proof a b c)
-  | DP_Narrowing (Narrowing_complete_proc_prf (Lab a b) c)
-      (Dp_nontermination_proof a b c)
-  | DP_Assume_Infinite
-      (Bool,
-        (Bool,
-          ([(Term (Lab a b) c, Term (Lab a b) c)],
-            ([(Term (Lab a b) c, Term (Lab a b) c)],
-              ([Term (Lab a b) c],
-                ([(Term (Lab a b) c, Term (Lab a b) c)],
-                  [(Term (Lab a b) c, Term (Lab a b) c)]))))))
-      [Generic_assm_proof a b c (Trs_nontermination_proof a b c)
-         (Dp_nontermination_proof a b c) (Reltrs_nontermination_proof a b c)
-         (Fp_nontermination_proof a b c) (Neg_unknown_proof a b c)];
-
-data Neg_unknown_proof a b c =
-  Assume_NT_Unknown [Prelude.Char]
-    [Generic_assm_proof a b c (Trs_nontermination_proof a b c)
-       (Dp_nontermination_proof a b c) (Reltrs_nontermination_proof a b c)
-       (Fp_nontermination_proof a b c) (Neg_unknown_proof a b c)];
-
-data Quasi_reductive_proof a b c =
-  Unravel
-    [(((Term (Lab a b) c, Term (Lab a b) c),
-        [(Term (Lab a b) c, Term (Lab a b) c)]),
-       [(Term (Lab a b) c, Term (Lab a b) c)])]
-    (Trs_termination_proof a b c);
-
-data Completion_proof a b c =
-  SN_WCR_Eq (Join_info (Lab a b)) (Trs_termination_proof a b c)
-    [((Term (Lab a b) c, Term (Lab a b) c),
-       [(Pos, ((Term (Lab a b) c, Term (Lab a b) c),
-                (Bool, Term (Lab a b) c)))])]
-    (Maybe [((Term (Lab a b) c, Term (Lab a b) c),
-              [(Pos, ((Term (Lab a b) c, Term (Lab a b) c),
-                       (Bool, Term (Lab a b) c)))])]);
-
-data Equational_disproof a b c =
-  Completion_and_Normalization_Different [(Term (Lab a b) c, Term (Lab a b) c)]
-    (Completion_proof a b c);
-
-data Eq_proof a b = Refl (Term a b) | Sym (Eq_proof a b)
-  | Trans (Eq_proof a b) (Eq_proof a b)
-  | Assm (Term a b, Term a b) (b -> Term a b) | Cong a [Eq_proof a b];
-
-data Equational_proof a b c = Equational_Proof_Tree (Eq_proof (Lab a b) c)
-  | Completion_and_Normalization [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Completion_proof a b c)
-  | Conversion
-      [(Pos, ((Term (Lab a b) c, Term (Lab a b) c), (Bool, Term (Lab a b) c)))];
-
-data Complexity_proof a b =
-  Rule_Shift_Complexity (Redtriple_impl a) [(Term a b, Term a b)]
-    (Complexity_proof a b)
-  | RisEmpty_Complexity
-  | Remove_Nonapplicable_Rules_Complexity [(Term a b, Term a b)]
-      (Complexity_proof a b);
-
-data Cert_problem a b c =
-  TRS_Termination_Proof Bool (Strategy (Lab a b) c)
-    [(Term (Lab a b) c, Term (Lab a b) c)]
-    (Maybe [(Term (Lab a b) c, Term (Lab a b) c)]) (Trs_termination_proof a b c)
-  | Complexity_Proof (Strategy (Lab a b) c)
-      [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Maybe [(Term (Lab a b) c, Term (Lab a b) c)])
-      (Complexity_measure (Lab a b) c) Complexity_class
-      (Complexity_proof (Lab a b) c)
-  | DP_Termination_Proof Bool Bool [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Strategy (Lab a b) c)
-      [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Dp_termination_proof a b c)
-  | DP_Nontermination_Proof Bool Bool [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Strategy (Lab a b) c) [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Dp_nontermination_proof a b c)
-  | TRS_Nontermination_Proof Bool (Strategy (Lab a b) c)
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Trs_nontermination_proof a b c)
-  | Outermost_Termination_Proof [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Fptrs_termination_proof a b c)
-  | Outermost_Nontermination_Proof [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Fp_nontermination_proof a b c)
-  | CS_Termination_Proof [((Lab a b, Nat), [Nat])]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Fptrs_termination_proof a b c)
-  | CS_Nontermination_Proof [((Lab a b, Nat), [Nat])]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Fp_nontermination_proof a b c)
-  | FP_Termination_Proof [(Ctxt (Lab a b) c, (Term (Lab a b) c, Location))]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Fptrs_termination_proof a b c)
-  | FP_Nontermination_Proof [(Ctxt (Lab a b) c, (Term (Lab a b) c, Location))]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Fp_nontermination_proof a b c)
-  | Relative_TRS_Nontermination_Proof Bool (Strategy (Lab a b) c)
-      [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Reltrs_nontermination_proof a b c)
-  | TRS_Confluence_Proof Bool [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Cr_proof a b c)
-  | TRS_Non_Confluence_Proof Bool [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Ncr_proof a b c c)
-  | Completion_Proof [(Term (Lab a b) c, Term (Lab a b) c)]
-      [(Term (Lab a b) c, Term (Lab a b) c)] (Completion_proof a b c)
-  | Equational_Proof [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Term (Lab a b) c, Term (Lab a b) c) (Equational_proof a b c)
-  | Equational_Disproof [(Term (Lab a b) c, Term (Lab a b) c)]
-      (Term (Lab a b) c, Term (Lab a b) c) (Equational_disproof a b c)
-  | Quasi_Reductive_Proof
-      [((Term (Lab a b) c, Term (Lab a b) c),
-         [(Term (Lab a b) c, Term (Lab a b) c)])]
-      (Quasi_reductive_proof a b c)
-  | Unknown_Proof [Prelude.Char] (Unknown_proof a b c)
-  | Unknown_Disproof [Prelude.Char] (Neg_unknown_proof a b c);
-
 xml_tag :: forall a b c. Cert_problem a b c -> [Prelude.Char];
 xml_tag (TRS_Termination_Proof uu uv uw (Just ux) uy) =
   ['<', 'r', 'e', 'l', 'a', 't', 'i', 'v', 'e', 'T', 'e', 'r', 'm', 'i', 'n',
@@ -11025,45 +12745,6 @@ xml_tag (Unknown_Proof xn xo) =
 xml_tag (Unknown_Disproof xp xq) =
   ['<', 'u', 'n', 'k', 'n', 'o', 'w', 'n', 'I', 'n', 'p', 'u', 't', 'P', 'r',
     'o', 'o', 'f', '>'];
-
-instance Ordered_ab_semigroup_add Real where {
-};
-
-instance Ordered_semiring Real where {
-};
-
-instance Ordered_cancel_semiring Real where {
-};
-
-instance Ordered_cancel_ab_semigroup_add Real where {
-};
-
-instance Ordered_ab_semigroup_add_imp_le Real where {
-};
-
-instance Ordered_comm_monoid_add Real where {
-};
-
-instance Ordered_ab_group_add Real where {
-};
-
-instance Ordered_ring Real where {
-};
-
-instance Non_strict_order Real where {
-};
-
-instance Ordered_ab_semigroup Real where {
-};
-
-instance Ordered_semiring_0 Real where {
-};
-
-instance Ordered_semiring_1 Real where {
-};
-
-instance Poly_carrier Real where {
-};
 
 enfc_q ::
   forall a.
@@ -11224,509 +12905,35 @@ subst_apply_ctxt (More f ss1 d ss2) sigma =
   More f (map (\ t -> subst_apply_term t sigma) ss1) (subst_apply_ctxt d sigma)
     (map (\ t -> subst_apply_term t sigma) ss2);
 
-descaa ::
-  forall a b c. Root_redtriple_ext a b c -> [Prelude.Char] -> [Prelude.Char];
-descaa (Root_redtriple_ext valid s ns nst af aft desc more) = desc;
-
-valid ::
-  forall a b c.
-    Redtriple_ext a b c -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-valid (Redtriple_ext valid s ns nst af mono desc cpx more) = valid;
-
-cproper_interval_ta_rule ::
+shows_ctxt ::
   forall a b.
-    (Linorder a,
-      Linorder b) => Maybe (Ta_rule a b) -> Maybe (Ta_rule a b) -> Bool;
-cproper_interval_ta_rule = (\ _ _ -> False);
-
-instance (Eq a, Linorder a, Eq b,
-           Linorder b) => Cproper_interval (Ta_rule a b) where {
-  cproper_interval = cproper_interval_ta_rule;
-};
-
-cproper_interval_prod ::
-  forall a b.
-    (Cproper_interval a,
-      Cproper_interval b) => Maybe (a, b) -> Maybe (a, b) -> Bool;
-cproper_interval_prod Nothing Nothing = True;
-cproper_interval_prod Nothing (Just (y1, y2)) =
-  cproper_interval Nothing (Just y1) || cproper_interval Nothing (Just y2);
-cproper_interval_prod (Just (x1, x2)) Nothing =
-  cproper_interval (Just x1) Nothing || cproper_interval (Just x2) Nothing;
-cproper_interval_prod (Just (x1, x2)) (Just (y1, y2)) =
-  cproper_interval (Just x1) (Just y1) ||
-    (snd (the corder) x1 y1 &&
-       (cproper_interval (Just x2) Nothing ||
-         cproper_interval Nothing (Just y2)) ||
-      not (snd (the corder) y1 x1) && cproper_interval (Just x2) (Just y2));
-
-instance (Cproper_interval a,
-           Cproper_interval b) => Cproper_interval (a, b) where {
-  cproper_interval = cproper_interval_prod;
-};
-
-finite_UNIV_ta_rule :: forall a b. Phantom (Ta_rule a b) Bool;
-finite_UNIV_ta_rule = Phantom False;
-
-instance Finite_UNIV (Ta_rule a b) where {
-  finite_UNIV = finite_UNIV_ta_rule;
-};
-
-set_impl_ta_rule :: forall a b. Phantom (Ta_rule a b) Set_impl;
-set_impl_ta_rule = Phantom Set_RBT;
-
-instance Set_impla (Ta_rule a b) where {
-  set_impl = set_impl_ta_rule;
-};
-
-cEnum_ta_rule ::
-  forall a b.
-    Maybe ([Ta_rule a b],
-            ((Ta_rule a b -> Bool) -> Bool, (Ta_rule a b -> Bool) -> Bool));
-cEnum_ta_rule = Nothing;
-
-instance Cenum (Ta_rule a b) where {
-  cEnum = cEnum_ta_rule;
-};
-
-finite_UNIV_prod ::
-  forall a b. (Finite_UNIV a, Finite_UNIV b) => Phantom (a, b) Bool;
-finite_UNIV_prod =
-  Phantom
-    (of_phantom (finite_UNIV :: Phantom a Bool) &&
-      of_phantom (finite_UNIV :: Phantom b Bool));
-
-instance (Finite_UNIV a, Finite_UNIV b) => Finite_UNIV (a, b) where {
-  finite_UNIV = finite_UNIV_prod;
-};
-
-set_less_eq_aux_Compl_fusion ::
-  forall a b c.
-    (a -> a -> Bool) ->
-      (Maybe a -> Maybe a -> Bool) ->
-        Generator a b -> Generator a c -> Maybe a -> b -> c -> Bool;
-set_less_eq_aux_Compl_fusion less proper_interval g1 g2 ao s1 s2 =
-  (if has_next g1 s1
-    then (if has_next g2 s2
-           then let {
-                  (x, s1a) = next g1 s1;
-                  (y, s2a) = next g2 s2;
-                } in (if less x y
-                       then proper_interval ao (Just x) ||
-                              set_less_eq_aux_Compl_fusion less proper_interval
-                                g1 g2 (Just x) s1a s2
-                       else (if less y x
-                              then proper_interval ao (Just y) ||
-                                     set_less_eq_aux_Compl_fusion less
-                                       proper_interval g1 g2 (Just y) s1 s2a
-                              else proper_interval ao (Just y)))
-           else True)
-    else True);
-
-compl_set_less_eq_aux_fusion ::
-  forall a b c.
-    (a -> a -> Bool) ->
-      (Maybe a -> Maybe a -> Bool) ->
-        Generator a b -> Generator a c -> Maybe a -> b -> c -> Bool;
-compl_set_less_eq_aux_fusion less proper_interval g1 g2 ao s1 s2 =
-  (if has_next g1 s1
-    then let {
-           (x, s1a) = next g1 s1;
-         } in (if has_next g2 s2
-                then let {
-                       (y, s2a) = next g2 s2;
-                     } in (if less x y
-                            then not (proper_interval ao (Just x)) &&
-                                   compl_set_less_eq_aux_fusion less
-                                     proper_interval g1 g2 (Just x) s1a s2
-                            else (if less y x
-                                   then not (proper_interval ao (Just y)) &&
-  compl_set_less_eq_aux_fusion less proper_interval g1 g2 (Just y) s1 s2a
-                                   else not (proper_interval ao (Just y))))
-                else not (proper_interval ao (Just x)) &&
-                       compl_set_less_eq_aux_fusion less proper_interval g1 g2
-                         (Just x) s1a s2)
-    else (if has_next g2 s2
-           then let {
-                  (y, s2a) = next g2 s2;
-                } in not (proper_interval ao (Just y)) &&
-                       compl_set_less_eq_aux_fusion less proper_interval g1 g2
-                         (Just y) s1 s2a
-           else not (proper_interval ao Nothing)));
-
-lexord_eq_fusion ::
-  forall a b c.
-    (a -> a -> Bool) -> Generator a b -> Generator a c -> b -> c -> Bool;
-lexord_eq_fusion less g1 g2 s1 s2 =
-  (if has_next g1 s1
-    then has_next g2 s2 &&
-           let {
-             (x, s1a) = next g1 s1;
-             (y, s2a) = next g2 s2;
-           } in less x y ||
-                  not (less y x) && lexord_eq_fusion less g1 g2 s1a s2a
-    else True);
-
-set_less_eq_aux_Compl ::
-  forall a.
-    (a -> a -> Bool) ->
-      (Maybe a -> Maybe a -> Bool) -> Maybe a -> [a] -> [a] -> Bool;
-set_less_eq_aux_Compl less proper_interval ao (x : xs) (y : ys) =
-  (if less x y
-    then proper_interval ao (Just x) ||
-           set_less_eq_aux_Compl less proper_interval (Just x) xs (y : ys)
-    else (if less y x
-           then proper_interval ao (Just y) ||
-                  set_less_eq_aux_Compl less proper_interval (Just y) (x : xs)
-                    ys
-           else proper_interval ao (Just y)));
-set_less_eq_aux_Compl less proper_interval ao xs [] = True;
-set_less_eq_aux_Compl less proper_interval ao [] ys = True;
-
-compl_set_less_eq_aux ::
-  forall a.
-    (a -> a -> Bool) ->
-      (Maybe a -> Maybe a -> Bool) -> Maybe a -> [a] -> [a] -> Bool;
-compl_set_less_eq_aux less proper_interval ao (x : xs) (y : ys) =
-  (if less x y
-    then not (proper_interval ao (Just x)) &&
-           compl_set_less_eq_aux less proper_interval (Just x) xs (y : ys)
-    else (if less y x
-           then not (proper_interval ao (Just y)) &&
-                  compl_set_less_eq_aux less proper_interval (Just y) (x : xs)
-                    ys
-           else not (proper_interval ao (Just y))));
-compl_set_less_eq_aux less proper_interval ao (x : xs) [] =
-  not (proper_interval ao (Just x)) &&
-    compl_set_less_eq_aux less proper_interval (Just x) xs [];
-compl_set_less_eq_aux less proper_interval ao [] (y : ys) =
-  not (proper_interval ao (Just y)) &&
-    compl_set_less_eq_aux less proper_interval (Just y) [] ys;
-compl_set_less_eq_aux less proper_interval ao [] [] =
-  not (proper_interval ao Nothing);
-
-remdups_sorted :: forall a. (a -> a -> Bool) -> [a] -> [a];
-remdups_sorted less (x : y : xs) =
-  (if less x y then x : remdups_sorted less (y : xs)
-    else remdups_sorted less (y : xs));
-remdups_sorted less [x] = [x];
-remdups_sorted less [] = [];
-
-csorted_list_of_set :: forall a. (Ceq a, Corder a) => Set a -> [a];
-csorted_list_of_set (Set_Monad xs) =
-  (case corder of {
-    Nothing ->
-      error "csorted_list_of_set Set_Monad: corder = None"
-        (\ _ -> csorted_list_of_set (Set_Monad xs));
-    Just (_, lt) -> remdups_sorted lt (quicksort lt xs);
-  });
-csorted_list_of_set (DList_set dxs) =
-  (case (ceq :: Maybe (a -> a -> Bool)) of {
-    Nothing ->
-      error "csorted_list_of_set DList_set: ceq = None"
-        (\ _ -> csorted_list_of_set (DList_set dxs));
-    Just _ ->
-      (case corder of {
-        Nothing ->
-          error "csorted_list_of_set DList_set: corder = None"
-            (\ _ -> csorted_list_of_set (DList_set dxs));
-        Just (_, lt) -> quicksort lt (list_of_dlist dxs);
-      });
-  });
-csorted_list_of_set (RBT_set rbt) =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
-    Nothing ->
-      error "csorted_list_of_set RBT_set: corder = None"
-        (\ _ -> csorted_list_of_set (RBT_set rbt));
-    Just _ -> keysa rbt;
-  });
-
-set_less_aux_Compl_fusion ::
-  forall a b c.
-    (a -> a -> Bool) ->
-      (Maybe a -> Maybe a -> Bool) ->
-        Generator a b -> Generator a c -> Maybe a -> b -> c -> Bool;
-set_less_aux_Compl_fusion less proper_interval g1 g2 ao s1 s2 =
-  (if has_next g1 s1
-    then let {
-           (x, s1a) = next g1 s1;
-         } in (if has_next g2 s2
-                then let {
-                       (y, s2a) = next g2 s2;
-                     } in (if less x y
-                            then proper_interval ao (Just x) ||
-                                   set_less_aux_Compl_fusion less
-                                     proper_interval g1 g2 (Just x) s1a s2
-                            else (if less y x
-                                   then proper_interval ao (Just y) ||
-  set_less_aux_Compl_fusion less proper_interval g1 g2 (Just y) s1 s2a
-                                   else proper_interval ao (Just y)))
-                else proper_interval ao (Just x) ||
-                       set_less_aux_Compl_fusion less proper_interval g1 g2
-                         (Just x) s1a s2)
-    else (if has_next g2 s2
-           then let {
-                  (y, s2a) = next g2 s2;
-                } in proper_interval ao (Just y) ||
-                       set_less_aux_Compl_fusion less proper_interval g1 g2
-                         (Just y) s1 s2a
-           else proper_interval ao Nothing));
-
-compl_set_less_aux_fusion ::
-  forall a b c.
-    (a -> a -> Bool) ->
-      (Maybe a -> Maybe a -> Bool) ->
-        Generator a b -> Generator a c -> Maybe a -> b -> c -> Bool;
-compl_set_less_aux_fusion less proper_interval g1 g2 ao s1 s2 =
-  has_next g1 s1 &&
-    has_next g2 s2 &&
-      let {
-        (x, s1a) = next g1 s1;
-        (y, s2a) = next g2 s2;
-      } in (if less x y
-             then not (proper_interval ao (Just x)) &&
-                    compl_set_less_aux_fusion less proper_interval g1 g2
-                      (Just x) s1a s2
-             else (if less y x
-                    then not (proper_interval ao (Just y)) &&
-                           compl_set_less_aux_fusion less proper_interval g1 g2
-                             (Just y) s1 s2a
-                    else not (proper_interval ao (Just y))));
-
-lexord_fusion ::
-  forall a b c.
-    (a -> a -> Bool) -> Generator a b -> Generator a c -> b -> c -> Bool;
-lexord_fusion less g1 g2 s1 s2 =
-  (if has_next g1 s1
-    then (if has_next g2 s2
-           then let {
-                  (x, s1a) = next g1 s1;
-                  (y, s2a) = next g2 s2;
-                } in less x y ||
-                       not (less y x) && lexord_fusion less g1 g2 s1a s2a
-           else False)
-    else has_next g2 s2);
-
-set_less_aux_Compl ::
-  forall a.
-    (a -> a -> Bool) ->
-      (Maybe a -> Maybe a -> Bool) -> Maybe a -> [a] -> [a] -> Bool;
-set_less_aux_Compl less proper_interval ao (x : xs) (y : ys) =
-  (if less x y
-    then proper_interval ao (Just x) ||
-           set_less_aux_Compl less proper_interval (Just x) xs (y : ys)
-    else (if less y x
-           then proper_interval ao (Just y) ||
-                  set_less_aux_Compl less proper_interval (Just y) (x : xs) ys
-           else proper_interval ao (Just y)));
-set_less_aux_Compl less proper_interval ao (x : xs) [] =
-  proper_interval ao (Just x) ||
-    set_less_aux_Compl less proper_interval (Just x) xs [];
-set_less_aux_Compl less proper_interval ao [] (y : ys) =
-  proper_interval ao (Just y) ||
-    set_less_aux_Compl less proper_interval (Just y) [] ys;
-set_less_aux_Compl less proper_interval ao [] [] = proper_interval ao Nothing;
-
-compl_set_less_aux ::
-  forall a.
-    (a -> a -> Bool) ->
-      (Maybe a -> Maybe a -> Bool) -> Maybe a -> [a] -> [a] -> Bool;
-compl_set_less_aux less proper_interval ao (x : xs) (y : ys) =
-  (if less x y
-    then not (proper_interval ao (Just x)) &&
-           compl_set_less_aux less proper_interval (Just x) xs (y : ys)
-    else (if less y x
-           then not (proper_interval ao (Just y)) &&
-                  compl_set_less_aux less proper_interval (Just y) (x : xs) ys
-           else not (proper_interval ao (Just y))));
-compl_set_less_aux less proper_interval ao xs [] = False;
-compl_set_less_aux less proper_interval ao [] ys = False;
-
-corder_set ::
-  forall a.
-    (Finite_UNIV a, Ceq a, Cproper_interval a,
-      Set_impla a) => Maybe (Set a -> Set a -> Bool, Set a -> Set a -> Bool);
-corder_set =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
-    Nothing -> Nothing;
-    Just _ -> Just (cless_eq_set, cless_set);
-  });
-
-cless_set ::
-  forall a.
-    (Finite_UNIV a, Ceq a, Cproper_interval a,
-      Set_impla a) => Set a -> Set a -> Bool;
-cless_set (Complement (RBT_set rbt1)) (RBT_set rbt2) =
-  (case corder of {
-    Nothing ->
-      error "cless_set (Complement RBT_set) RBT_set: corder = None"
-        (\ _ -> cless_set (Complement (RBT_set rbt1)) (RBT_set rbt2));
-    Just (_, lt) ->
-      (finite :: Set a -> Bool) (top_set :: Set a) &&
-        compl_set_less_aux_fusion lt cproper_interval rbt_keys_generator
-          rbt_keys_generator Nothing (init rbt1) (init rbt2);
-  });
-cless_set (RBT_set rbt1) (Complement (RBT_set rbt2)) =
-  (case corder of {
-    Nothing ->
-      error "cless_set RBT_set (Complement RBT_set): corder = None"
-        (\ _ -> cless_set (RBT_set rbt1) (Complement (RBT_set rbt2)));
-    Just (_, lt) ->
-      (if (finite :: Set a -> Bool) (top_set :: Set a)
-        then set_less_aux_Compl_fusion lt cproper_interval rbt_keys_generator
-               rbt_keys_generator Nothing (init rbt1) (init rbt2)
-        else True);
-  });
-cless_set (RBT_set rbta) (RBT_set rbt) =
-  (case corder of {
-    Nothing ->
-      error "cless_set RBT_set RBT_set: corder = None"
-        (\ _ -> cless_set (RBT_set rbta) (RBT_set rbt));
-    Just (_, lt) ->
-      lexord_fusion (\ x y -> lt y x) rbt_keys_generator rbt_keys_generator
-        (init rbta) (init rbt);
-  });
-cless_set (Complement a) (Complement b) =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
-    Nothing ->
-      error "cless_set Complement Complement: corder = None"
-        (\ _ -> cless_set (Complement a) (Complement b));
-    Just _ -> snd (the corder_set) b a;
-  });
-cless_set (Complement a) b =
-  (case corder of {
-    Nothing ->
-      error "cless_set Complement1: corder = None"
-        (\ _ -> cless_set (Complement a) b);
-    Just (_, lt) ->
-      (if finite a && finite b
-        then (finite :: Set a -> Bool) (top_set :: Set a) &&
-               compl_set_less_aux lt cproper_interval Nothing
-                 (csorted_list_of_set a) (csorted_list_of_set b)
-        else error "cless_set Complement1: infinite set"
-               (\ _ -> cless_set (Complement a) b));
-  });
-cless_set a (Complement b) =
-  (case corder of {
-    Nothing ->
-      error "cless_set Complement2: corder = None"
-        (\ _ -> cless_set a (Complement b));
-    Just (_, lt) ->
-      (if finite a && finite b
-        then (if (finite :: Set a -> Bool) (top_set :: Set a)
-               then set_less_aux_Compl lt cproper_interval Nothing
-                      (csorted_list_of_set a) (csorted_list_of_set b)
-               else True)
-        else error "cless_set Complement2: infinite set"
-               (\ _ -> cless_set a (Complement b)));
-  });
-cless_set a b =
-  (case corder of {
-    Nothing -> error "cless_set: corder = None" (\ _ -> cless_set a b);
-    Just (_, lt) ->
-      (if finite a && finite b
-        then lexord (\ x y -> lt y x) (csorted_list_of_set a)
-               (csorted_list_of_set b)
-        else error "cless_set: infinite set" (\ _ -> cless_set a b));
-  });
-
-cless_eq_set ::
-  forall a.
-    (Finite_UNIV a, Ceq a, Cproper_interval a,
-      Set_impla a) => Set a -> Set a -> Bool;
-cless_eq_set (Complement (RBT_set rbt1)) (RBT_set rbt2) =
-  (case corder of {
-    Nothing ->
-      error "cless_eq_set (Complement RBT_set) RBT_set: corder = None"
-        (\ _ -> cless_eq_set (Complement (RBT_set rbt1)) (RBT_set rbt2));
-    Just (_, lt) ->
-      (finite :: Set a -> Bool) (top_set :: Set a) &&
-        compl_set_less_eq_aux_fusion lt cproper_interval rbt_keys_generator
-          rbt_keys_generator Nothing (init rbt1) (init rbt2);
-  });
-cless_eq_set (RBT_set rbt1) (Complement (RBT_set rbt2)) =
-  (case corder of {
-    Nothing ->
-      error "cless_eq_set RBT_set (Complement RBT_set): corder = None"
-        (\ _ -> cless_eq_set (RBT_set rbt1) (Complement (RBT_set rbt2)));
-    Just (_, lt) ->
-      (if (finite :: Set a -> Bool) (top_set :: Set a)
-        then set_less_eq_aux_Compl_fusion lt cproper_interval rbt_keys_generator
-               rbt_keys_generator Nothing (init rbt1) (init rbt2)
-        else True);
-  });
-cless_eq_set (RBT_set rbta) (RBT_set rbt) =
-  (case corder of {
-    Nothing ->
-      error "cless_eq_set RBT_set RBT_set: corder = None"
-        (\ _ -> cless_eq_set (RBT_set rbta) (RBT_set rbt));
-    Just (_, lt) ->
-      lexord_eq_fusion (\ x y -> lt y x) rbt_keys_generator rbt_keys_generator
-        (init rbta) (init rbt);
-  });
-cless_eq_set (Complement a) (Complement b) =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
-    Nothing ->
-      error "cless_eq_set Complement Complement: corder = None"
-        (\ _ -> fst (the corder_set) (Complement a) (Complement b));
-    Just (_, _) -> cless_eq_set b a;
-  });
-cless_eq_set (Complement a) b =
-  (case corder of {
-    Nothing ->
-      error "cless_eq_set Complement1: corder = None"
-        (\ _ -> cless_eq_set (Complement a) b);
-    Just (_, lt) ->
-      (if finite a && finite b
-        then (finite :: Set a -> Bool) (top_set :: Set a) &&
-               compl_set_less_eq_aux lt cproper_interval Nothing
-                 (csorted_list_of_set a) (csorted_list_of_set b)
-        else error "cless_eq_set Complement1: infinite set"
-               (\ _ -> cless_eq_set (Complement a) b));
-  });
-cless_eq_set a (Complement b) =
-  (case corder of {
-    Nothing ->
-      error "cless_eq_set Complement2: corder = None"
-        (\ _ -> cless_eq_set a (Complement b));
-    Just (_, lt) ->
-      (if finite a && finite b
-        then (if (finite :: Set a -> Bool) (top_set :: Set a)
-               then set_less_eq_aux_Compl lt cproper_interval Nothing
-                      (csorted_list_of_set a) (csorted_list_of_set b)
-               else True)
-        else error "cless_eq_set Complement2: infinite set"
-               (\ _ -> cless_eq_set a (Complement b)));
-  });
-cless_eq_set a b =
-  (case corder of {
-    Nothing -> error "cless_eq_set: corder = None" (\ _ -> cless_eq_set a b);
-    Just (_, lt) ->
-      (if finite a && finite b
-        then lexord_eq (\ x y -> lt y x) (csorted_list_of_set a)
-               (csorted_list_of_set b)
-        else error "cless_eq_set: infinite set" (\ _ -> cless_eq_set a b));
-  });
-
-instance (Finite_UNIV a, Ceq a, Cproper_interval a,
-           Set_impla a) => Corder (Set a) where {
-  corder = corder_set;
-};
+    (a -> [Prelude.Char] -> [Prelude.Char]) ->
+      (b -> [Prelude.Char] -> [Prelude.Char]) ->
+        Ctxt a b -> [Prelude.Char] -> [Prelude.Char];
+shows_ctxt fun var Hole = shows_string ['[', ']'];
+shows_ctxt fun var (More f ss1 d ss2) =
+  fun f .
+    shows_string ['('] .
+      shows_list_gen (shows_term fun var) [] [] [',', ' '] [',', ' '] ss1 .
+        shows_ctxt fun var d .
+          shows_list_gen (shows_term fun var) [')'] [',', ' '] [',', ' '] [')']
+            ss2;
 
 sup_seta ::
   forall a.
     (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a,
-      Set_impla a) => Set (Set a) -> Set a;
+      Set_impl a) => Set (Set a) -> Set a;
 sup_seta (RBT_set rbt) =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
+  (case (corder_set :: Maybe (Set a -> Set a -> Bool, Set a -> Set a -> Bool))
+    of {
     Nothing ->
-      error "Union RBT_set: corder = None" (\ _ -> sup_seta (RBT_set rbt));
+      error "Sup RBT_set: corder = None" (\ _ -> sup_seta (RBT_set rbt));
     Just _ -> foldc sup_set rbt bot_set;
   });
 sup_seta (DList_set dxs) =
-  (case (ceq :: Maybe (a -> a -> Bool)) of {
+  (case (ceq_set :: Maybe (Set a -> Set a -> Bool)) of {
     Nothing ->
-      error "Union DList_set: ceq = None" (\ _ -> sup_seta (DList_set dxs));
+      error "Sup DList_set: ceq = None" (\ _ -> sup_seta (DList_set dxs));
     Just _ -> foldd sup_set dxs bot_set;
   });
 sup_seta (Set_Monad xs) = fold sup_set xs bot_set;
@@ -11734,13 +12941,13 @@ sup_seta (Set_Monad xs) = fold sup_set xs bot_set;
 ta_final :: forall a b c. Ta_ext a b c -> Set a;
 ta_final (Ta_ext ta_final ta_rules ta_eps more) = ta_final;
 
-r_states :: forall a b. (Ceq a, Corder a, Set_impla a) => Ta_rule a b -> Set a;
+r_states :: forall a b. (Ceq a, Corder a, Set_impl a) => Ta_rule a b -> Set a;
 r_states = (\ ta_rule -> inserta (r_rhs ta_rule) (set (r_lhs_states ta_rule)));
 
 ta_states ::
   forall a b.
     (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Eq b, Linorder b) => Ta_ext a b () -> Set a;
+      Set_impl a, Eq b, Linorder b) => Ta_ext a b () -> Set a;
 ta_states ta =
   sup_set
     (sup_set (sup_seta (image r_states (ta_rules ta)))
@@ -11751,16 +12958,16 @@ ta_states ta =
 ta_syms ::
   forall a b.
     (Eq a, Linorder a, Ceq b, Corder b, Eq b, Linorder b,
-      Set_impla b) => Ta_ext a b () -> Set (b, Nat);
+      Set_impl b) => Ta_ext a b () -> Set (b, Nat);
 ta_syms ta = image r_sym (ta_rules ta);
 
 prod_ta ::
   forall a b c.
     (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Ceq b, Corder b, Eq b, Linorder b, Set_impla b,
-      Finite_UNIV c, Cenum c, Ceq c, Cproper_interval c, Eq c, Linorder c,
-      Set_impla c) => Ta_ext a b () ->
-                        Ta_ext c b () -> Set (a, c) -> Ta_ext (a, c) b ();
+      Set_impl a, Ceq b, Corder b, Eq b, Linorder b, Set_impl b, Finite_UNIV c,
+      Cenum c, Ceq c, Cproper_interval c, Eq c, Linorder c,
+      Set_impl c) => Ta_ext a b () ->
+                       Ta_ext c b () -> Set (a, c) -> Ta_ext (a, c) b ();
 prod_ta tA1 tA2 f =
   Ta_ext f
     (image
@@ -11785,7 +12992,7 @@ prod_ta tA1 tA2 f =
 reduced_TA ::
   forall a b c.
     (Eq a, Linorder a, Ceq b, Corder b, Eq b, Linorder b,
-      Set_impla b) => a -> Ta_ext b a c -> Set b -> Ta_ext b a ();
+      Set_impl b) => a -> Ta_ext b a c -> Set b -> Ta_ext b a ();
 reduced_TA f ta q =
   Ta_ext bot_set
     (sup_set
@@ -11802,14 +13009,14 @@ reduced_TA f ta q =
 
 new_reach ::
   forall a b c.
-    (Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Eq b,
+    (Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Eq b,
       Linorder b) => Ta_ext a b c -> Set a;
 new_reach ta =
   image r_rhs (filtera (\ r -> null (r_lhs_states r)) (ta_rules ta));
 
 ta_reachable_states ::
   forall a b.
-    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Default b, Eq b,
+    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Default b, Eq b,
       Linorder b) => Ta_ext a b () -> Set a;
 ta_reachable_states ta =
   let {
@@ -11820,7 +13027,7 @@ ta_reachable_states ta =
 productive_relation ::
   forall a b.
     (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Eq b, Linorder b) => Ta_ext a b () -> Set (a, a);
+      Set_impl a, Eq b, Linorder b) => Ta_ext a b () -> Set (a, a);
 productive_relation ta =
   sup_set (image (\ (a, b) -> (b, a)) (ta_eps ta))
     (sup_seta
@@ -11830,13 +13037,13 @@ productive_relation ta =
 ta_productive ::
   forall a b.
     (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Eq b, Linorder b) => Ta_ext a b () -> Set a;
+      Set_impl a, Eq b, Linorder b) => Ta_ext a b () -> Set a;
 ta_productive ta =
   sup_set (ta_final ta) (compute_trancl (ta_final ta) (productive_relation ta));
 
 ta_restrict ::
   forall a b c.
-    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Eq b,
+    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Eq b,
       Linorder b) => Ta_ext a b c -> Set a -> Ta_ext a b ();
 ta_restrict ta q =
   Ta_ext (inf_set (ta_final ta) q)
@@ -11846,7 +13053,7 @@ ta_restrict ta q =
 trim_ta ::
   forall a b.
     (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Default b, Eq b,
+      Set_impl a, Default b, Eq b,
       Linorder b) => Ta_ext a b () -> Ta_ext a b ();
 trim_ta ta =
   (if finite (ta_states ta)
@@ -11917,6 +13124,11 @@ check_wf_trs r =
                't', ' ', 'w', 'e', 'l', 'l', '-', 'f', 'o', 'r', 'm', 'e',
                'd'] .
             shows_nl . x));
+
+defined_list :: forall a b. (Eq a) => [(Term a b, Term a b)] -> [(a, Nat)];
+defined_list r =
+  remdups
+    (concatMap (\ (l, _) -> (if not (is_Var l) then [the (root l)] else [])) r);
 
 map_rules_wa ::
   forall a b c.
@@ -12065,7 +13277,7 @@ derivation_pattern_proof xml2name =
                pair ['O', 'C', 'i', 'n', 't', 'o', 'D', 'P', '2'] dp oc OCDP2),
              (['e', 'q', 'u', 'i', 'v', 'a', 'l', 'e', 'n', 't'],
                pair ['e', 'q', 'u', 'i', 'v', 'a', 'l', 'e', 'n', 't'] dp dp
-                 Wpeq),
+                 WPEQ),
              (['l', 'i', 'f', 't'], pair ['l', 'i', 'f', 't'] dp dp Lift),
              (['D', 'P', '_', 'O', 'C', '_', '1', '_', '1'],
                tuple5 ['D', 'P', '_', 'O', 'C', '_', '1', '_', '1'] dp dp oc s s
@@ -12128,49 +13340,14 @@ nonloop_srs xml2name =
       (derivation_pattern_proof xml2name) id)
     (nonloop_srs_reason xml2name) (\ list prf -> prf list);
 
-ceq_lab :: forall a b. (Eq a, Eq b) => Maybe (Lab a b -> Lab a b -> Bool);
-ceq_lab = Just equal_lab;
-
-instance (Eq a, Eq b) => Ceq (Lab a b) where {
-  ceq = ceq_lab;
-};
-
 label_decomp :: forall a b. Lab a b -> (Lab a b, Sum b [Lab a b]);
 label_decomp (Lab f l) = (f, Inl l);
 label_decomp (FunLab f l) = (f, Inr l);
 
-shows_lab ::
-  forall a b.
-    (a -> [Prelude.Char] -> [Prelude.Char]) ->
-      (b -> [Prelude.Char] -> [Prelude.Char]) ->
-        Lab a b -> [Prelude.Char] -> [Prelude.Char];
-shows_lab fun lab (UnLab f) = fun f;
-shows_lab fun lab (Lab f l) =
-  shows_lab fun lab f . shows_string ['['] . lab l . shows_string [']'];
-shows_lab fun lab (Sharp f) = shows_lab fun lab f . shows_string ['#'];
-shows_lab fun lab (FunLab f l) =
-  shows_lab fun lab f .
-    shows_string ['['] . shows_map (shows_lab fun lab) l . shows_string [']'];
-
-shows_prec_lab ::
-  forall a b.
-    (Showa a, Showa b) => Nat -> Lab a b -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_lab d l = shows_lab (shows_prec Zero_nat) (shows_prec Zero_nat) l;
-
-shows_list_lab ::
-  forall a b.
-    (Showa a, Showa b) => [Lab a b] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_lab = shows_list_aux (shows_prec_lab Zero_nat);
-
-instance (Showa a, Showa b) => Showa (Lab a b) where {
-  shows_prec = shows_prec_lab;
-  shows_list = shows_list_lab;
-};
-
 is_partition_impl ::
   forall a.
     (Card_UNIV a, Ceq a, Cproper_interval a,
-      Set_impla a) => [Set a] -> Maybe (Set a);
+      Set_impl a) => [Set a] -> Maybe (Set a);
 is_partition_impl [] = Just bot_set;
 is_partition_impl (asa : rest) =
   bind (is_partition_impl rest)
@@ -12180,145 +13357,60 @@ is_partition_impl (asa : rest) =
 
 is_partition ::
   forall a.
-    (Card_UNIV a, Ceq a, Cproper_interval a, Set_impla a) => [Set a] -> Bool;
+    (Card_UNIV a, Ceq a, Cproper_interval a, Set_impl a) => [Set a] -> Bool;
 is_partition asa = not (is_none (is_partition_impl asa));
+
+sequences :: forall a b. (Linorder b) => (a -> b) -> [a] -> [[a]];
+sequences key (a : b : xs) =
+  (if less (key b) (key a) then desca key b [a] xs
+    else asc key b (\ ba -> a : ba) xs);
+sequences key [] = [[]];
+sequences key [v] = [[v]];
+
+asc ::
+  forall a b. (Linorder b) => (a -> b) -> a -> ([a] -> [a]) -> [a] -> [[a]];
+asc key a f (b : bs) =
+  (if not (less (key b) (key a)) then asc key b (f . (\ ba -> a : ba)) bs
+    else f [a] : sequences key (b : bs));
+asc key a f [] = f [a] : sequences key [];
+
+desca :: forall a b. (Linorder b) => (a -> b) -> a -> [a] -> [a] -> [[a]];
+desca key a asa (b : bs) =
+  (if less (key b) (key a) then desca key b (a : asa) bs
+    else (a : asa) : sequences key (b : bs));
+desca key a asa [] = (a : asa) : sequences key [];
+
+mergea :: forall a b. (Linorder b) => (a -> b) -> [a] -> [a] -> [a];
+mergea key (a : asa) (b : bs) =
+  (if less (key b) (key a) then b : mergea key (a : asa) bs
+    else a : mergea key asa (b : bs));
+mergea key [] bs = bs;
+mergea key (v : va) [] = v : va;
+
+merge_pairs :: forall a b. (Linorder b) => (a -> b) -> [[a]] -> [[a]];
+merge_pairs key (a : b : xs) = mergea key a b : merge_pairs key xs;
+merge_pairs key [] = [];
+merge_pairs key [v] = [v];
+
+merge_alla :: forall a b. (Linorder b) => (a -> b) -> [[a]] -> [a];
+merge_alla key [] = [];
+merge_alla key [x] = x;
+merge_alla key (v : vb : vc) = merge_alla key (merge_pairs key (v : vb : vc));
+
+sort_key :: forall a b. (Linorder b) => (a -> b) -> [a] -> [a];
+sort_key key = merge_alla key . sequences key;
 
 remdups_sort :: forall a. (Eq a, Linorder a) => [a] -> [a];
 remdups_sort xs = remdups_adj (sort_key (\ x -> x) xs);
 
-shows_prec_int :: Nat -> Int -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_int d i =
-  (if less_int i Zero_int
-    then shows_prec_char Zero_nat '-' .
-           shows_prec_nat Zero_nat (nat (uminus_int i))
-    else shows_prec_nat Zero_nat (nat i));
-
-shows_arctic :: Arctic -> [Prelude.Char] -> [Prelude.Char];
-shows_arctic (Num_arc i) = shows_prec_int Zero_nat i;
-shows_arctic MinInfty = shows_string ['-', 'i', 'n', 'f'];
-
-shows_prec_arctic :: Nat -> Arctic -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_arctic d ai = shows_arctic ai;
-
-shows_list_arctic :: [Arctic] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_arctic = shows_list_aux (shows_prec_arctic Zero_nat);
-
-instance Showa Arctic where {
-  shows_prec = shows_prec_arctic;
-  shows_list = shows_list_arctic;
-};
-
-instance Large_ordered_semiring_1 Real where {
-};
-
-instance Dense_linorder Real where {
-};
-
-instance Unbounded_dense_linorder Real where {
-};
-
-instance Linordered_ab_semigroup_add Real where {
-};
-
-instance Linordered_cancel_ab_semigroup_add Real where {
-};
-
-instance Linordered_semiring Real where {
-};
-
-instance Linordered_semiring_strict Real where {
-};
-
-instance Linordered_semiring_1 Real where {
-};
-
-instance Linordered_semiring_1_strict Real where {
-};
-
-instance Ordered_ab_group_add_abs Real where {
-};
-
-instance Linordered_ab_group_add Real where {
-};
-
-instance Linordered_ring Real where {
-};
-
-instance Linordered_ring_strict Real where {
-};
-
-instance Ordered_comm_semiring Real where {
-};
-
-instance Ordered_cancel_comm_semiring Real where {
-};
-
-instance Linordered_comm_semiring_strict Real where {
-};
-
-instance Linordered_semidom Real where {
-};
-
-instance Ordered_comm_ring Real where {
-};
-
-instance Ordered_ring_abs Real where {
-};
-
-instance Linordered_idom Real where {
-};
-
-instance Linordered_field Real where {
-};
-
-instance Archimedean_field Real where {
-};
-
-instance Floor_ceiling Real where {
-  floor = floor_real;
-};
+swap :: forall a b. (a, b) -> (b, a);
+swap p = (snd p, fst p);
 
 set_ext :: forall a. (a -> a -> (Bool, Bool)) -> [a] -> [a] -> (Bool, Bool);
 set_ext s_ns =
   (\ asa bs ->
     (not (null asa) && all (\ b -> any (\ a -> fst (s_ns a b)) asa) bs,
       all (\ b -> any (\ a -> snd (s_ns a b)) asa) bs));
-
-shows_list_int :: [Int] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_int = shows_list_aux (shows_prec_int Zero_nat);
-
-instance Showa Int where {
-  shows_prec = shows_prec_int;
-  shows_list = shows_list_int;
-};
-
-shows_list_nat :: [Nat] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_nat = shows_list_aux (shows_prec_nat Zero_nat);
-
-instance Showa Nat where {
-  shows_prec = shows_prec_nat;
-  shows_list = shows_list_nat;
-};
-
-show_rat :: Rat -> [Prelude.Char];
-show_rat x =
-  let {
-    (den, num) = quotient_of x;
-  } in (if equal_int num (Pos One) then shows_prec_int Zero_nat den []
-         else ((shows_prec_int Zero_nat den . shows_prec_char Zero_nat '/') .
-                shows_prec_int Zero_nat num)
-                []);
-
-shows_prec_rat :: Nat -> Rat -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_rat d x = shows_string (show_rat x);
-
-shows_list_rat :: [Rat] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_rat = shows_list_aux (shows_prec_rat Zero_nat);
-
-instance Showa Rat where {
-  shows_prec = shows_prec_rat;
-  shows_list = shows_list_rat;
-};
 
 check_no_var ::
   forall a b.
@@ -12342,38 +13434,19 @@ check_supteq s t =
           'e', 'r', 'm', ' ', 'o', 'f', ' '] .
         shows_prec_term Zero_nat s);
 
-valida ::
-  forall a b c.
-    Root_redtriple_ext a b c -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-valida (Root_redtriple_ext valid s ns nst af aft desc more) = valid;
-
 ta_empty ::
   forall a b.
-    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Default b, Eq b,
+    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Default b, Eq b,
       Linorder b) => Ta_ext a b () -> Bool;
 ta_empty ta =
   less_eq_set (inf_set (ta_reachable_states ta) (ta_final ta)) bot_set;
 
-cproper_interval_list :: forall a. (Corder a) => Maybe [a] -> Maybe [a] -> Bool;
-cproper_interval_list xso yso = error "undefined";
-
-instance (Corder a) => Cproper_interval [a] where {
-  cproper_interval = cproper_interval_list;
-};
-
-finite_UNIV_list :: forall a. Phantom [a] Bool;
-finite_UNIV_list = Phantom False;
-
-instance Finite_UNIV [a] where {
-  finite_UNIV = finite_UNIV_list;
-};
-
-ta_matcha ::
+ta_match ::
   forall a b c.
-    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Eq b, Linorder b,
+    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Eq b, Linorder b,
       Ceq c,
       Corder c) => Ta_ext a b () -> Set a -> Term b c -> Set a -> Set [(c, a)];
-ta_matcha ta qsig (Fun f ts) q =
+ta_match ta qsig (Fun f ts) q =
   let {
     n = size_list ts;
     rls = filtera
@@ -12390,19 +13463,13 @@ ta_matcha ta qsig (Fun f ts) q =
              image concat
                (listset
                  (map (\ (tsi, qsi) ->
-                        ta_matcha ta qsig tsi (inserta qsi bot_set))
+                        ta_match ta qsig tsi (inserta qsi bot_set))
                    (zip ts qs))))
            rls);
-ta_matcha ta qsig (Var x) q =
+ta_match ta qsig (Var x) q =
   image (\ qa -> [(x, qa)])
     (filtera (\ qa -> member qa qsig)
       (sup_set q (compute_trancl q (converse (ta_eps ta)))));
-
-ta_match ::
-  forall a b c.
-    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Eq b, Linorder b,
-      Ceq c, Corder c) => Ta_ext a b () -> Set a -> Term b c -> Set [(c, a)];
-ta_match ta q t = ta_matcha ta q t q;
 
 compute_NF :: forall a. (a -> Maybe a) -> a -> Maybe a;
 compute_NF f a =
@@ -12414,8 +13481,7 @@ compute_NF f a =
 first_rewrite ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(Term a b, Term a b)] ->
-                            Term a b -> Maybe (Term a b);
+      Mapping_impl b) => [(Term a b, Term a b)] -> Term a b -> Maybe (Term a b);
 first_rewrite r s = (case rewrite r s of {
                       [] -> Nothing;
                       t : _ -> Just t;
@@ -12424,13 +13490,12 @@ first_rewrite r s = (case rewrite r s of {
 compute_rstep_NF ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(Term a b, Term a b)] ->
-                            Term a b -> Maybe (Term a b);
+      Mapping_impl b) => [(Term a b, Term a b)] -> Term a b -> Maybe (Term a b);
 compute_rstep_NF r s = compute_NF (first_rewrite r) s;
 
 check_join_NF ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     Term a b ->
                       Term a b -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
@@ -12469,7 +13534,7 @@ check_join_NF r s t =
   });
 
 reverse_rules :: forall a b. [(Term a b, Term a b)] -> [(Term a b, Term a b)];
-reverse_rules rs = map (\ lr -> (snd lr, fst lr)) rs;
+reverse_rules rs = map swap rs;
 
 vars_trs_list :: forall a b. (Eq b) => [(Term a b, Term a b)] -> [b];
 vars_trs_list trs = remdups (concatMap vars_rule_lista trs);
@@ -12477,14 +13542,6 @@ vars_trs_list trs = remdups (concatMap vars_rule_lista trs);
 wf_rules_impl ::
   forall a b. (Eq b) => [(Term a b, Term a b)] -> [(Term a b, Term a b)];
 wf_rules_impl r = filter wf_rule r;
-
-shows_prec_prod ::
-  forall a b.
-    (Showa a, Showa b) => Nat -> (a, b) -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_prod d p =
-  shows_paren
-    (shows_prec Zero_nat (fst p) .
-      shows_prec_char Zero_nat ',' . shows_prec Zero_nat (snd p));
 
 check_pairwise :: forall a b. (a -> a -> Sum b ()) -> [a] -> Sum b ();
 check_pairwise c [] = Inr ();
@@ -12565,9 +13622,6 @@ shows_prec_list Zero_nat
                             (\ x -> Inl (snd x))
                      else Inr ()))));
 
-filtered_fun :: forall a. Filtered a -> a;
-filtered_fun (FPair f n) = f;
-
 apply_af_entry :: forall a b. a -> Af_entry -> [Term a b] -> Term a b;
 apply_af_entry uu (Collapse i) ts = nth ts i;
 apply_af_entry f (AFList is) ts = Fun f (map (nth ts) is);
@@ -12620,17 +13674,6 @@ uncurry_info xml2name =
     (singleton ['e', 't', 'a', 'R', 'u', 'l', 'e', 's'] (rules xml2name) id)
     (\ a sml u e -> (a, (sml, (u, e))));
 
-ordering_constraint_proofa ::
-  forall a.
-    Bool ->
-      (Xml -> Sum_bot [Prelude.Char] a) ->
-        Xml -> Sum_bot [Prelude.Char] (Redtriple_impl a);
-ordering_constraint_proofa bi xml2name =
-  singleton
-    ['o', 'r', 'd', 'e', 'r', 'i', 'n', 'g', 'C', 'o', 'n', 's', 't', 'r', 'a',
-      'i', 'n', 't', 'P', 'r', 'o', 'o', 'f']
-    (redtriple bi xml2name) id;
-
 level_mapping ::
   forall a.
     (Xml -> Sum_bot [Prelude.Char] a) ->
@@ -12668,7 +13711,7 @@ root_redtriple xml2name =
             (['d', 'm', 's'], leaf ['d', 'm', 's'] Dms_Ext),
             (['m', 'a', 'x'], leaf ['m', 'a', 'x'] Max_Ext)])
         id)
-      (level_mapping xml2name) (redtriple False xml2name) Scnp)
+      (level_mapping xml2name) (redtriple False xml2name) SCNP)
     id;
 
 root_ordering_constraint_proof ::
@@ -12685,12 +13728,23 @@ ordering_constraint_proof ::
   forall a.
     Bool ->
       (Xml -> Sum_bot [Prelude.Char] a) ->
+        Xml -> Sum_bot [Prelude.Char] (Redtriple_impl a);
+ordering_constraint_proof bi xml2name =
+  singleton
+    ['o', 'r', 'd', 'e', 'r', 'i', 'n', 'g', 'C', 'o', 'n', 's', 't', 'r', 'a',
+      'i', 'n', 't', 'P', 'r', 'o', 'o', 'f']
+    (redtriple bi xml2name) id;
+
+ordering_constraint_proofa ::
+  forall a.
+    Bool ->
+      (Xml -> Sum_bot [Prelude.Char] a) ->
         Xml ->
           Sum_bot [Prelude.Char]
             (Sum (Root_redtriple_impl a) (Redtriple_impl a));
-ordering_constraint_proof bi xml2name =
+ordering_constraint_proofa bi xml2name =
   choice ['r', 'e', 'd', 'u', 'c', 't', 'i', 'o', 'n', ' ', 'p', 'a', 'i', 'r']
-    [change (ordering_constraint_proofa bi xml2name) Inr,
+    [change (ordering_constraint_proof bi xml2name) Inr,
       change (root_ordering_constraint_proof xml2name) Inl];
 
 create_proj :: forall a. (Key a) => ProjL a -> (a, Nat) -> Nat;
@@ -12838,9 +13892,6 @@ strategy_to_Q No_Strategy uu = [];
 strategy_to_Q Innermost r = remdups (map fst r);
 strategy_to_Q (Innermost_Q q) uv = q;
 
-default_nfs_trs :: Bool;
-default_nfs_trs = False;
-
 o_to_fp_term :: forall a b. Term a b -> (Ctxt a b, (Term a b, Location));
 o_to_fp_term t = (Hole, (t, Ba));
 
@@ -12879,6 +13930,9 @@ strategy_to_fp ::
 strategy_to_fp (Forbidden_Patterns p) r = p;
 strategy_to_fp Outermost r = o_to_fp_impl (map fst r);
 strategy_to_fp (Context_Sensitive mu) r = mu_to_fp_impl mu;
+
+default_nfs_trs :: Bool;
+default_nfs_trs = False;
 
 xml2inn_fp_trs_assm ::
   forall a b.
@@ -12973,7 +14027,7 @@ xml1many2elements_gen ::
           (Xml -> Sum_bot [Prelude.Char] c) ->
             (Xml -> Sum_bot [Prelude.Char] d) ->
               (a -> [b] -> c -> d -> e) -> Xml -> Sum_bot [Prelude.Char] e;
-xml1many2elements_gen tag p1 p2 p3 p4 f (Xml name atts cs text) =
+xml1many2elements_gen tag p1 p2 p3 p4 f (XML name atts cs text) =
   let {
     ds = reverse cs;
     l = size_list cs;
@@ -12988,7 +14042,7 @@ xml1many2elements_gen tag p1 p2 p3 p4 f (Xml name atts cs text) =
                         (\ y ->
                           binda (p4 (nth ds Zero_nat))
                             (\ z -> returna (f x xs y z)))))
-         else fail tag (Xml name atts cs text));
+         else fail tag (XML name atts cs text));
 
 projected_rseq ::
   forall a.
@@ -12999,7 +14053,7 @@ projected_rseq ::
                       ((Term a [Prelude.Char], Term a [Prelude.Char]),
                         [(Pos, ((Term a [Prelude.Char], Term a [Prelude.Char]),
                                  Term a [Prelude.Char]))]);
-projected_rseq xml2name pi (Xml name atts cs text) =
+projected_rseq xml2name pi (XML name atts cs text) =
   let {
     tag = ['p', 'r', 'o', 'j', 'e', 'c', 't', 'e', 'd', 'R', 'e', 'w', 'r', 'i',
             't', 'e', 'S', 'e', 'q', 'u', 'e', 'n', 'c', 'e'];
@@ -13008,7 +14062,7 @@ projected_rseq xml2name pi (Xml name atts cs text) =
                is_none text && equal_nat (size_list cs) (Nat_of_num (Bit0 One))
          then binda (rule xml2name (nth cs Zero_nat))
                 (\ r -> rseq xml2name pi r (nth cs (Nat_of_num One)))
-         else fail tag (Xml name atts cs text));
+         else fail tag (XML name atts cs text));
 
 flat_contexts ::
   forall a.
@@ -13107,7 +14161,7 @@ xml2trs_termination_proof xml2name x =
                  (\ dps _ -> DP_Trans default_nfs_dp True dps)),
              (['r', 'u', 'l', 'e', 'R', 'e', 'm', 'o', 'v', 'a', 'l'],
                triple ['r', 'u', 'l', 'e', 'R', 'e', 'm', 'o', 'v', 'a', 'l']
-                 (ordering_constraint_proofa False xml2name)
+                 (ordering_constraint_proof False xml2name)
                  (singleton ['t', 'r', 's'] (rules xml2name) id)
                  (xml2trs_termination_proof xml2name) Rule_Removal),
              (['b', 'o', 'u', 'n', 'd', 's'],
@@ -13155,6 +14209,12 @@ xml2trs_termination_proof xml2name x =
                       'o', 's', 't']
                  (wcr_proof xml2name) (xml2trs_termination_proof xml2name)
                  Switch_Innermost),
+             (['p', 'e', 'r', 'm', 'u', 't', 'i', 'n', 'g', 'A', 'r', 'g', 'u',
+                'm', 'e', 'n', 't', 'F', 'i', 'l', 't', 'e', 'r'],
+               pair ['p', 'e', 'r', 'm', 'u', 't', 'i', 'n', 'g', 'A', 'r', 'g',
+                      'u', 'm', 'e', 'n', 't', 'F', 'i', 'l', 't', 'e', 'r']
+                 (afs xml2name) (xml2trs_termination_proof xml2name)
+                 Permuting_AFS),
              (['t', 'e', 'r', 'm', 'i', 'n', 'a', 't', 'i', 'o', 'n', 'A', 's',
                 's', 'u', 'm', 'p', 't', 'i', 'o', 'n'],
                singleton
@@ -13210,7 +14270,7 @@ xml2trs_termination_proof xml2name x =
                   (xml2trs_termination_proof xml2name) id),
               (['r', 'u', 'l', 'e', 'R', 'e', 'm', 'o', 'v', 'a', 'l'],
                 tuple4 ['r', 'u', 'l', 'e', 'R', 'e', 'm', 'o', 'v', 'a', 'l']
-                  (ordering_constraint_proofa False xml2name)
+                  (ordering_constraint_proof False xml2name)
                   (singleton ['t', 'r', 's'] (rules xml2name) id)
                   (singleton ['t', 'r', 's'] (rules xml2name) id)
                   (xml2trs_termination_proof xml2name)
@@ -13237,6 +14297,13 @@ xml2trs_termination_proof xml2name x =
                   (singleton ['t', 'r', 's'] (rules xml2name) id)
                   (xml2trs_termination_proof xml2name)
                   (\ i r s -> Uncurry i (r ++ s))),
+              (['p', 'e', 'r', 'm', 'u', 't', 'i', 'n', 'g', 'A', 'r', 'g', 'u',
+                 'm', 'e', 'n', 't', 'F', 'i', 'l', 't', 'e', 'r'],
+                pair ['p', 'e', 'r', 'm', 'u', 't', 'i', 'n', 'g', 'A', 'r',
+                       'g', 'u', 'm', 'e', 'n', 't', 'F', 'i', 'l', 't', 'e',
+                       'r']
+                  (afs xml2name) (xml2trs_termination_proof xml2name)
+                  Permuting_AFS),
               (['f', 'l', 'a', 't', 'C', 'o', 'n', 't', 'e', 'x', 't', 'C', 'l',
                  'o', 's', 'u', 'r', 'e'],
                 tuple4
@@ -13395,7 +14462,7 @@ xml2dp_termination_proof xml2name x =
             Dep_Graph_Proc),
         (['r', 'e', 'd', 'P', 'a', 'i', 'r', 'P', 'r', 'o', 'c'],
           triple ['r', 'e', 'd', 'P', 'a', 'i', 'r', 'P', 'r', 'o', 'c']
-            (ordering_constraint_proof False xml2name)
+            (ordering_constraint_proofa False xml2name)
             (singleton ['d', 'p', 's'] (rules xml2name) id)
             (xml2dp_termination_proof xml2name) Redpair_Proc),
         (['u', 's', 'a', 'b', 'l', 'e', 'R', 'u', 'l', 'e', 's', 'P', 'r', 'o',
@@ -13508,7 +14575,7 @@ xml2dp_termination_proof xml2name x =
         (['r', 'e', 'd', 'P', 'a', 'i', 'r', 'U', 'r', 'P', 'r', 'o', 'c'],
           tuple4
             ['r', 'e', 'd', 'P', 'a', 'i', 'r', 'U', 'r', 'P', 'r', 'o', 'c']
-            (ordering_constraint_proof False xml2name)
+            (ordering_constraint_proofa False xml2name)
             (singleton ['d', 'p', 's'] (rules xml2name) id)
             (singleton ['u', 's', 'a', 'b', 'l', 'e', 'R', 'u', 'l', 'e', 's']
               (rules xml2name) id)
@@ -13518,7 +14585,7 @@ xml2dp_termination_proof xml2name x =
           tuple5
             ['m', 'o', 'n', 'o', 'R', 'e', 'd', 'P', 'a', 'i', 'r', 'U', 'r',
               'P', 'r', 'o', 'c']
-            (ordering_constraint_proofa False xml2name)
+            (ordering_constraint_proof False xml2name)
             (singleton ['d', 'p', 's'] (rules xml2name) id)
             (singleton ['t', 'r', 's'] (rules xml2name) id)
             (singleton ['u', 's', 'a', 'b', 'l', 'e', 'R', 'u', 'l', 'e', 's']
@@ -13529,7 +14596,7 @@ xml2dp_termination_proof xml2name x =
           tuple4
             ['m', 'o', 'n', 'o', 'R', 'e', 'd', 'P', 'a', 'i', 'r', 'P', 'r',
               'o', 'c']
-            (ordering_constraint_proofa False xml2name)
+            (ordering_constraint_proof False xml2name)
             (singleton ['d', 'p', 's'] (rules xml2name) id)
             (singleton ['t', 'r', 's'] (rules xml2name) id)
             (xml2dp_termination_proof xml2name) Mono_Redpair_Proc),
@@ -13624,7 +14691,7 @@ else (if inp == ['u', 'n']
             (tuple5
               ['g', 'e', 'n', 'e', 'r', 'a', 'l', 'R', 'e', 'd', 'P', 'a', 'i',
                 'r', 'P', 'r', 'o', 'c']
-              (ordering_constraint_proofa True xml2name)
+              (ordering_constraint_proof True xml2name)
               (singleton ['s', 't', 'r', 'i', 'c', 't'] (rules xml2name) id)
               (singleton ['b', 'o', 'u', 'n', 'd'] (rules xml2name) id)
               (xml2cond_red_pair_proof xml2name)
@@ -13633,7 +14700,7 @@ else (if inp == ['u', 'n']
             (tuple6
               ['g', 'e', 'n', 'e', 'r', 'a', 'l', 'R', 'e', 'd', 'P', 'a', 'i',
                 'r', 'P', 'r', 'o', 'c']
-              (ordering_constraint_proofa True xml2name)
+              (ordering_constraint_proof True xml2name)
               (singleton ['s', 't', 'r', 'i', 'c', 't'] (rules xml2name) id)
               (singleton ['b', 'o', 'u', 'n', 'd'] (rules xml2name) id)
               (xml2cond_red_pair_proof xml2name)
@@ -13668,7 +14735,7 @@ else (if inp == ['u', 'n']
                   xml1to2elements
                     ['r', 'e', 'd', 'u', 'c', 't', 'i', 'o', 'n', 'P', 'a', 'i',
                       'r']
-                    (ordering_constraint_proofa False xml2name)
+                    (ordering_constraint_proof False xml2name)
                     (singleton
                       ['u', 's', 'a', 'b', 'l', 'e', 'R', 'u', 'l', 'e', 's']
                       (rules xml2name) id)
@@ -13780,10 +14847,10 @@ xml_repl_map =
     let {
       (f, aa) = a;
     } in (\ l ->
-           Xml ['r', 'e', 'p', 'l', 'a', 'c', 'e', 'm', 'e', 'n', 't', 'M', 'a',
+           XML ['r', 'e', 'p', 'l', 'a', 'c', 'e', 'm', 'e', 'n', 't', 'M', 'a',
                  'p', 'E', 'n', 't', 'r', 'y']
              [] (xml_lab f :
-                  Xml ['a', 'r', 'i', 't', 'y'] [] []
+                  XML ['a', 'r', 'i', 't', 'y'] [] []
                     (Just (shows_prec_nat Zero_nat aa [])) :
                     map xml_single_pos l)
              Nothing)
@@ -13795,14 +14862,14 @@ xml_forbidden_pattern ::
       Showa c) => (Ctxt (Lab a [b]) c, (Term (Lab a [b]) c, Location)) -> Xml;
 xml_forbidden_pattern =
   (\ (c, (t, l)) ->
-    Xml ['f', 'o', 'r', 'b', 'i', 'd', 'd', 'e', 'n', 'P', 'a', 't', 't', 'e',
+    XML ['f', 'o', 'r', 'b', 'i', 'd', 'd', 'e', 'n', 'P', 'a', 't', 't', 'e',
           'r', 'n']
       [] [xml_term (ctxt_apply c t), xml_pos (hole_pos c),
            (case l of {
-             H -> Xml ['h', 'e', 'r', 'e'] [] [] Nothing;
-             A -> Xml ['a', 'b', 'o', 'v', 'e'] [] [] Nothing;
-             Ba -> Xml ['b', 'e', 'l', 'o', 'w'] [] [] Nothing;
-             Ra -> Xml ['r', 'i', 'g', 'h', 't'] [] [] Nothing;
+             H -> XML ['h', 'e', 'r', 'e'] [] [] Nothing;
+             A -> XML ['a', 'b', 'o', 'v', 'e'] [] [] Nothing;
+             Ba -> XML ['b', 'e', 'l', 'o', 'w'] [] [] Nothing;
+             Ra -> XML ['r', 'i', 'g', 'h', 't'] [] [] Nothing;
            })]
       Nothing);
 
@@ -13813,73 +14880,35 @@ xml_strategy ::
                     [Xml];
 xml_strategy (Inl No_Strategy) = [];
 xml_strategy (Inl Innermost) =
-  [Xml ['s', 't', 'r', 'a', 't', 'e', 'g', 'y'] []
-     [Xml ['i', 'n', 'n', 'e', 'r', 'm', 'o', 's', 't'] [] [] Nothing] Nothing];
+  [XML ['s', 't', 'r', 'a', 't', 'e', 'g', 'y'] []
+     [XML ['i', 'n', 'n', 'e', 'r', 'm', 'o', 's', 't'] [] [] Nothing] Nothing];
 xml_strategy (Inr Outermost) =
-  [Xml ['s', 't', 'r', 'a', 't', 'e', 'g', 'y'] []
-     [Xml ['o', 'u', 't', 'e', 'r', 'm', 'o', 's', 't'] [] [] Nothing] Nothing];
+  [XML ['s', 't', 'r', 'a', 't', 'e', 'g', 'y'] []
+     [XML ['o', 'u', 't', 'e', 'r', 'm', 'o', 's', 't'] [] [] Nothing] Nothing];
 xml_strategy (Inr (Forbidden_Patterns p)) =
-  [Xml ['s', 't', 'r', 'a', 't', 'e', 'g', 'y'] []
-     [Xml ['f', 'o', 'r', 'b', 'i', 'd', 'd', 'e', 'n', 'P', 'a', 't', 't', 'e',
+  [XML ['s', 't', 'r', 'a', 't', 'e', 'g', 'y'] []
+     [XML ['f', 'o', 'r', 'b', 'i', 'd', 'd', 'e', 'n', 'P', 'a', 't', 't', 'e',
             'r', 'n', 's']
         [] (map xml_forbidden_pattern p) Nothing]
      Nothing];
 xml_strategy (Inr (Context_Sensitive mu)) =
-  [Xml ['s', 't', 'r', 'a', 't', 'e', 'g', 'y'] []
-     [Xml ['c', 'o', 'n', 't', 'e', 'x', 't', 'S', 'e', 'n', 's', 'i', 't', 'i',
+  [XML ['s', 't', 'r', 'a', 't', 'e', 'g', 'y'] []
+     [XML ['c', 'o', 'n', 't', 'e', 'x', 't', 'S', 'e', 'n', 's', 'i', 't', 'i',
             'v', 'e']
         [] (map xml_repl_map mu) Nothing]
      Nothing];
 xml_strategy (Inl (Innermost_Q q)) =
-  [Xml ['s', 't', 'r', 'a', 't', 'e', 'g', 'y'] []
-     [Xml ['i', 'n', 'n', 'e', 'r', 'm', 'o', 's', 't', 'L', 'h', 's', 's'] []
+  [XML ['s', 't', 'r', 'a', 't', 'e', 'g', 'y'] []
+     [XML ['i', 'n', 'n', 'e', 'r', 'm', 'o', 's', 't', 'L', 'h', 's', 's'] []
         (map xml_term q) Nothing]
      Nothing];
-
-default_lab :: forall a b. (Default a) => Lab a b;
-default_lab = UnLab defaulta;
-
-instance (Default a) => Default (Lab a b) where {
-  defaulta = default_lab;
-};
 
 mk_tp ::
   forall a b c d.
     Tp_ops_ext a b c d ->
       (Bool, ([Term b c], ([(Term b c, Term b c)], [(Term b c, Term b c)]))) ->
         a;
-mk_tp i (nfs, (q, (r, rw))) = mka i nfs q r rw;
-
-ceq_option :: forall a. (Ceq a) => Maybe (Maybe a -> Maybe a -> Bool);
-ceq_option =
-  (case ceq of {
-    Nothing -> Nothing;
-    Just eq_0 ->
-      Just (option_rec
-             (\ a -> (case a of {
-                       Nothing -> True;
-                       Just _ -> False;
-                     }))
-             (\ x_0 a ->
-               (case a of {
-                 Nothing -> False;
-                 Just aa -> eq_0 x_0 aa;
-               })));
-  });
-
-instance (Ceq a) => Ceq (Maybe a) where {
-  ceq = ceq_option;
-};
-
-ceq_ctxt :: forall a b. (Eq a, Eq b) => Maybe (Ctxt a b -> Ctxt a b -> Bool);
-ceq_ctxt = Just equal_ctxt;
-
-instance (Eq a, Eq b) => Ceq (Ctxt a b) where {
-  ceq = ceq_ctxt;
-};
-
-instance (Countable a) => Countable [a] where {
-};
+mk_tp i (nfs, (q, (r, rw))) = mkb i nfs q r rw;
 
 nFQ_subset_NF_rulesb :: forall a b c d. Dpp_ops_ext a b c d -> a -> Bool;
 nFQ_subset_NF_rulesb
@@ -14005,24 +15034,10 @@ shows_prec_list Zero_nat
   ['s', 'c', 'f', '(', '_', ')', ' ', '=', ' ', 'a', 'l', 'l', ' ', '1'] .
   shows_nl;
 
-data L_poly a b = LPoly b [(a, b)];
-
-fold_fusion :: forall a b c. Generator a b -> (a -> c -> c) -> b -> c -> c;
-fold_fusion g f s b =
-  (if has_next g s
-    then let {
-           (x, sa) = next g s;
-         } in fold_fusion g f sa (f x b)
-    else b);
-
 sym_collect :: forall a b. (Term a b -> Bool) -> Term a b -> [a];
 sym_collect p (Var x) = [];
 sym_collect p (Fun f ts) =
   (if p (Fun f ts) then [f] else []) ++ concatMap (sym_collect p) ts;
-
-descb ::
-  forall a b c. Non_inf_order_ext a b c -> [Prelude.Char] -> [Prelude.Char];
-descb (Non_inf_order_ext valid ns cc af desc more) = desc;
 
 pat_of ::
   forall a.
@@ -14045,7 +15060,7 @@ pat_of (OC3p rl vj vk vl vm) =
     ([], ((Zero_nat, (Zero_nat, [])), snd rl)));
 pat_of (OCDP1 p vn) = p;
 pat_of (OCDP2 p vo) = p;
-pat_of (Wpeq p vp) = p;
+pat_of (WPEQ p vp) = p;
 pat_of (Lift p vq) = p;
 pat_of (DPOC1_1 p vr vs vt vu) = p;
 pat_of (DPOC1_2 p vv vw vx vy vz) = p;
@@ -14087,23 +15102,6 @@ mk_rtrancl_set_main r todo fin =
 mk_rtrancl_set :: forall a. (Linorder a) => (a -> [a]) -> [a] -> Rbt a ();
 mk_rtrancl_set r init = mk_rtrancl_set_main r init (empty_rm_basic_ops ());
 
-set_impl_option :: forall a. (Set_impla a) => Phantom (Maybe a) Set_impl;
-set_impl_option = Phantom (of_phantom (set_impl :: Phantom a Set_impl));
-
-instance (Set_impla a) => Set_impla (Maybe a) where {
-  set_impl = set_impl_option;
-};
-
-shows_list_prod ::
-  forall a b.
-    (Showa a, Showa b) => [(a, b)] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_prod = shows_list_aux (shows_prec_prod Zero_nat);
-
-instance (Showa a, Showa b) => Showa (a, b) where {
-  shows_prec = shows_prec_prod;
-  shows_list = shows_list_prod;
-};
-
 subst_compose_impl ::
   forall a b.
     (Eq a, Eq b) => [(a, Term b a)] -> [(a, Term b a)] -> [(a, Term b a)];
@@ -14117,7 +15115,7 @@ subst_compose_impl sigma tau =
 
 commutes_impl ::
   forall a b.
-    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Eq b,
+    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Eq b,
       Linorder b) => [(a, Term b a)] -> [(a, Term b a)] -> Bool;
 commutes_impl sigma mu =
   subst_eq (subst_compose_impl sigma mu) (subst_compose_impl mu sigma);
@@ -14129,134 +15127,11 @@ mk_subst_case ::
 mk_subst_case xs sigma tau =
   subst_compose_impl (map (\ x -> (x, sigma x)) xs) tau;
 
-cproper_interval_option ::
-  forall a. (Cproper_interval a) => Maybe (Maybe a) -> Maybe (Maybe a) -> Bool;
-cproper_interval_option Nothing Nothing = True;
-cproper_interval_option Nothing (Just x) = not (is_none x);
-cproper_interval_option (Just x) Nothing = cproper_interval x Nothing;
-cproper_interval_option (Just x) (Just Nothing) = False;
-cproper_interval_option (Just x) (Just (Just y)) = cproper_interval x (Just y);
-
-corder_option ::
-  forall a.
-    (Corder a) => Maybe (Maybe a -> Maybe a -> Bool,
-                          Maybe a -> Maybe a -> Bool);
-corder_option =
-  mapa (\ (leq, lt) ->
-         ((\ x y ->
-            (case x of {
-              Nothing -> True;
-              Just xa -> (case y of {
-                           Nothing -> False;
-                           Just a -> leq xa a;
-                         });
-            })),
-           (\ x a ->
-             (case a of {
-               Nothing -> False;
-               Just y -> (case x of {
-                           Nothing -> True;
-                           Just xa -> lt xa y;
-                         });
-             }))))
-    corder;
-
-instance (Corder a) => Corder (Maybe a) where {
-  corder = corder_option;
-};
-
-instance (Cproper_interval a) => Cproper_interval (Maybe a) where {
-  cproper_interval = cproper_interval_option;
-};
-
-finite_UNIV_option :: forall a. (Finite_UNIV a) => Phantom (Maybe a) Bool;
-finite_UNIV_option = Phantom (of_phantom (finite_UNIV :: Phantom a Bool));
-
-instance (Finite_UNIV a) => Finite_UNIV (Maybe a) where {
-  finite_UNIV = finite_UNIV_option;
-};
-
-cEnum_option ::
-  forall a.
-    (Cenum a) => Maybe ([Maybe a],
-                         ((Maybe a -> Bool) -> Bool,
-                           (Maybe a -> Bool) -> Bool));
-cEnum_option =
-  (case cEnum of {
-    Nothing -> Nothing;
-    Just (enum_a, (enum_all_a, enum_ex_a)) ->
-      Just (Nothing : map Just enum_a,
-             ((\ p -> p Nothing && enum_all_a (\ x -> p (Just x))),
-               (\ p -> p Nothing || enum_ex_a (\ x -> p (Just x)))));
-  });
-
-instance (Cenum a) => Cenum (Maybe a) where {
-  cEnum = cEnum_option;
-};
-
-coherent_rule ::
-  forall a b.
-    (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Eq b,
-      Linorder b) => Set (a, a) ->
-                       Set (Ta_rule a b) -> Ta_rule a b -> Set (a, Maybe a);
-coherent_rule rel rules (TA_rule f qs q) =
-  foldr (sup_set .
-          (\ i ->
-            let {
-              qi = nth qs i;
-              qi_s = image snd (filtera (\ qq -> fst qq == qi) rel);
-              a = sup_seta
-                    (image
-                      (\ qia ->
-                        let {
-                          qsa = list_update qs i qia;
-                          rls = filtera
-                                  (\ (TA_rule g qsaa _) ->
-                                    g == f && qsaa == qsa)
-                                  rules;
-                        } in (if less_eq_set rls
-                                   (set_empty (of_phantom set_impl_ta_rule))
-                               then inserta Nothing bot_set
-                               else image (Just . r_rhs) rls))
-                      qi_s);
-            } in image (\ aa -> (q, aa)) a))
-    (upt Zero_nat (size_list qs)) bot_set;
-
-new_states ::
-  forall a b.
-    (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Eq b,
-      Linorder b) => Ta_ext a b () -> Set (a, a) -> Set (a, Maybe a);
-new_states ta rel =
-  let {
-    rules = ta_rules ta;
-  } in sup_seta (image (coherent_rule rel rules) rules);
-
-normalize_main ::
-  forall a b.
-    (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Eq b,
-      Linorder b) => Ta_ext a b () ->
-                       Set (a, a) -> Set (a, a) -> Maybe (Set (a, a));
-normalize_main ta rel accu =
-  let {
-    new = new_states ta rel;
-  } in (if member Nothing (image snd new) then Nothing
-         else let {
-                new_rel = image (\ (x, y) -> (x, the y)) new;
-                new_accu = sup_set accu rel;
-                todo = minus_set new_rel new_accu;
-              } in (if less_eq_set todo bot_set then Just new_accu
-                     else normalize_main ta todo new_accu));
-
-normalizea ::
-  forall a b.
-    (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Eq b,
-      Linorder b) => Ta_ext a b () -> Maybe (Set (a, a)) -> Maybe (Set (a, a));
-normalizea ta (Just rel) = normalize_main ta rel bot_set;
-normalizea ta Nothing = Nothing;
+ta_matcha ::
+  forall a b c.
+    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Eq b, Linorder b,
+      Ceq c, Corder c) => Ta_ext a b () -> Set a -> Term b c -> Set [(c, a)];
+ta_matcha ta q t = ta_match ta q t q;
 
 adapt_vars :: forall a b c. Term a b -> Term a c;
 adapt_vars (Fun f ts) = Fun f (map adapt_vars ts);
@@ -14264,18 +15139,18 @@ adapt_vars (Fun f ts) = Fun f (map adapt_vars ts);
 ta_member ::
   forall a b c.
     (Eq a, Linorder a, Cenum c, Ceq c, Corder c, Eq c, Linorder c,
-      Set_impla c) => Term a b -> Ta_ext c a () -> Bool;
+      Set_impl c) => Term a b -> Ta_ext c a () -> Bool;
 ta_member t ta =
   ground t &&
     not (less_eq_set (inf_set (ta_final ta) (ta_res ta (adapt_vars t)))
           bot_set);
 
-funas_term_list :: forall a b. Term a b -> [(a, Nat)];
-funas_term_list (Var uu) = [];
-funas_term_list (Fun f ts) = (f, size_list ts) : concatMap funas_term_list ts;
+funas_term_lista :: forall a b. Term a b -> [(a, Nat)];
+funas_term_lista (Var uu) = [];
+funas_term_lista (Fun f ts) = (f, size_list ts) : concatMap funas_term_lista ts;
 
 funas_rule_list :: forall a b. (Term a b, Term a b) -> [(a, Nat)];
-funas_rule_list r = funas_term_list (fst r) ++ funas_term_list (snd r);
+funas_rule_list r = funas_term_lista (fst r) ++ funas_term_lista (snd r);
 
 funas_trs_list :: forall a b. (Eq a) => [(Term a b, Term a b)] -> [(a, Nat)];
 funas_trs_list r = remdups (concatMap funas_rule_list r);
@@ -14292,6 +15167,16 @@ funs_rule_lista r = funs_term_list (fst r) ++ funs_term_list (snd r);
 
 funs_rule_list :: forall a b. (Eq a) => (Term a b, Term a b) -> [a];
 funs_rule_list r = remdups (funs_rule_lista r);
+
+rwb :: forall a b c d. Tp_ops_ext a b c d -> a -> [(Term b c, Term b c)];
+rwb (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules
+      rules_map delete_R_Rw split_rules mk nfs more)
+  = rw;
+
+rb :: forall a b c d. Tp_ops_ext a b c d -> a -> [(Term b c, Term b c)];
+rb (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules rules_map
+     delete_R_Rw split_rules mk nfs more)
+  = r;
 
 uncurry_of_sig_list ::
   forall a.
@@ -14331,9 +15216,9 @@ sig_list_to_sig_map a sml fmap =
 uncurry_eta_split ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(Term a b, Term a b)] ->
-                            [(Term a b, Term a b)] ->
-                              ([(Term a b, Term a b)], [(Term a b, Term a b)]);
+      Mapping_impl b) => [(Term a b, Term a b)] ->
+                           [(Term a b, Term a b)] ->
+                             ([(Term a b, Term a b)], [(Term a b, Term a b)]);
 uncurry_eta_split eboth rtest =
   let {
     test =
@@ -14345,7 +15230,7 @@ uncurry_eta_split eboth rtest =
 
 eta_closed_rules ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => a -> (a -> Nat -> [a]) ->
                          [(Term a b, Term a b)] ->
                            [(Term a b, Term a b)] ->
@@ -14392,11 +15277,6 @@ x == y &&
       ra)
     (\ x -> Inl (snd x));
 
-rwa :: forall a b c d. Tp_ops_ext a b c d -> a -> [(Term b c, Term b c)];
-rwa (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules
-      rules_map delete_R_Rw split_rules mk nfs more)
-  = rw;
-
 uncurry_rules ::
   forall a b.
     (Eq a) => a -> (a -> Nat -> [a]) ->
@@ -14407,18 +15287,13 @@ uncurry_rules a sm =
 check_CS_subseteq ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(Term a b, Term a b)] ->
-                            [(Term a b, Term a b)] ->
-                              Sum (Term a b, Term a b) ();
+      Mapping_impl b) => [(Term a b, Term a b)] ->
+                           [(Term a b, Term a b)] ->
+                             Sum (Term a b, Term a b) ();
 check_CS_subseteq r s =
   catcha
     (forallM (\ (l, ra) -> check (any (instance_rule (l, ra)) s) (l, ra)) r)
     (\ x -> Inl (snd x));
-
-ra :: forall a b c d. Tp_ops_ext a b c d -> a -> [(Term b c, Term b c)];
-ra (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules rules_map
-     delete_R_Rw split_rules mk nfs more)
-  = r;
 
 uncurry_tt ::
   forall a b.
@@ -14433,10 +15308,10 @@ uncurry_tt ::
 uncurry_tt i info r tp =
   let {
     (a, (sml, (u, eb))) = info;
-    raa = ra i tp;
-    rw = rwa i tp;
-    (e, ew) = uncurry_eta_split eb raa;
-    r_eta = e ++ raa;
+    ra = rb i tp;
+    rw = rwb i tp;
+    (e, ew) = uncurry_eta_split eb ra;
+    r_eta = e ++ ra;
     rw_eta = ew ++ rw;
     rb_eta = r_eta ++ rw_eta;
     fmap = (\ _ f _ -> f);
@@ -14481,14 +15356,14 @@ shows_prec_list Zero_nat
                                 (\ _ ->
                                   bindb (catcha
   (forallM
-    (\ (l, rb) ->
+    (\ (l, rc) ->
       check (not (is_Var l))
         (shows_prec_list Zero_nat
            ['l', 'h', 's', ' ', 'm', 'u', 's', 't', ' ', 'n', 'o', 't', ' ',
              'b', 'e', ' ', 'a', ' ', 'v', 'a', 'r', 'i', 'a', 'b', 'l', 'e',
              ' ', 'i', 'n', ' ', 'r', 'u', 'l', 'e', ' '] .
           shows_rule (shows_prec Zero_nat) (shows_prec_list Zero_nat)
-            [' ', '-', '>', ' '] (l, rb)))
+            [' ', '-', '>', ' '] (l, rc)))
     rw_eta)
   (\ x -> Inl (snd x)))
                                     (\ _ ->
@@ -14537,7 +15412,7 @@ shows_prec_list Zero_nat
                           'S']))))))))))
          of {
          Inl aa -> Inl aa;
-         Inr _ -> Inr (mka i (nfsa i tp) [] uR (uRw ++ u));
+         Inr _ -> Inr (mkb i (nfsb i tp) [] uR (uRw ++ u));
        });
 
 af_rules ::
@@ -14610,6 +15485,9 @@ xml2non_join_info xml2name x =
       (['c', 'a', 'p', 'N', 'o', 't', 'U', 'n', 'i', 'f'],
         leaf ['c', 'a', 'p', 'N', 'o', 't', 'U', 'n', 'i', 'f']
           (Tcap_Non_Unif default_grd_fun)),
+      (['g', 'r', 'o', 'u', 'n', 'd', 'i', 'n', 'g'],
+        pair ['g', 'r', 'o', 'u', 'n', 'd', 'i', 'n', 'g'] (substa xml2name)
+          (xml2non_join_info xml2name) Grounding),
       (['e', 'm', 'p', 't', 'y', 'T', 'r', 'e', 'e', 'A', 'u', 't', 'o', 'm',
          'a', 't', 'a', 'I', 'n', 't', 'e', 'r', 's', 'e', 'c', 't', 'i', 'o',
          'n'],
@@ -14634,7 +15512,7 @@ xml2non_join_info xml2name x =
       (['s', 't', 'r', 'i', 'c', 't', 'D', 'e', 'c', 'r', 'e', 'a', 's', 'e'],
         singleton
           ['s', 't', 'r', 'i', 'c', 't', 'D', 'e', 'c', 'r', 'e', 'a', 's', 'e']
-          (ordering_constraint_proofa False xml2name) Reduction_Pair_Gt),
+          (ordering_constraint_proof False xml2name) Reduction_Pair_Gt),
       (['a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 'F', 'i', 'l', 't', 'e', 'r',
          'N', 'o', 'n', 'J', 'o', 'i', 'n'],
         pair ['a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 'F', 'i', 'l', 't', 'e',
@@ -14679,11 +15557,11 @@ xml2ncr_proof xml2name x =
 
 xml_signature :: forall a b. (Showa a, Showa b) => [(Lab a [b], Nat)] -> Xml;
 xml_signature fs =
-  Xml ['s', 'i', 'g', 'n', 'a', 't', 'u', 'r', 'e'] []
+  XML ['s', 'i', 'g', 'n', 'a', 't', 'u', 'r', 'e'] []
     (map (\ (f, n) ->
-           Xml ['s', 'y', 'm', 'b', 'o', 'l'] []
+           XML ['s', 'y', 'm', 'b', 'o', 'l'] []
              [xml_lab f,
-               Xml ['a', 'r', 'i', 't', 'y'] [] []
+               XML ['a', 'r', 'i', 't', 'y'] [] []
                  (Just (shows_prec_nat Zero_nat n []))]
              Nothing)
       fs)
@@ -14696,39 +15574,15 @@ xml_trs_input ::
                     [(Term (Lab a [b]) c, Term (Lab a [b]) c)] ->
                       Maybe [(Term (Lab a [b]) c, Term (Lab a [b]) c)] -> Xml;
 xml_trs_input strat r Nothing =
-  Xml ['t', 'r', 's', 'I', 'n', 'p', 'u', 't'] []
+  XML ['t', 'r', 's', 'I', 'n', 'p', 'u', 't'] []
     ([xml_rules ['t', 'r', 's'] r] ++ xml_strategy strat) Nothing;
 xml_trs_input strat r (Just s) =
-  Xml ['t', 'r', 's', 'I', 'n', 'p', 'u', 't'] []
+  XML ['t', 'r', 's', 'I', 'n', 'p', 'u', 't'] []
     (xml_rules ['t', 'r', 's'] r :
       xml_strategy strat ++
         [xml_rules
            ['r', 'e', 'l', 'a', 't', 'i', 'v', 'e', 'R', 'u', 'l', 'e', 's'] s])
     Nothing;
-
-check_linear_trs ::
-  forall a b.
-    (Showa a, Ceq b, Corder b, Set_impla b,
-      Showa b) => [(Term a b, Term a b)] ->
-                    Sum ([Prelude.Char] -> [Prelude.Char]) ();
-check_linear_trs r =
-  catcha
-    (catcha
-      (forallM
-        (\ x ->
-          (if let {
-                (l, ra) = x;
-              } in linear_term l && linear_term ra
-            then Inr () else Inl x))
-        r)
-      (\ x -> Inl (snd x)))
-    (\ _ ->
-      Inl (shows_prec_list Zero_nat r .
-            shows_nl .
-              shows_string
-                ['i', 's', ' ', 'n', 'o', 't', ' ', 'l', 'i', 'n', 'e', 'a',
-                  'r'] .
-                shows_nl));
 
 mgu_var_disjoint_generic ::
   forall a b c d.
@@ -14772,6 +15626,30 @@ critical_pairs_impl p r =
         (poss_list l))
     p;
 
+check_linear_trs ::
+  forall a b.
+    (Showa a, Ceq b, Corder b, Set_impl b,
+      Showa b) => [(Term a b, Term a b)] ->
+                    Sum ([Prelude.Char] -> [Prelude.Char]) ();
+check_linear_trs r =
+  catcha
+    (catcha
+      (forallM
+        (\ x ->
+          (if let {
+                (l, ra) = x;
+              } in linear_term l && linear_term ra
+            then Inr () else Inl x))
+        r)
+      (\ x -> Inl (snd x)))
+    (\ _ ->
+      Inl (shows_prec_list Zero_nat r .
+            shows_nl .
+              shows_string
+                ['i', 's', ' ', 'n', 'o', 't', ' ', 'l', 'i', 'n', 'e', 'a',
+                  'r'] .
+                shows_nl));
+
 indent ::
   ([Prelude.Char] -> [Prelude.Char]) -> [Prelude.Char] -> [Prelude.Char];
 indent p s =
@@ -14780,8 +15658,8 @@ indent p s =
 reachable_terms ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(Term a b, Term a b)] ->
-                            Term a b -> Nat -> [Term a b];
+      Mapping_impl b) => [(Term a b, Term a b)] ->
+                           Term a b -> Nat -> [Term a b];
 reachable_terms r s n =
   (if equal_nat n Zero_nat then [s]
     else let {
@@ -14900,6 +15778,22 @@ is_ur_closed_af_impl_dpp_mv i d pi =
            sa = map (map_vars (\ a -> 'x' : a)) s;
          } in (\ t -> urc sa u sa (map_vars (\ a -> 'x' : a) t)));
 
+wwf_rulesa :: forall a b c d. Dpp_ops_ext a b c d -> a -> Bool;
+wwf_rulesa
+  (Dpp_ops_ext dpp p pw pairs q r rw rules q_empty rules_no_left_var
+    rules_non_collapsing is_QNF nFQ_subset_NF_rules rules_map reverse_rules_map
+    intersect_pairs replace_pair intersect_rules delete_P_Pw delete_R_Rw
+    split_pairs split_rules mk minimal nfs wwf_rules more)
+  = wwf_rules;
+
+q_emptyc :: forall a b c d. Dpp_ops_ext a b c d -> a -> Bool;
+q_emptyc
+  (Dpp_ops_ext dpp p pw pairs q r rw rules q_empty rules_no_left_var
+    rules_non_collapsing is_QNF nFQ_subset_NF_rules rules_map reverse_rules_map
+    intersect_pairs replace_pair intersect_rules delete_P_Pw delete_R_Rw
+    split_pairs split_rules mk minimal nfs wwf_rules more)
+  = q_empty;
+
 matchCapRMBelow ::
   forall a b.
     (Eq a,
@@ -14994,22 +15888,6 @@ check_ur_P_closed_rm_af rm ur p pi =
                    'e', 's', ' ', 'o', 'f', ' ', 'r', 'h', 's', ' ', 'o', 'f',
                    ' ', 'D', 'P', 's'] .
                 shows_nl . x)));
-
-wwf_rulesa :: forall a b c d. Dpp_ops_ext a b c d -> a -> Bool;
-wwf_rulesa
-  (Dpp_ops_ext dpp p pw pairs q r rw rules q_empty rules_no_left_var
-    rules_non_collapsing is_QNF nFQ_subset_NF_rules rules_map reverse_rules_map
-    intersect_pairs replace_pair intersect_rules delete_P_Pw delete_R_Rw
-    split_pairs split_rules mk minimal nfs wwf_rules more)
-  = wwf_rules;
-
-q_emptyc :: forall a b c d. Dpp_ops_ext a b c d -> a -> Bool;
-q_emptyc
-  (Dpp_ops_ext dpp p pw pairs q r rw rules q_empty rules_no_left_var
-    rules_non_collapsing is_QNF nFQ_subset_NF_rules rules_map reverse_rules_map
-    intersect_pairs replace_pair intersect_rules delete_P_Pw delete_R_Rw
-    split_pairs split_rules mk minimal nfs wwf_rules more)
-  = q_empty;
 
 smart_usable_rules_checker_impl ::
   forall a b.
@@ -15106,6 +15984,38 @@ pairsa
     split_pairs split_rules mk minimal nfs wwf_rules more)
   = pairs;
 
+valida ::
+  forall a b c.
+    Root_redtriple_ext a b c -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+valida (Root_redtriple_ext valid s ns nst af aft desc more) = valid;
+
+descb ::
+  forall a b c. Root_redtriple_ext a b c -> [Prelude.Char] -> [Prelude.Char];
+descb (Root_redtriple_ext valid s ns nst af aft desc more) = desc;
+
+nsta ::
+  forall a b c.
+    Root_redtriple_ext a b c ->
+      (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+nsta (Root_redtriple_ext valid s ns nst af aft desc more) = nst;
+
+aft :: forall a b c. Root_redtriple_ext a b c -> (a, Nat) -> Nat -> Bool;
+aft (Root_redtriple_ext valid s ns nst af aft desc more) = aft;
+
+nsa ::
+  forall a b c.
+    Root_redtriple_ext a b c ->
+      (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+nsa (Root_redtriple_ext valid s ns nst af aft desc more) = ns;
+
+afa :: forall a b c. Root_redtriple_ext a b c -> (a, Nat) -> Nat -> Bool;
+afa (Root_redtriple_ext valid s ns nst af aft desc more) = af;
+
+sa :: forall a b c.
+        Root_redtriple_ext a b c ->
+          (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+sa (Root_redtriple_ext valid s ns nst af aft desc more) = s;
+
 generic_ur_af_root_redtriple_proc ::
   forall a b.
     (Eq b, Key b,
@@ -15121,7 +16031,7 @@ generic_ur_af_root_redtriple_proc i rp u_opt premove dpp =
               let {
                 (ps, pns) = split_pairsa i dpp premove;
                 p = pairsa i dpp;
-                pi = af rp;
+                pi = afa rp;
                 pia = aft rp;
                 is_def = (\ fn -> not (null (rules_mapb i dpp fn)));
               } in bindb (catcha
@@ -15177,11 +16087,38 @@ generic_ur_af_root_redtriple_proc i rp u_opt premove dpp =
                      'p', 'r', 'o', 'c', 'e', 's', 's', 'o', 'r', ' ', 'w', 'i',
                      't', 'h', ' ', 't', 'h', 'e', ' ', 'f', 'o', 'l', 'l', 'o',
                      'w', 'i', 'n', 'g'] .
-                  shows_nl . descaa rp . shows_nl . x))
+                  shows_nl . descb rp . shows_nl . x))
     of {
     Inl a -> Inl a;
     Inr _ -> Inr (delete_P_Pwa i dpp premove premove);
   });
+
+valid ::
+  forall a b c.
+    Redtriple_ext a b c -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+valid (Redtriple_ext valid s ns nst af mono desc cpx more) = valid;
+
+desc :: forall a b c. Redtriple_ext a b c -> [Prelude.Char] -> [Prelude.Char];
+desc (Redtriple_ext valid s ns nst af mono desc cpx more) = desc;
+
+nst ::
+  forall a b c.
+    Redtriple_ext a b c ->
+      (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+nst (Redtriple_ext valid s ns nst af mono desc cpx more) = nst;
+
+ns :: forall a b c.
+        Redtriple_ext a b c ->
+          (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+ns (Redtriple_ext valid s ns nst af mono desc cpx more) = ns;
+
+af :: forall a b c. Redtriple_ext a b c -> (a, Nat) -> Nat -> Bool;
+af (Redtriple_ext valid s ns nst af mono desc cpx more) = af;
+
+s :: forall a b c.
+       Redtriple_ext a b c ->
+         (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+s (Redtriple_ext valid s ns nst af mono desc cpx more) = s;
 
 generic_ur_af_redtriple_proc ::
   forall a b.
@@ -15198,8 +16135,7 @@ generic_ur_af_redtriple_proc i rp u_opt premove dpp =
               let {
                 (ps, pns) = split_pairsa i dpp premove;
                 p = pairsa i dpp;
-              } in bindb (smart_usable_rules_checker_impl i dpp (afa rp) u_opt
-                           p)
+              } in bindb (smart_usable_rules_checker_impl i dpp (af rp) u_opt p)
                      (\ u ->
                        bindb (catcha
                                (catcha (forallM (ns rp) u) (\ x -> Inl (snd x)))
@@ -15235,7 +16171,7 @@ generic_ur_af_redtriple_proc i rp u_opt premove dpp =
                      'n', ' ', 'p', 'a', 'i', 'r', ' ', 'p', 'r', 'o', 'c', 'e',
                      's', 's', 'o', 'r', ' ', 'w', 'i', 't', 'h', ' ', 't', 'h',
                      'e', ' ', 'f', 'o', 'l', 'l', 'o', 'w', 'i', 'n', 'g'] .
-                  shows_nl . desca rp . shows_nl . x))
+                  shows_nl . desc rp . shows_nl . x))
     of {
     Inl a -> Inl a;
     Inr _ -> Inr (delete_P_Pwa i dpp premove premove);
@@ -15349,9 +16285,15 @@ usable_rules_proc i u dpp =
     Inr _ -> Inr (intersect_rulesb i dpp u);
   });
 
+mono ::
+  forall a b c.
+    Redtriple_ext a b c ->
+      [(Term a b, Term a b)] -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+mono (Redtriple_ext valid s ns nst af mono desc cpx more) = mono;
+
 mono_inn_usable_rules_ce_proc ::
   forall a b.
-    (Ceq b, Corder b, Eq b, Key b, Set_impla b,
+    (Ceq b, Corder b, Eq b, Key b, Set_impl b,
       Showa b) => Dpp_ops_ext a b [Prelude.Char] () ->
                     Redtriple_ext b [Prelude.Char] () ->
                       [(Term b [Prelude.Char], Term b [Prelude.Char])] ->
@@ -15421,7 +16363,7 @@ mono_inn_usable_rules_ce_proc i rp premove rremove ur dpp =
                      'o', 'c', 'e', 's', 's', 'o', 'r', ' ', 'w', 'i', 't', 'h',
                      ' ', 't', 'h', 'e', ' ', 'f', 'o', 'l', 'l', 'o', 'w', 'i',
                      'n', 'g'] .
-                  shows_nl . desca rp . shows_nl . x))
+                  shows_nl . desc rp . shows_nl . x))
     of {
     Inl a -> Inl a;
     Inr _ ->
@@ -15430,7 +16372,7 @@ mono_inn_usable_rules_ce_proc i rp premove rremove ur dpp =
 
 mono_ur_redpair_proc ::
   forall a b c.
-    (Ceq b, Corder b, Eq b, Set_impla b, Showa b, Eq c,
+    (Ceq b, Corder b, Eq b, Set_impl b, Showa b, Eq c,
       Showa c) => Dpp_ops_ext a b c () ->
                     Redtriple_ext b c () ->
                       [(Term b c, Term b c)] ->
@@ -15526,7 +16468,7 @@ mono_ur_redpair_proc i rp premove rremove ur dpp =
                      'c', 'e', 's', 's', 'o', 'r', ' ', 'w', 'i', 't', 'h', ' ',
                      't', 'h', 'e', ' ', 'f', 'o', 'l', 'l', 'o', 'w', 'i', 'n',
                      'g'] .
-                  shows_nl . desca rp . shows_nl . x))
+                  shows_nl . desc rp . shows_nl . x))
     of {
     Inl a -> Inl a;
     Inr _ ->
@@ -15535,7 +16477,7 @@ mono_ur_redpair_proc i rp premove rremove ur dpp =
 
 generic_mono_ur_redpair_proc ::
   forall a b.
-    (Ceq b, Corder b, Eq b, Key b, Set_impla b,
+    (Ceq b, Corder b, Eq b, Key b, Set_impl b,
       Showa b) => Dpp_ops_ext a b [Prelude.Char] () ->
                     Redtriple_ext b [Prelude.Char] () ->
                       [(Term b [Prelude.Char], Term b [Prelude.Char])] ->
@@ -15630,12 +16572,10 @@ initial_conditions_gen_impl pa bef_len aft_len p st =
              Zero_nat (plus_nat bef_len aft_len))
          a;
 
-data Condition_type = Bound | Strict | Non_Strict;
-
 disjoint_variant ::
   forall a b.
-    (Eq a, Card_UNIV b, Ceq b, Cproper_interval b, Eq b, Mapping_impla b,
-      Set_impla b) => [(Term a b, Term a b)] -> [(Term a b, Term a b)] -> Bool;
+    (Eq a, Card_UNIV b, Ceq b, Cproper_interval b, Eq b, Mapping_impl b,
+      Set_impl b) => [(Term a b, Term a b)] -> [(Term a b, Term a b)] -> Bool;
 disjoint_variant sts uvs =
   equal_nat (size_list sts) (size_list uvs) &&
     all_interval_nat (\ i -> eq_rule_mod_vars (nth sts i) (nth uvs i)) Zero_nat
@@ -15727,13 +16667,6 @@ get_ur_calc_impl_dpp i d pi =
     qnf = is_QNFc i d;
     r = rulesd i d;
   } in usable_rules_calculator qnf ic r pi;
-
-card_UNIV_list :: forall a. Phantom [a] Nat;
-card_UNIV_list = Phantom Zero_nat;
-
-instance Card_UNIV [a] where {
-  card_UNIV = card_UNIV_list;
-};
 
 inn_usable_rules_pair ::
   forall a b.
@@ -15848,41 +16781,6 @@ deep_normalize_cc ::
     (Eq a) => ([a] -> a) -> Cond_constraint b a -> Cond_constraint b a;
 deep_normalize_cc fresh c = normalize_alpha fresh (deep_normalize_cca c);
 
-equal_cond_constraint ::
-  forall a b.
-    (Eq a, Eq b) => Cond_constraint a b -> Cond_constraint a b -> Bool;
-equal_cond_constraint (CC_all v cond_constrainta) (CC_impl list cond_constraint)
-  = False;
-equal_cond_constraint (CC_impl list cond_constrainta) (CC_all v cond_constraint)
-  = False;
-equal_cond_constraint (CC_all v cond_constraint) (CC_rewr term1 term2) = False;
-equal_cond_constraint (CC_rewr term1 term2) (CC_all v cond_constraint) = False;
-equal_cond_constraint (CC_impl list cond_constraint) (CC_rewr term1 term2) =
-  False;
-equal_cond_constraint (CC_rewr term1 term2) (CC_impl list cond_constraint) =
-  False;
-equal_cond_constraint (CC_all v cond_constraint) (CC_cond bool prod) = False;
-equal_cond_constraint (CC_cond bool prod) (CC_all v cond_constraint) = False;
-equal_cond_constraint (CC_impl list cond_constraint) (CC_cond bool prod) =
-  False;
-equal_cond_constraint (CC_cond bool prod) (CC_impl list cond_constraint) =
-  False;
-equal_cond_constraint (CC_rewr term1 term2) (CC_cond bool prod) = False;
-equal_cond_constraint (CC_cond bool prod) (CC_rewr term1 term2) = False;
-equal_cond_constraint (CC_all va cond_constrainta) (CC_all v cond_constraint) =
-  va == v && equal_cond_constraint cond_constrainta cond_constraint;
-equal_cond_constraint (CC_impl lista cond_constrainta)
-  (CC_impl list cond_constraint) =
-  lista == list && equal_cond_constraint cond_constrainta cond_constraint;
-equal_cond_constraint (CC_rewr term1a term2a) (CC_rewr term1 term2) =
-  equal_term term1a term1 && equal_term term2a term2;
-equal_cond_constraint (CC_cond boola proda) (CC_cond bool prod) =
-  boola == bool && proda == prod;
-
-instance (Eq a, Eq b) => Eq (Cond_constraint a b) where {
-  a == b = equal_cond_constraint a b;
-};
-
 check_subsumesa ::
   forall a b.
     (Eq a, Eq b) => Cond_constraint a b -> Cond_constraint a b -> Bool;
@@ -15974,7 +16872,7 @@ check_constraint_present i dpp constant p bef aft ccs =
 
 check_left_linear_trs ::
   forall a b.
-    (Showa a, Ceq b, Corder b, Set_impla b,
+    (Showa a, Ceq b, Corder b, Set_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     Sum ([Prelude.Char] -> [Prelude.Char]) ();
 check_left_linear_trs trs =
@@ -16043,6 +16941,29 @@ check_weakly_orthogonal r =
                        [' ', '-', '>', ' '] r .
                        indent x));
 
+validb ::
+  forall a b c.
+    Non_inf_order_ext a b c -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+validb (Non_inf_order_ext valid ns cc af desc more) = valid;
+
+descc ::
+  forall a b c. Non_inf_order_ext a b c -> [Prelude.Char] -> [Prelude.Char];
+descc (Non_inf_order_ext valid ns cc af desc more) = desc;
+
+nsb ::
+  forall a b c.
+    Non_inf_order_ext a b c ->
+      (Term a b, Term a b) -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+nsb (Non_inf_order_ext valid ns cc af desc more) = ns;
+
+cc :: forall a b c.
+        Non_inf_order_ext a b c ->
+          C_constraint a b -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+cc (Non_inf_order_ext valid ns cc af desc more) = cc;
+
+afb :: forall a b c. Non_inf_order_ext a b c -> (a, Nat) -> Nat -> Dependance;
+afb (Non_inf_order_ext valid ns cc af desc more) = af;
+
 range_vars_impl :: forall a b. (Eq a, Eq b) => [(a, Term b a)] -> [a];
 range_vars_impl sigma =
   let {
@@ -16103,11 +17024,11 @@ cc_unbound (CC_cond v va) = ([], CC_cond v va);
 cc_unbound (CC_rewr v va) = ([], CC_rewr v va);
 cc_unbound (CC_impl v va) = ([], CC_impl v va);
 
-funas_args_term_list :: forall a b. Term a b -> [(a, Nat)];
-funas_args_term_list t = concatMap funas_term_list (args t);
+funas_args_term_lista :: forall a b. Term a b -> [(a, Nat)];
+funas_args_term_lista t = concatMap funas_term_lista (args t);
 
-funas_args_term_lista :: forall a b. (Eq a) => Term a b -> [(a, Nat)];
-funas_args_term_lista = remdups . funas_args_term_list;
+funas_args_term_list :: forall a b. (Eq a) => Term a b -> [(a, Nat)];
+funas_args_term_list = remdups . funas_args_term_lista;
 
 check_rys ::
   forall a b.
@@ -16150,7 +17071,7 @@ check_rys d rt r rys =
                                      shows_prec_list Zero_nat
                                        [' ', 'o', 'f', ' ', 't', 'h', 'e', ' ',
  'r', 'h', 's']))
-                         (funas_args_term_lista ra))
+                         (funas_args_term_list ra))
                        (\ x -> Inl (snd x)))
                  (\ _ ->
                    catcha (check_disjoint ys (vars_term_list r))
@@ -16210,12 +17131,12 @@ concl_of (CC_all v va) = CC_all v va;
 normalize_cc :: forall a b. Cond_constraint a b -> Cond_constraint a b;
 normalize_cc c = CC_impl (prems_of c) (concl_of c);
 
-funas_term_lista :: forall a b. (Eq a) => Term a b -> [(a, Nat)];
-funas_term_lista = remdups . funas_term_list;
+funas_term_list :: forall a b. (Eq a) => Term a b -> [(a, Nat)];
+funas_term_list = remdups . funas_term_lista;
 
 check_cc_prf ::
   forall a.
-    (Ceq a, Corder a, Eq a, Set_impla a,
+    (Ceq a, Corder a, Eq a, Set_impl a,
       Showa a) => [(Term a [Prelude.Char], Term a [Prelude.Char])] ->
                     ((a, Nat) -> Bool) ->
                       [(a, Nat)] ->
@@ -16703,7 +17624,7 @@ check_cc_prf r da f m_ortho ca (Funarg_Into_Var c i x d p) =
                                      (nth ss i,
                                        drop (plus_nat i (Nat_of_num One)) ss));
                                } in bindb (catcha
-    (check_subseteq (funas_term_lista pa) f)
+    (check_subseteq (funas_term_list pa) f)
     (\ xa ->
       Inl (shows_string
              ['f', 'u', 'n', 'c', 't', 'i', 'o', 'n', ' ', 's', 'y', 'm', 'b',
@@ -16821,7 +17742,7 @@ bindb (check (not (da fn))
               't', ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'i', 'n', ' ',
               'F'])))
                                       (concatMap
-(\ x_t -> funas_term_lista (snd x_t)) dom_ran))
+(\ x_t -> funas_term_list (snd x_t)) dom_ran))
                                     (\ x -> Inl (snd x)))
                               (\ _ ->
                                 let {
@@ -17050,7 +17971,7 @@ shows_nl .
 
 check_cc_prfs ::
   forall a b.
-    (Ceq a, Corder a, Eq a, Set_impla a,
+    (Ceq a, Corder a, Eq a, Set_impl a,
       Showa a) => [(Term a [Prelude.Char], Term a [Prelude.Char])] ->
                     ((a, Nat) -> Bool) ->
                       [(a, Nat)] ->
@@ -17066,20 +17987,15 @@ check_cc_prfs r d f m_ortho ((c, (uu, prf)) : cpfs) =
 
 funas_args_rule_list :: forall a b. (Term a b, Term a b) -> [(a, Nat)];
 funas_args_rule_list r =
-  funas_args_term_list (fst r) ++ funas_args_term_list (snd r);
+  funas_args_term_lista (fst r) ++ funas_args_term_lista (snd r);
 
 funas_args_trs_list ::
   forall a b. (Eq a) => [(Term a b, Term a b)] -> [(a, Nat)];
 funas_args_trs_list r = remdups (concatMap funas_args_rule_list r);
 
-validb ::
-  forall a b c.
-    Non_inf_order_ext a b c -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-validb (Non_inf_order_ext valid ns cc af desc more) = valid;
-
 conditional_general_reduction_pair_proc ::
   forall a b.
-    (Ceq b, Corder b, Eq b, Key b, Set_impla b,
+    (Ceq b, Corder b, Eq b, Key b, Set_impl b,
       Showa b) => Dpp_ops_ext a b [Prelude.Char] () ->
                     ([(b, Nat)] -> Non_inf_order_ext b [Prelude.Char] ()) ->
                       [(Term b [Prelude.Char], Term b [Prelude.Char])] ->
@@ -17094,7 +18010,7 @@ conditional_general_reduction_pair_proc i grp pstrict pbound prof merge dpp =
     r = rulesd i dpp;
     f = remdups
           (funas_trs_list r ++
-            funas_args_trs_list p ++ concatMap funas_term_lista (qc i dpp));
+            funas_args_trs_list p ++ concatMap funas_term_list (qc i dpp));
     rp = grp f;
   } in (case catcha
                (bindb (validb rp)
@@ -17184,7 +18100,7 @@ shows_nl . x)))))))))))))
                           'a', 's', 'e', ' ', 'p', 'r', 'o', 'c', 'e', 's', 's',
                           'o', 'r', ' ', 'w', 'i', 't', 'h', ' ', 't', 'h', 'e',
                           ' ', 'f', 'o', 'l', 'l', 'o', 'w', 'i', 'n', 'g'] .
-                       shows_nl . descb rp . shows_nl . x))
+                       shows_nl . descc rp . shows_nl . x))
          of {
          Inl a -> Inl a;
          Inr _ ->
@@ -17368,7 +18284,7 @@ pa (Dpp_ops_ext dpp p pw pairs q r rw rules q_empty rules_no_left_var
 
 nF_terms_list ::
   forall a b c.
-    (Eq a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Corder b, Eq b, Mapping_impl b,
       Eq c) => [Term a b] -> Term a c -> Bool;
 nF_terms_list ls t =
   all (\ s -> all (\ l -> not (matches s l)) ls) (supteq_list t);
@@ -17550,15 +18466,6 @@ g_ball_dflt_basic_oops_rm_basic_ops s p =
   iteratei_bset_op_list_it_dflt_basic_oops_rm_basic_ops s (\ c -> c)
     (\ x _ -> p x) True;
 
-data Scg a b = Null | Scg a a [(b, b)] [(b, b)];
-
-equal_scg :: forall a b. (Eq a, Eq b) => Scg a b -> Scg a b -> Bool;
-equal_scg (Scg pp1 pp2 list1 list2) Null = False;
-equal_scg Null (Scg pp1 pp2 list1 list2) = False;
-equal_scg (Scg pp1a pp2a list1a list2a) (Scg pp1 pp2 list1 list2) =
-  pp1a == pp1 && pp2a == pp2 && list1a == list1 && list2a == list2;
-equal_scg Null Null = True;
-
 subtract_list_sorted :: forall a. (Eq a, Linorder a) => [a] -> [a] -> [a];
 subtract_list_sorted (x : xs) (y : ys) =
   (if x == y then subtract_list_sorted xs (y : ys)
@@ -17593,64 +18500,6 @@ generate_scgs ::
       Linorder b) => (a -> a -> Bool) -> [Scg a b] -> Scg a b -> [Scg a b];
 generate_scgs conn base g =
   filter (\ ga -> not (equal_scg ga Null)) (map (scg_comp conn g) base);
-
-scg_rec ::
-  forall a b c. a -> (b -> b -> [(c, c)] -> [(c, c)] -> a) -> Scg b c -> a;
-scg_rec f1 f2 Null = f1;
-scg_rec f1 f2 (Scg pp1 pp2 list1 list2) = f2 pp1 pp2 list1 list2;
-
-less_eq_scg ::
-  forall a b. (Eq a, Ord a, Eq b, Order b) => Scg a b -> Scg a b -> Bool;
-less_eq_scg =
-  (\ x y ->
-    scg_rec (\ a -> (case a of {
-                      Null -> False;
-                      Scg _ _ _ _ -> True;
-                    }))
-      (\ x_0 x_1 x_2 x_3 a ->
-        (case a of {
-          Null -> False;
-          Scg y_0 y_1 y_2 y_3 ->
-            less x_0 y_0 ||
-              x_0 == y_0 &&
-                (less x_1 y_1 ||
-                  x_1 == y_1 &&
-                    (less_list x_2 y_2 || x_2 == y_2 && less_list x_3 y_3));
-        }))
-      x y ||
-      equal_scg x y);
-
-less_scg ::
-  forall a b. (Eq a, Ord a, Eq b, Order b) => Scg a b -> Scg a b -> Bool;
-less_scg =
-  scg_rec (\ a -> (case a of {
-                    Null -> False;
-                    Scg _ _ _ _ -> True;
-                  }))
-    (\ x_0 x_1 x_2 x_3 a ->
-      (case a of {
-        Null -> False;
-        Scg y_0 y_1 y_2 y_3 ->
-          less x_0 y_0 ||
-            x_0 == y_0 &&
-              (less x_1 y_1 ||
-                x_1 == y_1 &&
-                  (less_list x_2 y_2 || x_2 == y_2 && less_list x_3 y_3));
-      }));
-
-instance (Eq a, Ord a, Eq b, Order b) => Ord (Scg a b) where {
-  less_eq = less_eq_scg;
-  less = less_scg;
-};
-
-instance (Eq a, Order a, Eq b, Order b) => Preorder (Scg a b) where {
-};
-
-instance (Eq a, Order a, Eq b, Order b) => Order (Scg a b) where {
-};
-
-instance (Eq a, Linorder a, Eq b, Linorder b) => Linorder (Scg a b) where {
-};
 
 subsumes :: forall a b. (Eq a, Eq b) => Scg a b -> Scg a b -> Bool;
 subsumes (Scg pa qa stra wka) (Scg p q str wk) =
@@ -17692,14 +18541,14 @@ check_SCT conn gs =
   g_ball_dflt_basic_oops_rm_basic_ops
     (mk_rtrancl_set (generate_scgs conn gs) gs) (sagiv conn);
 
-sct_subterm_proc ::
+sct_subterm_precise_proc ::
   forall a b.
     (Eq b, Key b,
       Showa b) => Dpp_ops_ext a b [Prelude.Char] () ->
                     [((Term b [Prelude.Char], Term b [Prelude.Char]),
                        ([(Nat, Nat)], [(Nat, Nat)]))] ->
                       a -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-sct_subterm_proc i gs dpp =
+sct_subterm_precise_proc i gs dpp =
   catcha
     (let {
        p = pairsa i dpp;
@@ -17817,6 +18666,132 @@ shows_nl))))))
                'l', 'a', 't', 'i', 'o', 'n'] .
             shows_nl . x));
 
+sct_subterm_approx_proc ::
+  forall a b.
+    (Eq b, Key b,
+      Showa b) => Dpp_ops_ext a b [Prelude.Char] () ->
+                    [((Term b [Prelude.Char], Term b [Prelude.Char]),
+                       ([(Nat, Nat)], [(Nat, Nat)]))] ->
+                      a -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+sct_subterm_approx_proc i gs dpp =
+  catcha
+    (let {
+       p = pairsa i dpp;
+       is_def = (\ fn -> not (null (rules_mapb i dpp fn)));
+     } in bindb (catcha (check_subseteq p (map fst gs))
+                  (\ x ->
+                    Inl (shows_string
+                           ['t', 'h', 'e', 'r', 'e', ' ', 'i', 's', ' ', 'n',
+                             'o', ' ', 's', 'i', 'z', 'e', '-', 'c', 'h', 'a',
+                             'n', 'g', 'e', ' ', 'g', 'r', 'a', 'p', 'h', ' ',
+                             'f', 'o', 'r', ' ', 't', 'h', 'e', ' ', 'p', 'a',
+                             'i', 'r', ' '] .
+                          shows_rule (shows_prec Zero_nat)
+                            (shows_prec_list Zero_nat) [' ', '-', '>', ' '] x)))
+            (\ _ ->
+              let {
+                gGs = filter (\ g -> membera p (fst g)) gs;
+              } in bindb (check (minimal i dpp || nFQ_subset_NF_rulesb i dpp)
+                           (shows_prec_list Zero_nat
+                             ['m', 'i', 'n', 'i', 'm', 'a', 'l', 'i', 't', 'y',
+                               ' ', 'o', 'r', ' ', 'i', 'n', 'n', 'e', 'r', 'm',
+                               'o', 's', 't', ' ', 'r', 'e', 'q', 'u', 'i', 'r',
+                               'e', 'd']))
+                     (\ _ ->
+                       bindb (catcha
+                               (forallM (\ (l, _) -> check_no_var l)
+                                 (rulesd i dpp))
+                               (\ x -> Inl (snd x)))
+                         (\ _ ->
+                           bindb (catcha
+                                   (forallM
+                                     (\ (a, b) ->
+                                       let {
+ (s, t) = a;
+                                       } in
+ (\ (stri, nstri) ->
+   catcha
+     (bindb (check_no_var s)
+       (\ _ ->
+         bindb (check_no_var t)
+           (\ _ ->
+             bindb (check_no_defined_root is_def t)
+               (\ _ ->
+                 let {
+                   m = num_args t;
+                   n = num_args s;
+                 } in bindb (catcha
+                              (forallM
+                                (\ (ia, j) ->
+                                  check (less_eq_nat ia n &&
+  less_eq_nat j m && isOK (check_supt (get_arg s ia) (get_arg t j)))
+                                    (shows_string
+                                       ['p', 'r', 'o', 'b', 'l', 'e', 'm', ' ',
+ 'w', 'i', 't', 'h', ' ', 'e', 'd', 'g', 'e', ' '] .
+                                      shows_prec_nat Zero_nat ia .
+shows_string [' ', '|', '>', ' '] . shows_prec_nat Zero_nat j . shows_nl))
+                                stri)
+                              (\ x -> Inl (snd x)))
+                        (\ _ ->
+                          catcha
+                            (forallM
+                              (\ (ia, j) ->
+                                check (less_eq_nat ia n &&
+less_eq_nat j m && isOK (check_supteq (get_arg s ia) (get_arg t j)))
+                                  (shows_string
+                                     ['p', 'r', 'o', 'b', 'l', 'e', 'm', ' ',
+                                       'w', 'i', 't', 'h', ' ', 'e', 'd', 'g',
+                                       'e', ' '] .
+                                    shows_prec_nat Zero_nat ia .
+                                      shows_string [' ', '|', '>', '=', ' '] .
+shows_prec_nat Zero_nat j . shows_nl))
+                              nstri)
+                            (\ x -> Inl (snd x)))))))
+     (\ x ->
+       Inl (shows_string
+              ['p', 'r', 'o', 'b', 'l', 'e', 'm', ' ', 'w', 'i', 't', 'h', ' ',
+                'p', 'a', 'i', 'r', ' '] .
+             shows_rule (shows_prec Zero_nat) (shows_prec_list Zero_nat)
+               [' ', '-', '>', ' '] (s, t) .
+               shows_nl . x)))
+ b)
+                                     gGs)
+                                   (\ x -> Inl (snd x)))
+                             (\ _ ->
+                               check (check_SCT (\ (_, g) (h, _) -> g == h)
+                                       (remdups
+ (map (\ (st, (stri, nstri)) ->
+        let {
+          e = (the (root (fst st)), the (root (snd st)));
+        } in Scg e e (remdups_sort stri) (remdups_sort nstri))
+   gGs)))
+                                 (shows_string
+                                    ['s', 'i', 'z', 'e', '-', 'c', 'h', 'a',
+                                      'n', 'g', 'e', ' ', 'a', 'n', 'a', 'l',
+                                      'y', 's', 'i', 's', ' ', 'f', 'a', 'i',
+                                      'l', 'e', 'd'] .
+                                   shows_nl))))))
+    (\ x ->
+      Inl (shows_string
+             ['c', 'o', 'u', 'l', 'd', ' ', 'n', 'o', 't', ' ', 'a', 'p', 'p',
+               'l', 'y', ' ', 't', 'h', 'e', ' ', 's', 'i', 'z', 'e', '-', 'c',
+               'h', 'a', 'n', 'g', 'e', ' ', 'p', 'r', 'o', 'c', 'e', 's', 's',
+               'o', 'r', ' ', 'b', 'a', 's', 'e', 'd', ' ', 'o', 'n', ' ', 't',
+               'h', 'e', ' ', 's', 'u', 'b', 't', 'e', 'r', 'm', '-', 'r', 'e',
+               'l', 'a', 't', 'i', 'o', 'n'] .
+            shows_nl . x));
+
+sct_subterm_proc ::
+  forall a b.
+    (Eq b, Key b,
+      Showa b) => Dpp_ops_ext a b [Prelude.Char] () ->
+                    [((Term b [Prelude.Char], Term b [Prelude.Char]),
+                       ([(Nat, Nat)], [(Nat, Nat)]))] ->
+                      a -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+sct_subterm_proc i gs dpp =
+  (if isOK (sct_subterm_approx_proc i gs dpp) then Inr ()
+    else sct_subterm_precise_proc i gs dpp);
+
 sct_entry_to_sts ::
   forall a b c d. a -> Term b c -> [(d, Nat)] -> [(d, Nat)] -> [(a, Term b c)];
 sct_entry_to_sts s t stri nstri =
@@ -17923,7 +18898,7 @@ sct_ur_af_proc i rp gs u_opt dpp =
       (\ _ ->
         let {
           is_def = (\ fn -> not (null (rules_mapb i dpp fn)));
-          pi = afa rp;
+          pi = af rp;
           sa = s rp;
           nsa = ns rp;
           nsta = nst rp;
@@ -18007,7 +18982,7 @@ then Just (snd x) else Nothing))
                'o', 'r', ' ', 'w', 'i', 't', 'h', ' ', 't', 'h', 'e', ' ', 'f',
                'o', 'l', 'l', 'o', 'w', 'i', 'n', 'g', ' '] .
             shows_nl .
-              desca rp .
+              desc rp .
                 shows_nl .
                   shows_string
                     ['f', 'o', 'r', ' ', 't', 'h', 'e', ' ', 'f', 'o', 'l', 'l',
@@ -18059,77 +19034,6 @@ prec_repr_to_status prs =
                 Just aa -> snd aa;
               }));
 
-less_eq_arctic_delta ::
-  forall a. (Ord a) => Arctic_delta a -> Arctic_delta a -> Bool;
-less_eq_arctic_delta MinInfty_delta x = True;
-less_eq_arctic_delta (Num_arc_delta uu) MinInfty_delta = False;
-less_eq_arctic_delta (Num_arc_delta y) (Num_arc_delta x) = less_eq y x;
-
-less_arctic_delta ::
-  forall a. (Ord a) => Arctic_delta a -> Arctic_delta a -> Bool;
-less_arctic_delta MinInfty_delta x = True;
-less_arctic_delta (Num_arc_delta uu) MinInfty_delta = False;
-less_arctic_delta (Num_arc_delta y) (Num_arc_delta x) = less y x;
-
-instance (Ord a) => Ord (Arctic_delta a) where {
-  less_eq = less_eq_arctic_delta;
-  less = less_arctic_delta;
-};
-
-instance (Linordered_field a) => Non_strict_order (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Semigroup_add (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Ab_semigroup_add (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Monoid_add (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Ordered_ab_semigroup (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Comm_monoid_add (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Mult_zero (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Semigroup_mult (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Semiring (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Semiring_0 (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Ordered_semiring_0 (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Power (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Monoid_mult (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Numeral (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Semiring_numeral (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Zero_neq_one (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Semiring_1 (Arctic_delta a) where {
-};
-
-instance (Linordered_field a) => Ordered_semiring_1 (Arctic_delta a) where {
-};
-
 prec_repr_to_pr ::
   forall a.
     (Key a) => [((a, Nat), (Nat, Order_tag))] -> Filtered a -> Nat -> Nat;
@@ -18144,116 +19048,40 @@ prec_repr_to_pr prs =
                 Just aa -> fst aa;
               }));
 
-data Lpoly_order_semiring_ext a b =
-  Lpoly_order_semiring_ext Bool a (a -> Bool) (a -> Bool) (a -> Nat)
-    (a -> Sum ([Prelude.Char] -> [Prelude.Char]) Nat) [Prelude.Char] b;
+plus_single_mono ::
+  forall a b.
+    Partial_object_ext a
+      (Monoid_ext a
+        (Ring_ext a (Ordered_semiring_ext a (Lpoly_order_semiring_ext a b)))) ->
+      Bool;
+plus_single_mono
+  (Partial_object_ext carrier
+    (Monoid_ext mult one
+      (Ring_ext zero add
+        (Ordered_semiring_ext geq gt max
+          (Lpoly_order_semiring_ext plus_single_mono defaulta arcpos checkmono
+            bound derive_complexity description more)))))
+  = plus_single_mono;
 
-less_eq_arctic :: Arctic -> Arctic -> Bool;
-less_eq_arctic MinInfty x = True;
-less_eq_arctic (Num_arc uu) MinInfty = False;
-less_eq_arctic (Num_arc y) (Num_arc x) = less_eq_int y x;
+maxa ::
+  forall a b.
+    Partial_object_ext a
+      (Monoid_ext a (Ring_ext a (Ordered_semiring_ext a b))) ->
+      a -> a -> a;
+maxa (Partial_object_ext carrier
+       (Monoid_ext mult one
+         (Ring_ext zero add (Ordered_semiring_ext geq gt max more))))
+  = max;
 
-less_arctic :: Arctic -> Arctic -> Bool;
-less_arctic MinInfty x = True;
-less_arctic (Num_arc uu) MinInfty = False;
-less_arctic (Num_arc y) (Num_arc x) = less_int y x;
-
-instance Ord Arctic where {
-  less_eq = less_eq_arctic;
-  less = less_arctic;
-};
-
-instance Non_strict_order Arctic where {
-};
-
-instance Semigroup_add Arctic where {
-};
-
-instance Ab_semigroup_add Arctic where {
-};
-
-instance Monoid_add Arctic where {
-};
-
-instance Ordered_ab_semigroup Arctic where {
-};
-
-instance Comm_monoid_add Arctic where {
-};
-
-instance Mult_zero Arctic where {
-};
-
-instance Semigroup_mult Arctic where {
-};
-
-instance Semiring Arctic where {
-};
-
-instance Semiring_0 Arctic where {
-};
-
-instance Ordered_semiring_0 Arctic where {
-};
-
-instance Power Arctic where {
-};
-
-instance Monoid_mult Arctic where {
-};
-
-instance Numeral Arctic where {
-};
-
-instance Semiring_numeral Arctic where {
-};
-
-instance Zero_neq_one Arctic where {
-};
-
-instance Semiring_1 Arctic where {
-};
-
-instance Ordered_semiring_1 Arctic where {
-};
-
-ma_show_real :: Mini_alg -> [Prelude.Char];
-ma_show_real x =
-  let {
-    (p, (q, b)) = rep_mini_alg x;
-    sb = (shows_prec_list Zero_nat ['s', 'q', 'r', 't', '('] .
-           shows_prec_nat Zero_nat b) .
-           shows_prec_list Zero_nat [')'];
-    qb = (if equal_rat q one_rat then sb
-           else (if equal_rat q (of_inta (Neg One))
-                  then shows_prec_list Zero_nat ['-'] . sb
-                  else (shows_prec_rat Zero_nat q .
-                         shows_prec_list Zero_nat ['*']) .
-                         sb));
-  } in (if equal_rat q zero_rat then shows_prec_rat Zero_nat p []
-         else (if equal_rat p zero_rat then qb []
-                else (if less_rat q zero_rat
-                       then shows_prec_rat Zero_nat p (qb [])
-                       else shows_prec_rat Zero_nat p
-                              (shows_prec_list Zero_nat ['+'] (qb [])))));
-
-mau_show_real :: Mini_alg_unique -> [Prelude.Char];
-mau_show_real x = ma_show_real (rep_mini_alg_unique x);
-
-show_real :: Real -> [Prelude.Char];
-show_real (Real_of_u x) = mau_show_real x;
-
-shows_prec_real :: Nat -> Real -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_real d x =
-  (if is_rat x then id else shows_paren) (shows_string (show_real x));
-
-shows_list_real :: [Real] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_real = shows_list_aux (shows_prec_real Zero_nat);
-
-instance Showa Real where {
-  shows_prec = shows_prec_real;
-  shows_list = shows_list_real;
-};
+geq ::
+  forall a b.
+    Partial_object_ext a
+      (Monoid_ext a (Ring_ext a (Ordered_semiring_ext a b))) ->
+      a -> a -> Bool;
+geq (Partial_object_ext carrier
+      (Monoid_ext mult one
+        (Ring_ext zero add (Ordered_semiring_ext geq gt max more))))
+  = geq;
 
 poly_c_max_inter_bcoeff ::
   forall a b c.
@@ -18304,23 +19132,8 @@ convert_lpoly_complexity r pi cc =
           Runtime_Complexity c _ -> c;
         });
     bc = poly_c_max_inter_bcoeff r f pi;
-  } in sum_map (\ x -> x) (\ deg -> Comp_Poly (plus_nat deg (Nat_of_num One)))
+  } in map_sum (\ x -> x) (\ deg -> Comp_Poly (plus_nat deg (Nat_of_num One)))
          (smaller_one_complexity r bc);
-
-plus_single_mono ::
-  forall a b.
-    Partial_object_ext a
-      (Monoid_ext a
-        (Ring_ext a (Ordered_semiring_ext a (Lpoly_order_semiring_ext a b)))) ->
-      Bool;
-plus_single_mono
-  (Partial_object_ext carrier
-    (Monoid_ext mult one
-      (Ring_ext zero add
-        (Ordered_semiring_ext geq gt max
-          (Lpoly_order_semiring_ext plus_single_mono defaulta arcpos checkmono
-            bound derive_complexity description more)))))
-  = plus_single_mono;
 
 check_poly_mono_npsm ::
   forall a b c.
@@ -18407,6 +19220,9 @@ arcpos
           (Lpoly_order_semiring_ext plus_single_mono defaulta arcpos checkmono
             bound derive_complexity description more)))))
   = arcpos;
+
+carrier :: forall a b. Partial_object_ext a b -> Set a;
+carrier (Partial_object_ext carrier more) = carrier;
 
 check_lpoly_coeffs ::
   forall a b c.
@@ -18598,31 +19414,21 @@ list_prod :: forall a b. Partial_object_ext a (Monoid_ext a b) -> [a] -> a;
 list_prod r [] = one r;
 list_prod r (x : xs) = mult r x (list_prod r xs);
 
-cEnum_l_poly ::
-  forall a b.
-    Maybe ([L_poly a b],
-            ((L_poly a b -> Bool) -> Bool, (L_poly a b -> Bool) -> Bool));
-cEnum_l_poly = Nothing;
-
-instance Cenum (L_poly a b) where {
-  cEnum = cEnum_l_poly;
-};
-
 wf_pvars ::
   forall a b c.
     (Cenum a, Ceq a, Corder a,
-      Set_impla a) => Partial_object_ext a b -> [(c, a)] -> Bool;
+      Set_impl a) => Partial_object_ext a b -> [(c, a)] -> Bool;
 wf_pvars r vas = less_eq_set (set (map snd vas)) (carrier r);
 
 wf_lpoly ::
   forall a b c.
     (Cenum a, Ceq a, Corder a,
-      Set_impla a) => Partial_object_ext a b -> L_poly c a -> Bool;
+      Set_impl a) => Partial_object_ext a b -> L_poly c a -> Bool;
 wf_lpoly r (LPoly a vas) = member a (carrier r) && wf_pvars r vas;
 
 pleftI ::
   forall a b c d.
-    (Cenum a, Ceq a, Corder a, Eq a, Set_impla a,
+    (Cenum a, Ceq a, Corder a, Eq a, Set_impl a,
       Eq d) => Partial_object_ext a
                  (Monoid_ext a (Ring_ext a (Ordered_semiring_ext a b))) ->
                  ((c, Nat) -> (a, [a])) -> Term c d -> L_poly d a;
@@ -18643,7 +19449,7 @@ pleftI r pi (Fun f ts) =
 
 create_lpoly_repr ::
   forall a b.
-    (Cenum a, Ceq a, Corder a, Eq a, Set_impla a, Showa a, Eq b, Key b,
+    (Cenum a, Ceq a, Corder a, Eq a, Set_impl a, Showa a, Eq b, Key b,
       Showa b) => Partial_object_ext a
                     (Monoid_ext a
                       (Ring_ext a
@@ -18813,7 +19619,7 @@ check_lpoly_ns r (LPoly a vas) (LPoly b vbs) =
 
 prightI ::
   forall a b c d.
-    (Cenum a, Ceq a, Corder a, Eq a, Set_impla a,
+    (Cenum a, Ceq a, Corder a, Eq a, Set_impl a,
       Eq d) => Partial_object_ext a
                  (Monoid_ext a (Ring_ext a (Ordered_semiring_ext a b))) ->
                  ((c, Nat) -> (a, [a])) -> Term c d -> L_poly d a;
@@ -18832,7 +19638,7 @@ prightI r pi (Fun f ts) =
 
 check_polo_ns ::
   forall a b c d.
-    (Cenum a, Ceq a, Corder a, Eq a, Set_impla a, Showa a, Showa c, Eq d,
+    (Cenum a, Ceq a, Corder a, Eq a, Set_impl a, Showa a, Showa c, Eq d,
       Showa d) => Partial_object_ext a
                     (Monoid_ext a
                       (Ring_ext a
@@ -18853,6 +19659,15 @@ check_polo_ns r pi (s, t) =
                  shows_prec_term Zero_nat s .
                    shows_string [' ', '>', '=', ' '] .
                      shows_prec_term Zero_nat t . shows_nl . x));
+
+gt :: forall a b.
+        Partial_object_ext a
+          (Monoid_ext a (Ring_ext a (Ordered_semiring_ext a b))) ->
+          a -> a -> Bool;
+gt (Partial_object_ext carrier
+     (Monoid_ext mult one
+       (Ring_ext zero add (Ordered_semiring_ext geq gt max more))))
+  = gt;
 
 check_lpoly_s ::
   forall a b c.
@@ -18893,7 +19708,7 @@ check_lpoly_s r (LPoly a vas) (LPoly b vbs) =
 
 check_polo_s ::
   forall a b c d.
-    (Cenum a, Ceq a, Corder a, Eq a, Set_impla a, Showa a, Showa c, Eq d,
+    (Cenum a, Ceq a, Corder a, Eq a, Set_impl a, Showa a, Showa c, Eq d,
       Showa d) => Partial_object_ext a
                     (Monoid_ext a
                       (Ring_ext a
@@ -18933,7 +19748,7 @@ create_af r i =
 
 create_poly_redtriple ::
   forall a b c.
-    (Cenum a, Ceq a, Corder a, Eq a, Set_impla a, Showa a, Eq b, Key b, Showa b,
+    (Cenum a, Ceq a, Corder a, Eq a, Set_impl a, Showa a, Eq b, Key b, Showa b,
       Eq c,
       Showa c) => Partial_object_ext a
                     (Monoid_ext a
@@ -18959,18 +19774,6 @@ create_poly_redtriple c cI i =
                           'a', 'n', 'a', 'l', 'y', 's', 'i', 's', ' ', 'u', 'n',
                           's', 'u', 'p', 'p', 'o', 'r', 't', 'e', 'd'])))
          ();
-
-instance Non_strict_order Int where {
-};
-
-instance Ordered_ab_semigroup Int where {
-};
-
-instance Ordered_semiring_0 Int where {
-};
-
-instance Ordered_semiring_1 Int where {
-};
 
 weak_gt_arctic_delta ::
   forall a. (Floor_ceiling a) => Arctic_delta a -> Arctic_delta a -> Bool;
@@ -19205,11 +20008,11 @@ pos_arctic_delta (Num_arc_delta n) = less_eq zeroa n;
 class_ordered_semiring ::
   forall a b.
     (Ceq a, Corder a, Ordered_semiring_1 a,
-      Set_impla a) => Itself a ->
-                        (a -> a -> Bool) ->
-                          b -> Partial_object_ext a
-                                 (Monoid_ext a
-                                   (Ring_ext a (Ordered_semiring_ext a b)));
+      Set_impl a) => Itself a ->
+                       (a -> a -> Bool) ->
+                         b -> Partial_object_ext a
+                                (Monoid_ext a
+                                  (Ring_ext a (Ordered_semiring_ext a b)));
 class_ordered_semiring a gt b =
   class_semiring a (Ordered_semiring_ext (\ x y -> less_eq y x) gt max b);
 
@@ -19225,13 +20028,13 @@ class_arc_complexity a =
 class_arc_lpoly_order ::
   forall a.
     (Ceq a, Corder a, Ordered_semiring_1 a,
-      Set_impla a) => a -> (a -> Bool) ->
-                             (a -> a -> Bool) ->
-                               Partial_object_ext a
-                                 (Monoid_ext a
-                                   (Ring_ext a
-                                     (Ordered_semiring_ext a
-                                       (Lpoly_order_semiring_ext a ()))));
+      Set_impl a) => a -> (a -> Bool) ->
+                            (a -> a -> Bool) ->
+                              Partial_object_ext a
+                                (Monoid_ext a
+                                  (Ring_ext a
+                                    (Ordered_semiring_ext a
+                                      (Lpoly_order_semiring_ext a ()))));
 class_arc_lpoly_order def apos gt =
   class_ordered_semiring Type gt
     (Lpoly_order_semiring_ext False def apos (\ _ -> False) (\ _ -> Zero_nat)
@@ -19241,20 +20044,6 @@ class_arc_lpoly_order def apos gt =
         'e', 'r', ' ', 'a', 'r', 'c', 't', 'i', 'c', ' ', 's', 'e', 'm', 'i',
         'r', 'i', 'n', 'g']
       ());
-
-cEnum_arctic_delta ::
-  forall a.
-    Maybe ([Arctic_delta a],
-            ((Arctic_delta a -> Bool) -> Bool,
-              (Arctic_delta a -> Bool) -> Bool));
-cEnum_arctic_delta = Nothing;
-
-instance Cenum (Arctic_delta a) where {
-  cEnum = cEnum_arctic_delta;
-};
-
-instance Poly_carrier Int where {
-};
 
 vec_comp_all :: forall a. (a -> a -> Bool) -> [a] -> [a] -> Bool;
 vec_comp_all r v w = all (\ (a, b) -> r a b) (zip v w);
@@ -19329,13 +20118,13 @@ class_complexity a =
 class_lpoly_order ::
   forall a.
     (Ceq a, Corder a, Ordered_semiring_1 a,
-      Set_impla a) => a -> (a -> Bool) ->
-                             (a -> a -> Bool) ->
-                               Partial_object_ext a
-                                 (Monoid_ext a
-                                   (Ring_ext a
-                                     (Ordered_semiring_ext a
-                                       (Lpoly_order_semiring_ext a ()))));
+      Set_impl a) => a -> (a -> Bool) ->
+                            (a -> a -> Bool) ->
+                              Partial_object_ext a
+                                (Monoid_ext a
+                                  (Ring_ext a
+                                    (Ordered_semiring_ext a
+                                      (Lpoly_order_semiring_ext a ()))));
 class_lpoly_order def mon gt =
   class_ordered_semiring Type gt
     (Lpoly_order_semiring_ext True def (\ _ -> True) mon (\ _ -> Zero_nat)
@@ -19471,32 +20260,6 @@ create_KBO_redtriple f_to_g pr =
                    'p', 'p', 'o', 'r', 't', 'e', 'd']))
          ();
 
-equal_filtered :: forall a. (Eq a) => Filtered a -> Filtered a -> Bool;
-equal_filtered (FPair fa nata) (FPair f nat) = fa == f && equal_nat nata nat;
-
-instance (Eq a) => Eq (Filtered a) where {
-  a == b = equal_filtered a b;
-};
-
-shows_arctic_delta ::
-  forall a. (Showa a) => Arctic_delta a -> [Prelude.Char] -> [Prelude.Char];
-shows_arctic_delta (Num_arc_delta i) = shows_prec Zero_nat i;
-shows_arctic_delta MinInfty_delta = shows_string ['-', 'i', 'n', 'f'];
-
-shows_prec_arctic_delta ::
-  forall a.
-    (Showa a) => Nat -> Arctic_delta a -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_arctic_delta d ari = shows_arctic_delta ari;
-
-shows_list_arctic_delta ::
-  forall a. (Showa a) => [Arctic_delta a] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_arctic_delta = shows_list_aux (shows_prec_arctic_delta Zero_nat);
-
-instance (Showa a) => Showa (Arctic_delta a) where {
-  shows_prec = shows_prec_arctic_delta;
-  shows_list = shows_list_arctic_delta;
-};
-
 check_dimensions ::
   Nat ->
     Nat ->
@@ -19512,19 +20275,6 @@ check_dimensions n sd c =
             ' ', 'l', 'e', 'a', 's', 't', ' ', '1', ' ', 'a', 'n', 'd', ' ',
             'l', 'e', 's', 's', ' ', 't', 'h', 'a', 'n', ' ', 't', 'o', 't',
             'a', 'l', ' ', 'd', 'i', 'm', 'e', 'n', 's', 'i', 'o', 'n']));
-
-shows_prec_filtered ::
-  forall a. (Showa a) => Nat -> Filtered a -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_filtered d ff = shows_prec Zero_nat (filtered_fun ff);
-
-shows_list_filtered ::
-  forall a. (Showa a) => [Filtered a] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_filtered = shows_list_aux (shows_prec_filtered Zero_nat);
-
-instance (Showa a) => Showa (Filtered a) where {
-  shows_prec = shows_prec_filtered;
-  shows_list = shows_list_filtered;
-};
 
 check_mono_afs_help ::
   forall a b c. (Showa a) => ((a, b), c) -> [Prelude.Char] -> [Prelude.Char];
@@ -19669,7 +20419,7 @@ af_redtriple pi rp =
          (shows_string
             ['A', 'r', 'g', 'u', 'm', 'e', 'n', 't', ' ', 'F', 'i', 'l', 't',
               'e', 'r', ':', ' '] .
-           shows_nl . shows_afs pi . shows_nl . desca rp)
+           shows_nl . shows_afs pi . shows_nl . desc rp)
          (\ _ ->
            Inl (shows_prec_list Zero_nat
                  ['c', 'o', 'm', 'p', 'l', 'e', 'x', 'i', 't', 'y', ' ', 'a',
@@ -19747,49 +20497,6 @@ mat_lpoly_order n sd def mon gt =
         'e', 't', 'a', 't', 'i', 'o', 'n']
       ());
 
-cEnum_arctic ::
-  Maybe ([Arctic], ((Arctic -> Bool) -> Bool, (Arctic -> Bool) -> Bool));
-cEnum_arctic = Nothing;
-
-instance Cenum Arctic where {
-  cEnum = cEnum_arctic;
-};
-
-filtered_rec :: forall a b. (a -> Nat -> b) -> Filtered a -> b;
-filtered_rec f1 (FPair f nat) = f1 f nat;
-
-less_eq_filtered :: forall a. (Eq a, Ord a) => Filtered a -> Filtered a -> Bool;
-less_eq_filtered =
-  (\ x y ->
-    filtered_rec
-      (\ x_0 x_1 (FPair y_0 y_1) ->
-        less x_0 y_0 || x_0 == y_0 && less_nat x_1 y_1)
-      x y ||
-      equal_filtered x y);
-
-less_filtered :: forall a. (Eq a, Ord a) => Filtered a -> Filtered a -> Bool;
-less_filtered =
-  filtered_rec
-    (\ x_0 x_1 (FPair y_0 y_1) ->
-      less x_0 y_0 || x_0 == y_0 && less_nat x_1 y_1);
-
-instance (Eq a, Ord a) => Ord (Filtered a) where {
-  less_eq = less_eq_filtered;
-  less = less_filtered;
-};
-
-instance (Eq a, Order a) => Preorder (Filtered a) where {
-};
-
-instance (Eq a, Order a) => Order (Filtered a) where {
-};
-
-instance (Eq a, Linorder a) => Linorder (Filtered a) where {
-};
-
-instance (Eq a, Key a) => Key (Filtered a) where {
-};
-
 int_mono :: Int -> Bool;
 int_mono x = less_eq_int (Pos One) x;
 
@@ -19804,13 +20511,6 @@ check_def_pos d =
       ['d', 'e', 'f', 'a', 'u', 'l', 't', ' ', 'v', 'a', 'l', 'u', 'e', ' ',
         'm', 'u', 's', 't', ' ', 'b', 'e', ' ', 'p', 'o', 's', 'i', 't', 'i',
         'v', 'e']);
-
-cEnum_real :: Maybe ([Real], ((Real -> Bool) -> Bool, (Real -> Bool) -> Bool));
-cEnum_real = Nothing;
-
-instance Cenum Real where {
-  cEnum = cEnum_real;
-};
 
 rpo_nstrict_unbounded ::
   forall a b.
@@ -19864,20 +20564,6 @@ create_RPO_redtriple prec_repr_to_pr pr =
                    'n', 'a', 'l', 'y', 's', 'i', 's', ' ', 'u', 'n', 's', 'u',
                    'p', 'p', 'o', 'r', 't', 'e', 'd']))
          ();
-
-cEnum_rat :: Maybe ([Rat], ((Rat -> Bool) -> Bool, (Rat -> Bool) -> Bool));
-cEnum_rat = Nothing;
-
-instance Cenum Rat where {
-  cEnum = cEnum_rat;
-};
-
-cEnum_int :: Maybe ([Int], ((Int -> Bool) -> Bool, (Int -> Bool) -> Bool));
-cEnum_int = Nothing;
-
-instance Cenum Int where {
-  cEnum = cEnum_int;
-};
 
 get_redtriple ::
   forall a b.
@@ -19933,11 +20619,11 @@ get_redtriple (Arctic_rat_mat_carrier n i) =
     (mat_arc_lpoly_order n one_arctic_delta pos_arctic_delta
       weak_gt_arctic_delta)
     (check_arc_dimension n) i;
-get_redtriple (Rpo prec_tau pi) =
+get_redtriple (RPO prec_tau pi) =
   af_redtriple pi
     (create_RPO_redtriple (\ pr -> (prec_repr_to_pr pr, prec_repr_to_status pr))
       prec_tau);
-get_redtriple (Kbo precw pi) =
+get_redtriple (KBO precw pi) =
   af_redtriple pi
     (create_KBO_redtriple (filter_prec_weight_repr (afs_list_to_afs pi)) precw);
 
@@ -20188,22 +20874,22 @@ generate_scnp_rp ::
                       [((a, Nat), [(Nat, Nat)])] ->
                         (c -> Redtriple_ext a b ()) ->
                           c -> Root_redtriple_ext a b ();
-generate_scnp_rp list_ext list_ext_name af rti x =
+generate_scnp_rp list_ext list_ext_name afa rti x =
   let {
     rt = rti x;
-    afaa = fun_of_map (ceta_map_of af) [];
-    pi = afa rt;
+    afaa = fun_of_map (ceta_map_of afa) [];
+    pi = af rt;
     cS = s rt;
     cNS = ns rt;
   } in Root_redtriple_ext (valid rt) (s_label_mul_impl list_ext afaa cS cNS)
          (ns rt) (nST_label_mul_impl list_ext afaa cS cNS) pi
-         (scnp_af_to_af afaa pi) (scnp_desc af list_ext_name . desca rt) ();
+         (scnp_af_to_af afaa pi) (scnp_desc afa list_ext_name . desc rt) ();
 
 get_root_redtriple ::
   forall a b.
     (Eq a, Key a, Showa a, Eq b,
       Showa b) => Root_redtriple_impl a -> Root_redtriple_ext a b ();
-get_root_redtriple (Scnp typea af rp) =
+get_root_redtriple (SCNP typea af rp) =
   generate_scnp_rp (list_ext (scnp_arity af) typea) (list_ext_name typea) af
     get_redtriple rp;
 
@@ -20298,7 +20984,7 @@ sqrt_rat x =
   } in (case sqrt_int n of {
          [] -> [];
          sn : _ ->
-           map (\ sz -> divide_rat (of_inta sz) (of_inta sn)) (sqrt_int z);
+           map (\ sz -> divide_rat (of_int sz) (of_int sn)) (sqrt_int z);
        });
 
 get_non_inf_order ::
@@ -20384,14 +21070,14 @@ get_non_inf_order (Arctic_rat_mat_carrier v va) =
       'e', 'a', 'l', 's', ' ', 'a', 'r', 'e', ' ', 's', 'u', 'p', 'p', 'o', 'r',
       't', 'e', 'd', ' ', 'f', 'o', 'r', ' ', 'n', 'o', 'n', '-', 'i', 'n', 'f',
       ' ', 'o', 'r', 'd', 'e', 'r', 's'];
-get_non_inf_order (Rpo v va) =
+get_non_inf_order (RPO v va) =
   faulty_non_inf_order
     ['o', 'n', 'l', 'y', ' ', 'i', 'n', 't', 'e', 'g', 'e', 'r', 's', ',', ' ',
       'r', 'a', 't', 'i', 'o', 'n', 'a', 'l', 's', ' ', 'a', 'n', 'd', ' ', 'r',
       'e', 'a', 'l', 's', ' ', 'a', 'r', 'e', ' ', 's', 'u', 'p', 'p', 'o', 'r',
       't', 'e', 'd', ' ', 'f', 'o', 'r', ' ', 'n', 'o', 'n', '-', 'i', 'n', 'f',
       ' ', 'o', 'r', 'd', 'e', 'r', 's'];
-get_non_inf_order (Kbo v va) =
+get_non_inf_order (KBO v va) =
   faulty_non_inf_order
     ['o', 'n', 'l', 'y', ' ', 'i', 'n', 't', 'e', 'g', 'e', 'r', 's', ',', ' ',
       'r', 'a', 't', 'i', 'o', 'n', 'a', 'l', 's', ' ', 'a', 'n', 'd', ' ', 'r',
@@ -20401,7 +21087,7 @@ get_non_inf_order (Kbo v va) =
 
 check_strict_one_rstep ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     ((Term a b, Term a b) ->
                       Maybe [(Pos, ((Term a b, Term a b), Term a b))]) ->
@@ -20433,7 +21119,7 @@ check_strict_one_rstep ra rseqm p r =
 
 check_rsteps ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Pos, ((Term a b, Term a b), Term a b))] ->
                       Term a b ->
@@ -20446,7 +21132,7 @@ rseq_last s steps = last (s : map (\ (_, (_, sa)) -> sa) steps);
 
 check_rsteps_last ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     Term a b ->
                       [(Pos, ((Term a b, Term a b), Term a b))] ->
@@ -20455,7 +21141,7 @@ check_rsteps_last = (\ r s steps -> check_rsteps r steps s (rseq_last s steps));
 
 check_strict_rstep ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     ((Term a b, Term a b) ->
                       Maybe [(Pos, ((Term a b, Term a b), Term a b))]) ->
@@ -20513,7 +21199,7 @@ check_weak p r =
 
 subterm_criterion_proc ::
   forall a b c.
-    (Eq b, Key b, Showa b, Corder c, Eq c, Key c, Mapping_impla c,
+    (Eq b, Key b, Showa b, Corder c, Eq c, Key c, Mapping_impl c,
       Showa c) => Dpp_ops_ext a b c () ->
                     ProjL b ->
                       [((Term b c, Term b c),
@@ -20675,7 +21361,7 @@ shows_prec_list Zero_nat
 
 check_join ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     Term a b ->
                       [(Pos, ((Term a b, Term a b), Term a b))] ->
@@ -20705,7 +21391,7 @@ check_join r s sseq t tseq =
 
 check_critical_pairs_guided ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Bool, (Term a b, Term a b))] ->
                       [(Term a b,
@@ -20740,8 +21426,8 @@ check_critical_pairs_guided r cp joins =
 iterative_join_search_main ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(Term a b, Term a b)] ->
-                            Term a b -> Term a b -> Nat -> Nat -> Bool;
+      Mapping_impl b) => [(Term a b, Term a b)] ->
+                           Term a b -> Term a b -> Nat -> Nat -> Bool;
 iterative_join_search_main r s t i n =
   (if less_eq_nat i n
     then not (null (list_inter (reachable_terms r s i)
@@ -20752,13 +21438,13 @@ iterative_join_search_main r s t i n =
 iterative_join_search ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(Term a b, Term a b)] ->
-                            Term a b -> Term a b -> Nat -> Bool;
+      Mapping_impl b) => [(Term a b, Term a b)] ->
+                           Term a b -> Term a b -> Nat -> Bool;
 iterative_join_search r s t n = iterative_join_search_main r s t Zero_nat n;
 
 check_join_BFS_limit ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => Nat ->
                     [(Term a b, Term a b)] ->
                       Term a b ->
@@ -20780,7 +21466,7 @@ check_join_BFS_limit n r s t =
 
 check_critical_pairs_BFS ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => Nat ->
                     [(Term a b, Term a b)] ->
                       [(Bool, (Term a b, Term a b))] ->
@@ -20803,7 +21489,7 @@ check_critical_pairs_BFS n r cp =
 
 check_critical_pairs_NF ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Bool, (Term a b, Term a b))] ->
                       Sum ([Prelude.Char] -> [Prelude.Char]) ();
@@ -20992,13 +21678,13 @@ model_splitter ld lAll uRw =
     (rw, r) = partition (\ (_, a) -> membera uRw a) la;
   } in (map fst r, (map fst rw, []));
 
-check_sl_Qa ::
+check_sl_Q ::
   forall a b c.
-    (Eq a, Showa a, Corder c, Eq c, Mapping_impla c,
+    (Eq a, Showa a, Corder c, Eq c, Mapping_impl c,
       Showa c) => (a -> (a, b)) ->
                     [Term a c] ->
                       [Term a c] -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-check_sl_Qa ld lQ q =
+check_sl_Q ld lQ q =
   let {
     u = (\ l -> fst (ld l));
   } in catcha
@@ -21019,7 +21705,7 @@ check_sl_Qa ld lQ q =
 
 sem_lab_quasi_root_proc ::
   forall a b c d.
-    (Eq a, Showa a, Ceq d, Corder d, Eq d, Mapping_impla d, Set_impla d,
+    (Eq a, Showa a, Ceq d, Corder d, Eq d, Mapping_impl d, Set_impl d,
       Showa d) => (a -> (a, b)) ->
                     Dpp_ops_ext c a d () ->
                       Sum ([Prelude.Char] -> [Prelude.Char]) () ->
@@ -21107,7 +21793,7 @@ sem_lab_quasi_root_proc ld i valid check_decra check_decr check_lhss_more
           catcha
             (bindb (check_lhss_more lQ q)
               (\ _ ->
-                bindb (check_sl_Qa ld lQ q)
+                bindb (check_sl_Q ld lQ q)
                   (\ _ ->
                     bindb (check_lab_all lP p)
                       (\ _ ->
@@ -21232,7 +21918,7 @@ check_sl_model_lab_trs i l c cge label lR r =
 check_NF_vars_subset ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [Term a b] -> [Term a b] -> Sum (Term a b) ();
+      Mapping_impl b) => [Term a b] -> [Term a b] -> Sum (Term a b) ();
 check_NF_vars_subset qa q =
   catcha (forallM (\ qaa -> check (any (matches qaa) q) qaa) qa)
     (\ x -> Inl (snd x));
@@ -21255,7 +21941,7 @@ lab_lhss_more_impl lc lS_gen q =
 
 check_sl_lab_lhss_more ::
   forall a b c.
-    (Eq a, Showa a, Corder c, Eq c, Mapping_impla c,
+    (Eq a, Showa a, Corder c, Eq c, Mapping_impl c,
       Showa c) => (a -> Nat -> b -> a) ->
                     (a -> Nat -> [b]) ->
                       [Term a c] ->
@@ -21267,6 +21953,15 @@ check_sl_lab_lhss_more lc lS_gen lQ q =
             shows_prec_list Zero_nat
               [' ', 'i', 's', ' ', 'm', 'i', 's', 's', 'i', 'n', 'g', ' ', 'i',
                 'n', ' ', 'l', 'a', 'b', 'e', 'l', 'e', 'd', ' ', 'Q']));
+
+sl_check_decr ::
+  forall a b c d e.
+    Sl_ops_ext a b c d e ->
+      [(Term a d, Term a d)] -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+sl_check_decr
+  (Sl_ops_ext sl_La sl_LSa sl_I sl_C sl_c sl_check_decr sl_L sl_LS sl_lgen
+    sl_LS_gen more)
+  = sl_check_decr;
 
 lab_root ::
   forall a b c d e.
@@ -21388,7 +22083,7 @@ check_wf_terms_F_all ::
                         Term c d -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
 check_wf_terms_F_all lc ld ls lt =
   let {
-    lfs = funas_term_lista lt;
+    lfs = funas_term_list lt;
   } in catcha (forallM (check_wf_sym_F_all lc ld ls) lfs) (\ x -> Inl (snd x));
 
 check_Lab_all_trs ::
@@ -21425,19 +22120,17 @@ check_Lab_all_trs lc ld ls lR r =
       lR)
     (\ x -> Inl (snd x));
 
-data Sl_ops_ext a b c d e =
-  Sl_ops_ext (a -> [b] -> c) (a -> Nat -> c -> Bool) (a -> [b] -> b) [b] b
-    ([(Term a d, Term a d)] -> Sum ([Prelude.Char] -> [Prelude.Char]) ())
-    (a -> [b] -> c) (a -> Nat -> c -> Bool) (c -> [c]) (a -> Nat -> [c]) e;
-
-sl_check_decr ::
-  forall a b c d e.
-    Sl_ops_ext a b c d e ->
-      [(Term a d, Term a d)] -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-sl_check_decr
+sl_LS_gen :: forall a b c d e. Sl_ops_ext a b c d e -> a -> Nat -> [c];
+sl_LS_gen
   (Sl_ops_ext sl_La sl_LSa sl_I sl_C sl_c sl_check_decr sl_L sl_LS sl_lgen
     sl_LS_gen more)
-  = sl_check_decr;
+  = sl_LS_gen;
+
+sl_lgen :: forall a b c d e. Sl_ops_ext a b c d e -> c -> [c];
+sl_lgen
+  (Sl_ops_ext sl_La sl_LSa sl_I sl_C sl_c sl_check_decr sl_L sl_LS sl_lgen
+    sl_LS_gen more)
+  = sl_lgen;
 
 lge_to_lgr ::
   forall a b.
@@ -21492,40 +22185,15 @@ check_sl_decr lc ld ls lge d =
       d)
     (\ x -> Inl (snd x));
 
-sl_LS_gen :: forall a b c d e. Sl_ops_ext a b c d e -> a -> Nat -> [c];
-sl_LS_gen
-  (Sl_ops_ext sl_La sl_LSa sl_I sl_C sl_c sl_check_decr sl_L sl_LS sl_lgen
-    sl_LS_gen more)
-  = sl_LS_gen;
-
-option_to_list :: forall a. Maybe a -> [a];
-option_to_list (Just a) = [a];
-option_to_list Nothing = [];
-
-funas_root_rule_list ::
-  forall a b. (Eq a) => (Term a b, Term a b) -> [(a, Nat)];
-funas_root_rule_list r =
-  remdups (option_to_list (root (fst r)) ++ option_to_list (root (snd r)));
-
-funas_root_rules_list ::
-  forall a b. (Eq a) => [(Term a b, Term a b)] -> [(a, Nat)];
-funas_root_rules_list r = remdups (concatMap funas_root_rule_list r);
-
-sl_lgen :: forall a b c d e. Sl_ops_ext a b c d e -> c -> [c];
-sl_lgen
-  (Sl_ops_ext sl_La sl_LSa sl_I sl_C sl_c sl_check_decr sl_L sl_LS sl_lgen
-    sl_LS_gen more)
-  = sl_lgen;
+sl_LS :: forall a b c d e. Sl_ops_ext a b c d e -> a -> Nat -> c -> Bool;
+sl_LS (Sl_ops_ext sl_La sl_LSa sl_I sl_C sl_c sl_check_decr sl_L sl_LS sl_lgen
+        sl_LS_gen more)
+  = sl_LSa;
 
 sl_La :: forall a b c d e. Sl_ops_ext a b c d e -> a -> [b] -> c;
 sl_La (Sl_ops_ext sl_La sl_LSa sl_I sl_C sl_c sl_check_decr sl_L sl_LS sl_lgen
         sl_LS_gen more)
   = sl_L;
-
-sl_LS :: forall a b c d e. Sl_ops_ext a b c d e -> a -> Nat -> c -> Bool;
-sl_LS (Sl_ops_ext sl_La sl_LSa sl_I sl_C sl_c sl_check_decr sl_L sl_LS sl_lgen
-        sl_LS_gen more)
-  = sl_LSa;
 
 sl_L :: forall a b c d e. Sl_ops_ext a b c d e -> a -> [b] -> c;
 sl_L (Sl_ops_ext sl_La sl_LSa sl_I sl_C sl_c sl_check_decr sl_L sl_LS sl_lgen
@@ -21542,10 +22210,23 @@ sl_C (Sl_ops_ext sl_La sl_LSa sl_I sl_C sl_c sl_check_decr sl_L sl_LS sl_lgen
        sl_LS_gen more)
   = sl_C;
 
+option_to_list :: forall a. Maybe a -> [a];
+option_to_list (Just a) = [a];
+option_to_list Nothing = [];
+
+funas_root_rule_list ::
+  forall a b. (Eq a) => (Term a b, Term a b) -> [(a, Nat)];
+funas_root_rule_list r =
+  remdups (option_to_list (root (fst r)) ++ option_to_list (root (snd r)));
+
+funas_root_rules_list ::
+  forall a b. (Eq a) => [(Term a b, Term a b)] -> [(a, Nat)];
+funas_root_rules_list r = remdups (concatMap funas_root_rule_list r);
+
 sem_lab_fin_quasi_root_proc ::
   forall a b c d e.
     (Eq a, Linorder a, Showa a, Eq b, Showa c, Ceq e, Corder e, Eq e,
-      Mapping_impla e, Linorder e, Set_impla e,
+      Mapping_impl e, Linorder e, Set_impl e,
       Showa e) => (a -> Nat -> b -> a) ->
                     (a -> (a, b)) ->
                       (c -> c -> Bool) ->
@@ -21627,7 +22308,7 @@ check_sl_lab_root_trs i la l c label lP p =
 
 sem_lab_root_proc ::
   forall a b c d.
-    (Eq a, Showa a, Corder d, Eq d, Mapping_impla d,
+    (Eq a, Showa a, Corder d, Eq d, Mapping_impl d,
       Showa d) => (a -> (a, b)) ->
                     Dpp_ops_ext c a d () ->
                       Sum ([Prelude.Char] -> [Prelude.Char]) () ->
@@ -21696,7 +22377,7 @@ sem_lab_root_proc ld i valid check_Q check_laba check_lab check_model_lab lPAll
                                   (\ _ ->
                                     bindb (check_Q lQ q)
                                       (\ _ ->
-bindb (check_sl_Qa ld lQ q)
+bindb (check_sl_Q ld lQ q)
   (\ _ ->
     bindb (check_laba lP p)
       (\ _ ->
@@ -21788,9 +22469,9 @@ lab_lhss_list ::
                   (a -> Nat -> c -> d) -> [b] -> [Term a e] -> [Term d e];
 lab_lhss_list i l lc c q = concatMap (lab_lhs_list i l lc c) q;
 
-check_sl_Q ::
+check_sl_Qa ::
   forall a b c d.
-    (Eq a, Showa a, Corder d, Eq d, Mapping_impla d,
+    (Eq a, Showa a, Corder d, Eq d, Mapping_impl d,
       Showa d) => (a -> [b] -> b) ->
                     (a -> [b] -> c) ->
                       (a -> Nat -> c -> a) ->
@@ -21798,7 +22479,7 @@ check_sl_Q ::
                           [Term a d] ->
                             [Term a d] ->
                               Sum ([Prelude.Char] -> [Prelude.Char]) ();
-check_sl_Q i l lc c lQ q =
+check_sl_Qa i l lc c lQ q =
   bindb (check (not (null c))
           (shows_prec_list Zero_nat
             ['c', 'a', 'r', 'r', 'i', 'e', 'r', ' ', 'm', 'u', 's', 't', ' ',
@@ -21815,7 +22496,7 @@ check_sl_Q i l lc c lQ q =
 
 sem_lab_fin_root_proc ::
   forall a b c d e.
-    (Eq a, Linorder a, Showa a, Corder d, Eq d, Mapping_impla d, Linorder d,
+    (Eq a, Linorder a, Showa a, Corder d, Eq d, Mapping_impl d, Linorder d,
       Showa d, Eq e,
       Showa e) => (a -> Nat -> b -> a) ->
                     (a -> (a, b)) ->
@@ -21836,7 +22517,7 @@ sem_lab_fin_root_proc lc ld i gen lPAll lQ lRAll dp =
                (funas_root_rules_list pairs))
          (\ ops ->
            let {
-             check_q = check_sl_Q (sl_I ops) (sl_L ops) lc (sl_C ops);
+             check_q = check_sl_Qa (sl_I ops) (sl_L ops) lc (sl_C ops);
              check_ml =
                check_sl_model_lab_trs (sl_I ops) (sl_L ops) (sl_C ops)
                  (\ a b -> a == b) lc;
@@ -21846,9 +22527,6 @@ sem_lab_fin_root_proc lc ld i gen lPAll lQ lRAll dp =
              check_la = check_sl_lab (sl_I ops) (sl_L ops) lc (sl_C ops);
            } in sem_lab_root_proc ld i (Inr ()) check_q check_l check_la
                   check_ml lPAll lQ lRAll dp);
-
-data Slm_ops_ext a b c d =
-  Slm_ops_ext (a -> [b] -> c) (a -> [b] -> b) [b] b (a -> [b] -> c) d;
 
 slm_La :: forall a b c d. Slm_ops_ext a b c d -> a -> [b] -> c;
 slm_La (Slm_ops_ext slm_La slm_I slm_C slm_c slm_L more) = slm_L;
@@ -21913,7 +22591,7 @@ check_sl_lab_trs i l c cge label lP p =
 
 sem_lab_proc ::
   forall a b c d.
-    (Eq a, Showa a, Corder d, Eq d, Mapping_impla d,
+    (Eq a, Showa a, Corder d, Eq d, Mapping_impl d,
       Showa d) => (a -> (a, b)) ->
                     Dpp_ops_ext c a d () ->
                       Sum ([Prelude.Char] -> [Prelude.Char]) () ->
@@ -21963,7 +22641,7 @@ sem_lab_proc ld i valid check_Q check_laba check_lab check_model_lab lPAll lQ
                           (\ _ ->
                             bindb (check_Q lQ q)
                               (\ _ ->
-                                bindb (check_sl_Qa ld lQ q)
+                                bindb (check_sl_Q ld lQ q)
                                   (\ _ ->
                                     bindb (check_laba lP p)
                                       (\ _ ->
@@ -21986,7 +22664,7 @@ bindb (check_laba lPw pw)
 
 sem_lab_fin_proc ::
   forall a b c d e.
-    (Eq a, Linorder a, Showa a, Corder d, Eq d, Mapping_impla d, Linorder d,
+    (Eq a, Linorder a, Showa a, Corder d, Eq d, Mapping_impl d, Linorder d,
       Showa d, Eq e,
       Showa e) => (a -> Nat -> b -> a) ->
                     (a -> (a, b)) ->
@@ -22005,7 +22683,7 @@ sem_lab_fin_proc lc ld i gen lPAll lQ lRAll dp =
           [])
     (\ ops ->
       let {
-        check_q = check_sl_Q (sl_I ops) (sl_L ops) lc (sl_C ops);
+        check_q = check_sl_Qa (sl_I ops) (sl_L ops) lc (sl_C ops);
         check_ml =
           check_sl_model_lab_trs (sl_I ops) (sl_L ops) (sl_C ops)
             (\ a b -> a == b) lc;
@@ -22129,36 +22807,12 @@ qmodel_check_valid (SL_Inter c ls) =
       ls)
     (\ x -> Inl (snd x));
 
-mapping_impl_choose2 :: Mapping_impl -> Mapping_impl -> Mapping_impl;
-mapping_impl_choose2 Mapping_RBT Mapping_RBT = Mapping_RBT;
-mapping_impl_choose2 Mapping_Assoc_List Mapping_Assoc_List = Mapping_Assoc_List;
-mapping_impl_choose2 Mapping_Mapping Mapping_Mapping = Mapping_Mapping;
-mapping_impl_choose2 x y = Mapping_Choose;
-
-mapping_impl_prod ::
-  forall a b. (Mapping_impla a, Mapping_impla b) => Phantom (a, b) Mapping_impl;
-mapping_impl_prod =
-  Phantom
-    (mapping_impl_choose2 (of_phantom (mapping_impl :: Phantom a Mapping_impl))
-      (of_phantom (mapping_impl :: Phantom b Mapping_impl)));
-
-instance (Mapping_impla a, Mapping_impla b) => Mapping_impla (a, b) where {
-  mapping_impl = mapping_impl_prod;
-};
-
-mapping_impl_nat :: Phantom Nat Mapping_impl;
-mapping_impl_nat = Phantom Mapping_RBT;
-
-instance Mapping_impla Nat where {
-  mapping_impl = mapping_impl_nat;
-};
-
 check_decr_present_aux_1 ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(Term a (b, Nat), Term a (b, Nat))] ->
-                            b -> a -> a ->
-Nat -> Sum (Term a (b, Nat), Term a (b, Nat)) ();
+      Mapping_impl b) => [(Term a (b, Nat), Term a (b, Nat))] ->
+                           b -> a -> a -> Nat ->
+    Sum (Term a (b, Nat), Term a (b, Nat)) ();
 check_decr_present_aux_1 r v f1 f2 n =
   let {
     vs = map (\ na -> Var (v, na)) (upt Zero_nat n);
@@ -22168,9 +22822,9 @@ check_decr_present_aux_1 r v f1 f2 n =
 check_decr_present_aux_2 ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(Term a b, Term a b)] ->
-                            b -> [(a, (a, Nat))] ->
-                                   Sum (Term a (b, Nat), Term a (b, Nat)) ();
+      Mapping_impl b) => [(Term a b, Term a b)] ->
+                           b -> [(a, (a, Nat))] ->
+                                  Sum (Term a (b, Nat), Term a (b, Nat)) ();
 check_decr_present_aux_2 r v req =
   let {
     add_nats = map_vars (\ va -> (va, Zero_nat));
@@ -22182,12 +22836,11 @@ check_decr_present_aux_2 r v req =
 check_decr_present ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(a, Nat)] ->
-                            (a -> [Nat] -> a) ->
-                              b -> Nat ->
-                                     [(Term a b, Term a b)] ->
-                                       Sum (Term a (b, Nat), Term a (b, Nat))
- ();
+      Mapping_impl b) => [(a, Nat)] ->
+                           (a -> [Nat] -> a) ->
+                             b -> Nat ->
+                                    [(Term a b, Term a b)] ->
+                                      Sum (Term a (b, Nat), Term a (b, Nat)) ();
 check_decr_present sig l v c r =
   let {
     ca = upt Zero_nat (plus_nat c (Nat_of_num One));
@@ -22210,11 +22863,11 @@ check_decr_present sig l v c r =
 qmodel_check_decr ::
   forall a b.
     (Eq a, Showa a, Corder b, Eq b,
-      Mapping_impla b) => [(Lab a [Nat], Nat)] ->
-                            b -> Nat ->
-                                   [(Term (Lab a [Nat]) b,
-                                      Term (Lab a [Nat]) b)] ->
-                                     Sum ([Prelude.Char] -> [Prelude.Char]) ();
+      Mapping_impl b) => [(Lab a [Nat], Nat)] ->
+                           b -> Nat ->
+                                  [(Term (Lab a [Nat]) b,
+                                     Term (Lab a [Nat]) b)] ->
+                                    Sum ([Prelude.Char] -> [Prelude.Char]) ();
 qmodel_check_decr sig v c =
   (\ lR ->
     catcha (check_decr_present sig Lab v c lR)
@@ -22271,7 +22924,7 @@ qmodel_L sig =
 
 qsli_to_sl_unsafe ::
   forall a b.
-    (Corder a, Eq a, Mapping_impla a, Eq b,
+    (Corder a, Eq a, Mapping_impl a, Eq b,
       Showa b) => a -> [(Lab b [Nat], Nat)] ->
                          [(Lab b [Nat], Nat)] ->
                            Sl_inter (Lab b [Nat]) ->
@@ -22287,7 +22940,7 @@ qsli_to_sl_unsafe v f g sli =
 
 qsli_to_sl ::
   forall a b.
-    (Corder a, Eq a, Mapping_impla a, Eq b,
+    (Corder a, Eq a, Mapping_impl a, Eq b,
       Showa b) => a -> [(Lab b [Nat], Nat)] ->
                          [(Lab b [Nat], Nat)] ->
                            Sl_inter (Lab b [Nat]) ->
@@ -22361,8 +23014,8 @@ rl_slm delt_opt pre_fs g =
 
 semlab_fin_proc ::
   forall a b c.
-    (Eq b, Linorder b, Showa b, Ceq c, Corder c, Eq c, Mapping_impla c,
-      Linorder c, Set_impla c,
+    (Eq b, Linorder b, Showa b, Ceq c, Corder c, Eq c, Mapping_impl c,
+      Linorder c, Set_impl c,
       Showa c) => Dpp_ops_ext a (Lab b [Nat]) c () ->
                     Sl_variant (Lab b [Nat]) c ->
                       [(Term (Lab b [Nat]) c, Term (Lab b [Nat]) c)] ->
@@ -22425,12 +23078,12 @@ partition_pairs ::
                         ([(Term a b, Term a b)], [(Term a b, Term a b)]);
 partition_pairs f p = partition (\ r -> membera p (unblock_rule f r));
 
-check_no_defined_root_defs ::
+check_no_defined_root_defined ::
   forall a b.
     (Eq a, Showa a,
       Showa b) => [(a, Nat)] ->
                     Term a b -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-check_no_defined_root_defs f t =
+check_no_defined_root_defined f t =
   check (not (membera f (the (root t))))
     (shows_string ['t', 'h', 'e', ' ', 'r', 'o', 'o', 't', ' ', 'o', 'f', ' '] .
       shows_prec_term Zero_nat t .
@@ -22528,7 +23181,7 @@ check_rule_reflecting fcs rs rule =
 
 check_rule_preserving ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [Ctxt a b] ->
                     [(Term a b, Term a b)] ->
                       (Term a b, Term a b) ->
@@ -22687,7 +23340,7 @@ shows_dpp fun var i d =
 
 fcc_proc_cond ::
   forall a b c.
-    (Eq b, Showa b, Corder c, Eq c, Mapping_impla c,
+    (Eq b, Showa b, Corder c, Eq c, Mapping_impl c,
       Showa c) => Dpp_ops_ext a b c () ->
                     b -> [Ctxt b c] ->
                            [(Term b c, Term b c)] ->
@@ -22716,7 +23369,7 @@ fcc_proc_cond i f fcs p pw r rw dpp =
                   vs = vars_trs_list rb;
                   fs = list_union (funas_trs_list rb) (funas_args_trs_list pb);
                   fas = fa : fs;
-                  ds = defs_list rb;
+                  ds = defined_list rb;
                 } in bindb (check (not (membera ds fa))
                              (shows_prec Zero_nat f .
                                shows_string
@@ -22732,7 +23385,7 @@ fcc_proc_cond i f fcs p pw r rw dpp =
  bindb (check_no_var (fst rd))
    (\ _ ->
      bindb (check_no_var (snd rd))
-       (\ _ -> check_no_defined_root_defs ds (snd rd))))
+       (\ _ -> check_no_defined_root_defined ds (snd rd))))
                                        pb)
                                      (\ x -> Inl (snd x)))
                                (\ _ ->
@@ -22798,8 +23451,8 @@ ceta_list_diff xs ys =
 
 fcc_split_proc ::
   forall a b c.
-    (Eq b, Key b, Showa b, Ceq c, Corder c, Eq c, Key c, Mapping_impla c,
-      Set_impla c,
+    (Eq b, Key b, Showa b, Ceq c, Corder c, Eq c, Key c, Mapping_impl c,
+      Set_impl c,
       Showa c) => Dpp_ops_ext a b c () ->
                     b -> [Ctxt b c] ->
                            [(Term b c, Term b c)] ->
@@ -22938,7 +23591,7 @@ Inl (shows_string
                      'r', 'o', 'c', 'e', 's', 's', 'o', 'r', ' ', 'w', 'i', 't',
                      'h', ' ', 't', 'h', 'e', ' ', 'f', 'o', 'l', 'l', 'o', 'w',
                      'i', 'n', 'g'] .
-                  shows_nl . desca rp . shows_nl . x))
+                  shows_nl . desc rp . shows_nl . x))
     of {
     Inl a -> Inl a;
     Inr _ ->
@@ -23133,7 +23786,7 @@ dep_graph_proc i d dps =
 check_NF_terms_subset ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [Term a b] -> [Term a b] -> Sum (Term a b) ();
+      Mapping_impl b) => [Term a b] -> [Term a b] -> Sum (Term a b) ();
 check_NF_terms_subset qa q =
   catcha
     (forallM (\ x -> (if not (nF_terms_list qa x) then Inr () else Inl x)) q)
@@ -23142,13 +23795,13 @@ check_NF_terms_subset qa q =
 check_NF_terms_eq ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [Term a b] -> [Term a b] -> Sum (Term a b) ();
+      Mapping_impl b) => [Term a b] -> [Term a b] -> Sum (Term a b) ();
 check_NF_terms_eq qa q =
   bindb (check_NF_terms_subset qa q) (\ _ -> check_NF_terms_subset q qa);
 
 check_dpp_subsumes ::
   forall a b c d.
-    (Eq b, Showa b, Eq c, Showa c, Corder d, Eq d, Mapping_impla d,
+    (Eq b, Showa b, Eq c, Showa c, Corder d, Eq d, Mapping_impl d,
       Showa d) => Dpp_ops_ext a (Lab b c) d () ->
                     (Bool,
                       (Bool,
@@ -23251,7 +23904,7 @@ Inl (toomuch ['s', 't', 'r', 'i', 'c', 't', ' ', 'r', 'u', 'l', 'e']
 
 fcc_proc ::
   forall a b c.
-    (Eq b, Showa b, Ceq c, Corder c, Eq c, Mapping_impla c, Set_impla c,
+    (Eq b, Showa b, Ceq c, Corder c, Eq c, Mapping_impl c, Set_impl c,
       Showa c) => Dpp_ops_ext a b c () ->
                     b -> [Ctxt b c] ->
                            [(Term b c, Term b c)] ->
@@ -23280,7 +23933,7 @@ fcc_proc i f fcs pb rw dpp =
 
 q_reduction_proc_non_min ::
   forall a b c.
-    (Eq b, Showa b, Corder c, Eq c, Mapping_impla c,
+    (Eq b, Showa b, Corder c, Eq c, Mapping_impl c,
       Showa c) => Dpp_ops_ext a b c () ->
                     [Term b c] -> a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
 q_reduction_proc_non_min i q dpp =
@@ -23322,7 +23975,7 @@ q_reduction_proc_non_min i q dpp =
 
 q_reduction_proc_min_inn ::
   forall a b c.
-    (Eq b, Showa b, Corder c, Eq c, Mapping_impla c,
+    (Eq b, Showa b, Corder c, Eq c, Mapping_impl c,
       Showa c) => Dpp_ops_ext a b c () ->
                     [Term b c] -> a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
 q_reduction_proc_min_inn i q dpp =
@@ -23390,7 +24043,7 @@ q_reduction_proc_min_inn i q dpp =
 
 q_reduction_proc ::
   forall a b c.
-    (Eq b, Showa b, Corder c, Eq c, Mapping_impla c,
+    (Eq b, Showa b, Corder c, Eq c, Mapping_impl c,
       Showa c) => Dpp_ops_ext a b c () ->
                     [Term b c] -> a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
 q_reduction_proc i q dpp =
@@ -23462,7 +24115,7 @@ uncurry_of_top_sig_list a m sml sm =
 
 eta_closed_top_rules ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => a -> Nat ->
                          (a -> Nat -> [a]) ->
                            [(Term a b, Term a b)] ->
@@ -23512,16 +24165,6 @@ uncurry_top_rules ::
                        [(Term a b, Term a b)] -> [(Term a b, Term a b)];
 uncurry_top_rules a n sm =
   map (\ (l, r) -> (uncurry_top a n sm l, uncurry_top a n sm r));
-
-equal_gctxt :: forall a b. (Eq a) => Gctxt a b -> Gctxt a b -> Bool;
-equal_gctxt (GCFun f list) GCHole = False;
-equal_gctxt GCHole (GCFun f list) = False;
-equal_gctxt (GCFun fa lista) (GCFun f list) = fa == f && lista == list;
-equal_gctxt GCHole GCHole = True;
-
-instance (Eq a) => Eq (Gctxt a b) where {
-  a == b = equal_gctxt a b;
-};
 
 uncurry_top_proc ::
   forall a b.
@@ -23716,7 +24359,7 @@ shows_prec_list Zero_nat
 
 only_eta_rules ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Term a b, Term a b)] ->
                       Sum ([Prelude.Char] -> [Prelude.Char]) ();
@@ -24073,7 +24716,7 @@ catcha
 
 check_prop_rstepa ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => Bool ->
                     (Term a b -> Sum ([Prelude.Char] -> [Prelude.Char]) ()) ->
                       [(Term a b, Term a b)] ->
@@ -24099,7 +24742,7 @@ check_prop_rstepa nfs pa r p rule s t =
 
 check_rstep ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     Pos ->
                       (Term a b, Term a b) ->
@@ -24340,50 +24983,10 @@ shows_rule (shows_prec Zero_nat) (shows_prec_list Zero_nat) [' ', '-', '>', ' ']
     Inr _ -> Inr (replace_paira i dpp st sts);
   });
 
-set_impl_lab :: forall a b. Phantom (Lab a b) Set_impl;
-set_impl_lab = Phantom Set_RBT;
-
-instance Set_impla (Lab a b) where {
-  set_impl = set_impl_lab;
-};
-
-corder_lab ::
-  forall a b.
-    (Eq a, Linorder a, Eq b,
-      Linorder b) => Maybe (Lab a b -> Lab a b -> Bool,
-                             Lab a b -> Lab a b -> Bool);
-corder_lab = Just (less_eq_lab, less_lab);
-
-instance (Eq a, Linorder a, Eq b, Linorder b) => Corder (Lab a b) where {
-  corder = corder_lab;
-};
-
-equal_location :: Location -> Location -> Bool;
-equal_location Ra Ba = False;
-equal_location Ba Ra = False;
-equal_location Ra A = False;
-equal_location A Ra = False;
-equal_location Ba A = False;
-equal_location A Ba = False;
-equal_location Ra H = False;
-equal_location H Ra = False;
-equal_location Ba H = False;
-equal_location H Ba = False;
-equal_location A H = False;
-equal_location H A = False;
-equal_location Ra Ra = True;
-equal_location Ba Ba = True;
-equal_location A A = True;
-equal_location H H = True;
-
-instance Eq Location where {
-  a == b = equal_location a b;
-};
-
 extract_renamings :: forall a. (Eq a) => [(a, a)] -> (a -> a, a -> a);
 extract_renamings old_new =
   (fun_of_map_fun (map_of old_new) id,
-    fun_of_map_fun (map_of (map (\ (x, y) -> (y, x)) old_new)) id);
+    fun_of_map_fun (map_of (map swap old_new)) id);
 
 extract_components ::
   forall a. (Eq a) => [(a, Nat)] -> [(a, a)] -> (a -> a, (a -> a, [a]));
@@ -24463,12 +25066,18 @@ check_components mu ddNU =
                mu)
              (\ x -> Inl (snd x)));
 
+str :: forall a b. (a -> a) -> b -> Term a b -> Term a b;
+str d x (Fun f (v : vb : vc)) = Fun (d f) [Var x];
+str d x (Fun f []) = Fun (d f) [Var x];
+str d x (Fun f [t]) = Fun f [str d x t];
+str d uu (Var x) = Var x;
+
 choose_var :: forall a b. (Eq a) => a -> Term b a -> a;
 choose_var x l = hd (vars_term_list l ++ [x]);
 
 check_to_srs_sound ::
   forall a b.
-    (Cenum a, Ceq a, Corder a, Eq a, Set_impla a, Showa a, Eq b,
+    (Cenum a, Ceq a, Corder a, Eq a, Set_impl a, Showa a, Eq b,
       Showa b) => a -> [(b, b)] ->
                          [(Term b a, Term b a)] ->
                            [(Term b a, Term b a)] ->
@@ -24500,28 +25109,28 @@ check_to_srs_sound v old_new r s =
                    r)
                  (\ x -> Inl (snd x))));
 
-rulesb :: forall a b c d. Tp_ops_ext a b c d -> a -> [(Term b c, Term b c)];
-rulesb
+rulesc :: forall a b c d. Tp_ops_ext a b c d -> a -> [(Term b c, Term b c)];
+rulesc
   (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules rules_map
     delete_R_Rw split_rules mk nfs more)
   = rules;
 
 const_to_string_sound_tt ::
   forall a b c.
-    (Eq a, Showa a, Cenum b, Ceq b, Corder b, Eq b, Set_impla b,
+    (Eq a, Showa a, Cenum b, Ceq b, Corder b, Eq b, Set_impl b,
       Showa b) => Const_string_sound_proof a b ->
                     Tp_ops_ext c a b () ->
                       c -> Sum ([Prelude.Char] -> [Prelude.Char]) c;
 const_to_string_sound_tt (Const_string_sound_proof v old_new s) i tp =
-  bindb (check_to_srs_sound v old_new (rulesb i tp) s)
-    (\ _ -> Inr (mka i False [] s []));
+  bindb (check_to_srs_sound v old_new (rulesc i tp) s)
+    (\ _ -> Inr (mkb i False [] s []));
 
 applicable_rule_impla ::
   forall a b. (Term a b -> Bool) -> (Term a b, Term a b) -> Bool;
 applicable_rule_impla q lr = all q (args (fst lr));
 
-is_QNFa :: forall a b c d. Tp_ops_ext a b c d -> a -> Term b c -> Bool;
-is_QNFa
+is_QNFb :: forall a b c d. Tp_ops_ext a b c d -> a -> Term b c -> Bool;
+is_QNFb
   (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules rules_map
     delete_R_Rw split_rules mk nfs more)
   = is_QNF;
@@ -24547,7 +25156,7 @@ dP_list shp r d_list =
 
 dependency_pairs_tt ::
   forall a b c d.
-    (Eq b, Linorder b, Showa b, Corder c, Eq c, Mapping_impla c, Linorder c,
+    (Eq b, Linorder b, Showa b, Corder c, Eq c, Mapping_impl c, Linorder c,
       Showa c) => Tp_ops_ext a b c () ->
                     Dpp_ops_ext d b c () ->
                       a -> Bool ->
@@ -24557,15 +25166,15 @@ dependency_pairs_tt ::
                                    Sum ([Prelude.Char] -> [Prelude.Char]) d;
 dependency_pairs_tt i j tp nfs m shp p =
   let {
-    r = rulesb i tp;
-    q = qa i tp;
-    iQ = is_QNFa i tp;
+    r = rulesc i tp;
+    q = qb i tp;
+    iQ = is_QNFb i tp;
     u = filter (applicable_rule_impla iQ) r;
   } in (case catcha
                (bindb
                  (if isOK (check_wf_trs u) then Inr ()
                    else check (nfs &&
-                                nfsa i tp &&
+                                nfsb i tp &&
                                   isOK (check_NF_terms_subset q (map fst r)) &&
                                     all (\ l -> not (is_Var l)) (map fst r))
                           (shows_prec_list Zero_nat
@@ -24585,7 +25194,7 @@ dependency_pairs_tt i j tp nfs m shp p =
                      (\ _ ->
                        let {
                          qr = map (\ (Fun f ss) -> (f, size_list ss)) q;
-                         d = defs_list u;
+                         d = defined_list u;
                        } in bindb (catcha
                                     (forallM
                                       (\ (f, n) ->
@@ -24654,7 +25263,7 @@ switch_innermost_tt ::
                       a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
 switch_innermost_tt i joins_i trs =
   let {
-    r = rulesb i trs;
+    r = rulesc i trs;
   } in (case let {
                cp = critical_pairs_impl r r;
              } in bindb (catcha
@@ -24672,7 +25281,7 @@ switch_innermost_tt i joins_i trs =
                         (\ _ -> check_wf_trs r))
          of {
          Inl a -> Inl a;
-         Inr _ -> Inr (mka i True (map fst r) r []);
+         Inr _ -> Inr (mkb i True (map fst r) r []);
        });
 
 unary_term :: forall a b. Term a b -> Bool;
@@ -24728,23 +25337,24 @@ string_reversal_tt ::
                     a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
 string_reversal_tt i trs =
   let {
-    rs = rulesb i trs;
-    r = ra i trs;
-    s = rwa i trs;
+    rs = rulesc i trs;
+    r = rb i trs;
+    s = rwb i trs;
   } in (case check_unary_signature rs of {
          Inl a -> Inl a;
-         Inr _ -> Inr (mka i False [] (map rev_rule r) (map rev_rule s));
+         Inr _ ->
+           Inr (mkb i default_nfs_trs [] (map rev_rule r) (map rev_rule s));
        });
 
-q_emptya :: forall a b c d. Tp_ops_ext a b c d -> a -> Bool;
-q_emptya
+q_emptyb :: forall a b c d. Tp_ops_ext a b c d -> a -> Bool;
+q_emptyb
   (Tp_ops_ext qreltrs q r rw rules q_empty is_QNF nFQ_subset_NF_rules rules_map
     delete_R_Rw split_rules mk nfs more)
   = q_empty;
 
 sem_lab_rel_tt ::
   forall a b c d.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => ([(Term a b, Term a b)] ->
                     [(Term a b, Term a b)] ->
                       ([(Term a b, Term a b)],
@@ -24762,22 +25372,22 @@ sem_lab_rel_tt ::
                                   d -> Sum ([Prelude.Char] -> [Prelude.Char]) d;
 sem_lab_rel_tt splitter ld i valid check_decr check_model_lab lQ lAll tp =
   let {
-    r = ra i tp;
-    rw = rwa i tp;
-    nfs = nfsa i tp;
+    r = rb i tp;
+    rw = rwb i tp;
+    nfs = nfsb i tp;
     (lR, (lRw, d)) = splitter lAll rw;
   } in (case bindb valid
                (\ _ ->
                  let {
-                   q = qa i tp;
+                   q = qb i tp;
                  } in catcha
                         (bindb
-                          (if nfs && not (q_emptya i tp) then check_wf_trs d
+                          (if nfs && not (q_emptyb i tp) then check_wf_trs d
                             else Inr ())
                           (\ _ ->
                             bindb (check_decr d)
                               (\ _ ->
-                                bindb (check_sl_Qa ld lQ q)
+                                bindb (check_sl_Q ld lQ q)
                                   (\ _ ->
                                     bindb (check_model_lab lR r)
                                       (\ _ -> check_model_lab lRw rw)))))
@@ -24789,12 +25399,12 @@ sem_lab_rel_tt splitter ld i valid check_decr check_model_lab lQ lAll tp =
                                 shows_nl . x)))
          of {
          Inl a -> Inl a;
-         Inr _ -> Inr (mka i nfs lQ lR (lRw ++ d));
+         Inr _ -> Inr (mkb i nfs lQ lR (lRw ++ d));
        });
 
 sem_lab_fin_tt ::
   forall a b c d e.
-    (Eq a, Linorder a, Showa a, Corder b, Eq b, Mapping_impla b, Linorder b,
+    (Eq a, Linorder a, Showa a, Corder b, Eq b, Mapping_impl b, Linorder b,
       Showa b,
       Showa d) => ([(Term a b, Term a b)] ->
                     [(Term a b, Term a b)] ->
@@ -24812,7 +25422,7 @@ sem_lab_fin_tt ::
                                 [(Term a b, Term a b)] ->
                                   e -> Sum ([Prelude.Char] -> [Prelude.Char]) e;
 sem_lab_fin_tt splitter lc ld cge i gen lQ lAll tp =
-  bindb (gen (funas_trs_list (rulesb i tp)) [])
+  bindb (gen (funas_trs_list (rulesc i tp)) [])
     (\ ops ->
       let {
         check_ml =
@@ -24822,7 +25432,7 @@ sem_lab_fin_tt splitter lc ld cge i gen lQ lAll tp =
 
 semlab_fin_tt ::
   forall a b c.
-    (Eq b, Linorder b, Showa b, Corder c, Eq c, Mapping_impla c, Linorder c,
+    (Eq b, Linorder b, Showa b, Corder c, Eq c, Mapping_impl c, Linorder c,
       Showa c) => Tp_ops_ext a (Lab b [Nat]) c () ->
                     Sl_variant (Lab b [Nat]) c ->
                       [Term (Lab b [Nat]) c] ->
@@ -24838,6 +25448,59 @@ semlab_fin_tt j (QuasiFinitelab sli v) =
   sem_lab_fin_tt (quasi_splitter label_decomp) label label_decomp qmodel_cge j
     (\ f g -> qsli_to_sl v f g sli);
 
+check_permutation_afs ::
+  forall a.
+    (Showa a) => [((a, Nat), Af_entry)] ->
+                   Sum ([Prelude.Char] -> [Prelude.Char]) ();
+check_permutation_afs pi =
+  catcha
+    (forallM
+      (\ (a, b) ->
+        let {
+          (f, n) = a;
+        } in (\ e ->
+               catcha
+                 (case e of {
+                   Collapse _ ->
+                     Inl (shows_prec_list Zero_nat
+                           ['c', 'o', 'l', 'l', 'a', 'p', 's', 'i', 'n', 'g',
+                             ' ', 'e', 'n', 't', 'r', 'y', ' ', 'n', 'o', 't',
+                             ' ', 'a', 'l', 'l', 'o', 'w', 'e', 'd']);
+                   AFList ids ->
+                     check (distinct ids &&
+                             eq_set (set ids) (set (upt Zero_nat n)))
+                       (shows_prec_list Zero_nat
+                         ['e', 'v', 'e', 'r', 'y', ' ', 'p', 'o', 's', 'i', 't',
+                           'i', 'o', 'n', ' ', 'n', 'e', 'e', 'd', 's', ' ',
+                           't', 'o', ' ', 'o', 'c', 'c', 'u', 'r', ' ', 'e',
+                           'x', 'a', 'c', 't', 'l', 'y', ' ', 'o', 'n', 'c',
+                           'e']);
+                 })
+                 (\ x ->
+                   Inl (shows_prec_list Zero_nat
+                          ['a', 'r', 'g', 'u', 'm', 'e', 'n', 't', ' ', 'f',
+                            'i', 'l', 't', 'e', 'r', ' ', 'i', 's', ' ', 'n',
+                            'o', 't', ' ', 'a', ' ', 'p', 'e', 'r', 'm', 'u',
+                            't', 'a', 't', 'i', 'o', 'n', ' ', 'f', 'o', 'r',
+                            ' '] .
+                         shows_prec_prod Zero_nat (f, n) . shows_nl . x)))
+          b)
+      pi)
+    (\ x -> Inl (snd x));
+
+argument_filter_tt ::
+  forall a b c.
+    (Key b,
+      Showa b) => Tp_ops_ext a b c () ->
+                    [((b, Nat), Af_entry)] ->
+                      a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
+argument_filter_tt i pi tp =
+  bindb (check_permutation_afs pi)
+    (\ _ ->
+      let {
+        pia = af_rules (afs_list_to_afs pi);
+      } in Inr (mkb i default_nfs_trs [] (pia (rb i tp)) (pia (rwb i tp))));
+
 rule_removal_tt ::
   forall a b c.
     (Showa b,
@@ -24848,7 +25511,7 @@ rule_removal_tt ::
 rule_removal_tt i rp rremove trs =
   (case catcha
           (let {
-             (rs, rns) = split_rulesa i trs rremove;
+             (rs, rns) = split_rulesb i trs rremove;
            } in bindb (valid rp)
                   (\ _ ->
                     bindb (catcha (mono rp (rs ++ rns))
@@ -24887,10 +25550,10 @@ shows_nl . x)))
                      'r', 'o', 'c', 'e', 's', 's', 'o', 'r', ' ', 'w', 'i', 't',
                      'h', ' ', 't', 'h', 'e', ' ', 'f', 'o', 'l', 'l', 'o', 'w',
                      'i', 'n', 'g'] .
-                  shows_nl . desca rp . shows_nl . x))
+                  shows_nl . desc rp . shows_nl . x))
     of {
     Inl a -> Inl a;
-    Inr _ -> Inr (delete_R_Rwa i trs rremove rremove);
+    Inr _ -> Inr (delete_R_Rwb i trs rremove rremove);
   });
 
 applicable_rule_impl ::
@@ -24961,10 +25624,10 @@ shows_tp ::
         Tp_ops_ext c a b () -> c -> [Prelude.Char] -> [Prelude.Char];
 shows_tp fun var i t =
   let {
-    nfs = nfsa i t;
-    r = ra i t;
-    rw = rwa i t;
-    q = qa i t;
+    nfs = nfsb i t;
+    r = rb i t;
+    rw = rwb i t;
+    q = qb i t;
   } in shows_trs fun var ['r', 'u', 'l', 'e', 's', ':'] [' ', '-', '>', ' '] r .
          (if null rw then id
            else shows_trs fun var
@@ -24987,7 +25650,7 @@ shows_tp fun var i t =
 
 check_tp_subsumes ::
   forall a b c d.
-    (Eq b, Showa b, Eq c, Showa c, Corder d, Eq d, Mapping_impla d,
+    (Eq b, Showa b, Eq c, Showa c, Corder d, Eq d, Mapping_impl d,
       Showa d) => Tp_ops_ext a (Lab b c) d () ->
                     (Bool,
                       ([Term (Lab b c) d],
@@ -24997,13 +25660,13 @@ check_tp_subsumes ::
 check_tp_subsumes i (nfs, (q, (r, rw))) tp =
   catcha
     (let {
-       nfsaa = nfsa i tp;
-       qaa = qa i tp;
-       raa = ra i tp;
-       rwaa = rwa i tp;
-       rb = r ++ rw;
-       nf1 = is_QNFa i tp;
-     } in bindb (check (check_compatible_nfs nfsaa nf1 (raa ++ rwaa) nfs q)
+       nfsa = nfsb i tp;
+       qa = qb i tp;
+       ra = rb i tp;
+       rwa = rwb i tp;
+       rba = r ++ rw;
+       nf1 = is_QNFb i tp;
+     } in bindb (check (check_compatible_nfs nfsa nf1 (ra ++ rwa) nfs q)
                   (shows_prec_list Zero_nat
                     ['i', 'n', 'c', 'o', 'm', 'p', 'a', 't', 'i', 'b', 'l', 'e',
                       ' ', 's', 'u', 'b', 's', 't', 'i', 't', 'u', 't', 'i',
@@ -25011,7 +25674,7 @@ check_tp_subsumes i (nfs, (q, (r, rw))) tp =
                       'a', 'l', '-', 'f', 'o', 'r', 'm', ' ', 'f', 'l', 'a',
                       'g', 's']))
             (\ _ ->
-              bindb (catcha (check_NF_terms_subset qaa q)
+              bindb (catcha (check_NF_terms_subset qa q)
                       (\ x ->
                         Inl (shows_prec_list Zero_nat
                                ['p', 'r', 'o', 'b', 'l', 'e', 'm', ' ', 'w',
@@ -25022,14 +25685,14 @@ check_tp_subsumes i (nfs, (q, (r, rw))) tp =
                               shows_term (shows_prec_lab Zero_nat)
                                 (shows_prec Zero_nat) x)))
                 (\ _ ->
-                  bindb (catcha (check_subseteq raa r)
+                  bindb (catcha (check_subseteq ra r)
                           (\ x ->
                             Inl (toomuch ['r', 'u', 'l', 'e']
                                   (shows_rule (shows_prec_lab Zero_nat)
                                     (shows_prec Zero_nat) [' ', '-', '>', ' ']
                                     x))))
                     (\ _ ->
-                      bindb (catcha (check_subseteq rwaa rb)
+                      bindb (catcha (check_subseteq rwa rba)
                               (\ x ->
                                 Inl (toomuch
                                       ['r', 'e', 'l', 'a', 't', 'i', 'v', 'e',
@@ -25054,26 +25717,26 @@ check_tp_subsumes i (nfs, (q, (r, rw))) tp =
                       'o', 'b', 'l', 'e', 'm'] .
                     shows_nl .
                       shows_tp (shows_prec_lab Zero_nat) (shows_prec Zero_nat) i
-                        (mka i nfs q r rw) .
+                        (mkb i nfs q r rw) .
                         shows_nl . x . shows_nl));
 
 fcc_tt ::
   forall a b c.
-    (Eq b, Showa b, Corder c, Eq c, Mapping_impla c,
+    (Eq b, Showa b, Corder c, Eq c, Mapping_impl c,
       Showa c) => Tp_ops_ext a b c () ->
                     [Ctxt b c] ->
                       [(Term b c, Term b c)] ->
                         a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
 fcc_tt i fcs cRb tp =
   let {
-    r = ra i tp;
-    rw = rwa i tp;
-    nfs = nfsa i tp;
-    rb = r ++ rw;
+    r = rb i tp;
+    rw = rwb i tp;
+    nfs = nfsb i tp;
+    rba = r ++ rw;
     (cR, cRw) = partition_rules fcs r cRb;
-    _ = qa i tp;
-    vs = vars_trs_list rb;
-    fas = funas_trs_list rb;
+    _ = qb i tp;
+    vs = vars_trs_list rba;
+    fas = funas_trs_list rba;
   } in (case bindb (check (not (null fcs))
                      (shows_string
                         ['a', 't', ' ', 'l', 'e', 'a', 's', 't', ' ', 'o', 'n',
@@ -25103,7 +25766,7 @@ fcc_tt i fcs cRb tp =
                                    (\ x -> Inl (snd x)))))))
          of {
          Inl a -> Inl a;
-         Inr _ -> Inr (mka i nfs [] cR cRw);
+         Inr _ -> Inr (mkb i nfs [] cR cRw);
        });
 
 g_isEmpty_dflt_basic_oops_rm_basic_ops ::
@@ -25112,17 +25775,18 @@ g_isEmpty_dflt_basic_oops_rm_basic_ops s =
   iteratei_bset_op_list_it_dflt_basic_oops_rm_basic_ops s (\ c -> c)
     (\ _ _ -> False) True;
 
-data Ta_rule_impl a b = TA_rule_impl b [a] a (Rbt a ());
-
-data Ta_impl_ext a b c =
-  Ta_impl_ext (Rbt a ()) (Rbt (b, Nat) [Ta_rule_impl a b]) [a] (Rbt a ())
-    [(a, a)] (a -> Rbt a ()) (a -> Rbt a ()) c;
-
 ta_rhs_states_set :: forall a b c. Ta_impl_ext a b c -> Rbt a ();
 ta_rhs_states_set
   (Ta_impl_ext ta_final_impl ta_rules_impl ta_r_lhs_states_impl
     ta_rhs_states_set ta_eps_impl ta_epss_impl ta_epsrs_impl more)
   = ta_rhs_states_set;
+
+ta_rules_impl ::
+  forall a b c. Ta_impl_ext a b c -> Rbt (b, Nat) [Ta_rule_impl a b];
+ta_rules_impl
+  (Ta_impl_ext ta_final_impl ta_rules_impl ta_r_lhs_states_impl
+    ta_rhs_states_set ta_eps_impl ta_epss_impl ta_epsrs_impl more)
+  = ta_rules_impl;
 
 r_lhs_states_impl :: forall a b. Ta_rule_impl a b -> [a];
 r_lhs_states_impl (TA_rule_impl f qsa q qs) = qsa;
@@ -25168,13 +25832,6 @@ ta_res_impl_all q ta (Fun f ts) =
     a = map rqss_impl arules;
   } in rs_Union a;
 
-ta_rules_impl ::
-  forall a b c. Ta_impl_ext a b c -> Rbt (b, Nat) [Ta_rule_impl a b];
-ta_rules_impl
-  (Ta_impl_ext ta_final_impl ta_rules_impl ta_r_lhs_states_impl
-    ta_rhs_states_set ta_eps_impl ta_epss_impl ta_epsrs_impl more)
-  = ta_rules_impl;
-
 rule_state_compatible_heuristic ::
   forall a b c.
     (Linorder a, Linorder b,
@@ -25183,49 +25840,84 @@ rule_state_compatible_heuristic ta l =
   g_isEmpty_dflt_basic_oops_rm_basic_ops
     (ta_res_impl_all (ta_rhs_states_set ta) (ta_rules_impl ta) l);
 
-g_inter_dflt_basic_oops_rm_basic_ops ::
-  forall a. (Linorder a) => Rbt a () -> Rbt a () -> Rbt a ();
-g_inter_dflt_basic_oops_rm_basic_ops s1 s2 =
-  iteratei_bset_op_list_it_dflt_basic_oops_rm_basic_ops s1 (\ _ -> True)
-    (\ x s -> (if memb_rm_basic_ops x s2 then ins_dj_rm_basic_ops x s else s))
-    (empty_rm_basic_ops ());
+ta_rules_impla :: forall a b. Tree_automaton a b -> [Ta_rule a b];
+ta_rules_impla (Tree_Automaton x1 x2 x3) = x2;
 
-ta_match_impla ::
-  forall a b c.
-    (Linorder a, Eq b, Linorder b, Eq c,
-      Linorder c) => Rbt (a, Nat) [Ta_rule_impl b a] ->
-                       Rbt b () ->
-                         (b -> Rbt b ()) -> Term a c -> [b] -> Rbt [(c, b)] ();
-ta_match_impla ta qsig eps (Var x) q =
-  g_from_list_dflt_basic_oops_rm_basic_ops
-    (map (\ qa -> [(x, qa)])
-      (g_to_list_dflt_basic_oops_rm_basic_ops
-        (g_inter_dflt_basic_oops_rm_basic_ops (rs_Union (map eps q)) qsig)));
-ta_match_impla ta qsig eps (Fun f ts) q =
+rtrancl_rbt_impl :: forall a. (Linorder a) => [(a, a)] -> [a] -> Rbt a ();
+rtrancl_rbt_impl =
+  rtrancl_impl
+    (\ r ->
+      let {
+        rm = elem_list_to_rm fst r;
+      } in (\ asa ->
+             g_to_list_dflt_basic_oops_rm_basic_ops
+               (rs_Union
+                 (map (\ a ->
+                        g_from_list_dflt_basic_oops_rm_basic_ops
+                          (map snd (rm_set_lookup rm a)))
+                   asa))))
+    (\ asa bs ->
+      g_union_dflt_basic_oops_rm_basic_ops bs
+        (g_from_list_dflt_basic_oops_rm_basic_ops asa))
+    memb_rm_basic_ops (empty_rm_basic_ops ());
+
+memo_rbt_rtrancl :: forall a. (Linorder a) => [(a, a)] -> a -> Rbt a ();
+memo_rbt_rtrancl r =
   let {
-    n = size_list ts;
-    rules = rm_set_lookup ta (f, n);
-    ep = rs_Union (map eps q);
-    fa = (\ rule ->
-           g_from_list_dflt_basic_oops_rm_basic_ops
-             (let {
-                (TA_rule_impl _ qs qa _) = rule;
-              } in (if memb_rm_basic_ops qa ep
-                     then let {
-                            rec = map (\ (tsi, qsi) ->
-g_to_list_dflt_basic_oops_rm_basic_ops (ta_match_impla ta qsig eps tsi [qsi]))
-                                    (zip ts qs);
-                          } in map concat (concat_lists rec)
-                     else [])));
-  } in rs_Union (map fa rules);
+    tr = rtrancl_rbt_impl r;
+    rm = g_list_to_map_rm_basic_ops
+           (map (\ a -> (a, tr [a]))
+             (((g_to_list_dflt_basic_oops_rm_basic_ops .
+                 g_from_list_dflt_basic_oops_rm_basic_ops) .
+                map fst)
+               r));
+  } in (\ a ->
+         (case lookup rm a of {
+           Nothing -> g_from_list_dflt_basic_oops_rm_basic_ops [a];
+           Just asa -> asa;
+         }));
 
-ta_match_impl ::
-  forall a b c.
-    (Linorder a, Eq b, Linorder b, Eq c,
-      Linorder c) => Rbt (a, Nat) [Ta_rule_impl b a] ->
-                       Rbt b () ->
-                         (b -> Rbt b ()) -> [b] -> Term a c -> Rbt [(c, b)] ();
-ta_match_impl ta qsig eps rhs t = ta_match_impla ta qsig eps t rhs;
+check_state_raise_consistent ::
+  forall a b.
+    (Eq a, Linorder a, Showa a, Eq b,
+      Showa b) => Tree_automaton a (b, Nat) ->
+                    [(a, a)] -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+check_state_raise_consistent ta rel =
+  let {
+    rels = memo_rbt_rtrancl rel;
+    rls = ta_rules_impla ta;
+  } in catcha
+         (forallM
+           (\ r1 ->
+             let {
+               (TA_rule (f1, i1) qs1 q1) = r1;
+             } in catcha
+                    (forallM
+                      (\ r2 ->
+                        let {
+                          (TA_rule (f2, i2) qs2 q2) = r2;
+                        } in (if f1 == f2 && less_nat i1 i2 && qs1 == qs2
+                               then check (memb_rm_basic_ops q2 (rels q1))
+                                      (shows_prec_list Zero_nat
+ ['p', 'r', 'o', 'b', 'l', 'e', 'm', ' ', 'w', 'i', 't', 'h', ' ', 'r', 'a',
+   'i', 's', 'e', ' ', 'c', 'o', 'n', 's', 'i', 's', 't', 'e', 'n', 'c', 'y',
+   ' ', 'b', 'e', 'c', 'a', 'u', 's', 'e', ' ', 'o', 'f', ' ', 'a', 'u', 't',
+   'o', 'm', 'a', 't', 'o', 'n', '-', 'r', 'u', 'l', 'e', 's', ' '] .
+shows_nl .
+  shows_prec_ta_rule Zero_nat r1 .
+    shows_nl .
+      shows_prec_ta_rule Zero_nat r2 .
+        shows_nl .
+          shows_prec Zero_nat q1 .
+            shows_prec_list Zero_nat
+              [' ', 'i', 's', ' ', 'n', 'o', 't', ' ', '>', '>', '^', '*',
+                ' '] .
+              shows_prec Zero_nat q2)
+                               else Inr ()))
+                      rls)
+                    (\ x -> Inl (snd x)))
+           rls)
+         (\ x -> Inl (snd x));
 
 ta_epsrs_impl :: forall a b c. Ta_impl_ext a b c -> a -> Rbt a ();
 ta_epsrs_impl
@@ -25238,6 +25930,50 @@ ta_epss_impl
   (Ta_impl_ext ta_final_impl ta_rules_impl ta_r_lhs_states_impl
     ta_rhs_states_set ta_eps_impl ta_epss_impl ta_epsrs_impl more)
   = ta_epss_impl;
+
+g_inter_dflt_basic_oops_rm_basic_ops ::
+  forall a. (Linorder a) => Rbt a () -> Rbt a () -> Rbt a ();
+g_inter_dflt_basic_oops_rm_basic_ops s1 s2 =
+  iteratei_bset_op_list_it_dflt_basic_oops_rm_basic_ops s1 (\ _ -> True)
+    (\ x s -> (if memb_rm_basic_ops x s2 then ins_dj_rm_basic_ops x s else s))
+    (empty_rm_basic_ops ());
+
+ta_match_impl ::
+  forall a b c.
+    (Linorder a, Eq b, Linorder b, Eq c,
+      Linorder c) => Rbt (a, Nat) [Ta_rule_impl b a] ->
+                       Rbt b () ->
+                         (b -> Rbt b ()) -> Term a c -> [b] -> Rbt [(c, b)] ();
+ta_match_impl ta qsig eps (Var x) q =
+  g_from_list_dflt_basic_oops_rm_basic_ops
+    (map (\ qa -> [(x, qa)])
+      (g_to_list_dflt_basic_oops_rm_basic_ops
+        (g_inter_dflt_basic_oops_rm_basic_ops (rs_Union (map eps q)) qsig)));
+ta_match_impl ta qsig eps (Fun f ts) q =
+  let {
+    n = size_list ts;
+    rules = rm_set_lookup ta (f, n);
+    ep = rs_Union (map eps q);
+    fa = (\ rule ->
+           g_from_list_dflt_basic_oops_rm_basic_ops
+             (let {
+                (TA_rule_impl _ qs qa _) = rule;
+              } in (if memb_rm_basic_ops qa ep
+                     then let {
+                            rec = map (\ (tsi, qsi) ->
+g_to_list_dflt_basic_oops_rm_basic_ops (ta_match_impl ta qsig eps tsi [qsi]))
+                                    (zip ts qs);
+                          } in map concat (concat_lists rec)
+                     else [])));
+  } in rs_Union (map fa rules);
+
+ta_match_impla ::
+  forall a b c.
+    (Linorder a, Eq b, Linorder b, Eq c,
+      Linorder c) => Rbt (a, Nat) [Ta_rule_impl b a] ->
+                       Rbt b () ->
+                         (b -> Rbt b ()) -> [b] -> Term a c -> Rbt [(c, b)] ();
+ta_match_impla ta qsig eps rhs t = ta_match_impl ta qsig eps t rhs;
 
 ta_res_impl ::
   forall a b.
@@ -25290,7 +26026,7 @@ rule_state_compatible_eff_list ta rel (l, r) =
                     Just q -> Inl ((l_sigma, r_sigma), q);
                   }))
            (g_to_list_dflt_basic_oops_rm_basic_ops
-             (ta_match_impl rm rhs_rbt epsa rhs l)))
+             (ta_match_impla rm rhs_rbt epsa rhs l)))
          (\ x -> Inl (snd x));
 
 state_compatible_eff_list ::
@@ -25442,33 +26178,23 @@ shows_prec_nat Zero_nat (plus_nat i (Nat_of_num One)) .
     (\ x -> Inl (snd x));
 
 ntrancl ::
-  forall a. (Ceq a, Corder a, Set_impla a) => Nat -> Set (a, a) -> Set (a, a);
+  forall a. (Ceq a, Corder a, Set_impl a) => Nat -> Set (a, a) -> Set (a, a);
 ntrancl n r =
   (if equal_nat n Zero_nat then r
     else let {
            ra = ntrancl (minus_nat n (Nat_of_num One)) r;
          } in sup_set ra (relcomp ra r));
 
-card_UNIV_prod :: forall a b. (Card_UNIV a, Card_UNIV b) => Phantom (a, b) Nat;
-card_UNIV_prod =
-  Phantom
-    (times_nat (of_phantom (card_UNIV :: Phantom a Nat))
-      (of_phantom (card_UNIV :: Phantom b Nat)));
-
-instance (Card_UNIV a, Card_UNIV b) => Card_UNIV (a, b) where {
-  card_UNIV = card_UNIV_prod;
-};
-
 trancl ::
   forall a.
-    (Card_UNIV a, Ceq a, Corder a, Set_impla a) => Set (a, a) -> Set (a, a);
+    (Card_UNIV a, Ceq a, Corder a, Set_impl a) => Set (a, a) -> Set (a, a);
 trancl a =
   (if finite a then ntrancl (minus_nat (card a) (Nat_of_num One)) a
     else error "trancl: infinite set" (\ _ -> trancl a));
 
 check_coherent ::
   forall a b.
-    (Card_UNIV a, Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impla a,
+    (Card_UNIV a, Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impl a,
       Showa a, Eq b,
       Showa b) => Tree_automaton a b ->
                     Ta_relation a -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
@@ -25511,40 +26237,6 @@ check_coherent (Tree_Automaton fin rules eps) (Some_Relation rel) =
 check_coherent uu Decision_Proc = Inr ();
 check_coherent uu Id_Relation = Inr ();
 
-rtrancl_rbt_impl :: forall a. (Linorder a) => [(a, a)] -> [a] -> Rbt a ();
-rtrancl_rbt_impl =
-  rtrancl_impl
-    (\ r ->
-      let {
-        rm = elem_list_to_rm fst r;
-      } in (\ asa ->
-             g_to_list_dflt_basic_oops_rm_basic_ops
-               (rs_Union
-                 (map (\ a ->
-                        g_from_list_dflt_basic_oops_rm_basic_ops
-                          (map snd (rm_set_lookup rm a)))
-                   asa))))
-    (\ asa bs ->
-      g_union_dflt_basic_oops_rm_basic_ops bs
-        (g_from_list_dflt_basic_oops_rm_basic_ops asa))
-    memb_rm_basic_ops (empty_rm_basic_ops ());
-
-memo_rbt_rtrancl :: forall a. (Linorder a) => [(a, a)] -> a -> Rbt a ();
-memo_rbt_rtrancl r =
-  let {
-    tr = rtrancl_rbt_impl r;
-    rm = g_list_to_map_rm_basic_ops
-           (map (\ a -> (a, tr [a]))
-             (((g_to_list_dflt_basic_oops_rm_basic_ops .
-                 g_from_list_dflt_basic_oops_rm_basic_ops) .
-                map fst)
-               r));
-  } in (\ a ->
-         (case lookup rm a of {
-           Nothing -> g_from_list_dflt_basic_oops_rm_basic_ops [a];
-           Just asa -> asa;
-         }));
-
 conv_ta_rule :: forall a b. (a -> Rbt a ()) -> Ta_rule a b -> Ta_rule_impl a b;
 conv_ta_rule eps (TA_rule f qs q) = TA_rule_impl f qs q (eps q);
 
@@ -25566,24 +26258,34 @@ generate_ta (Tree_Automaton fin rules eps) =
 
 generate_ta_cond ::
   forall a b.
-    (Card_UNIV a, Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impla a,
+    (Card_UNIV a, Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impl a,
       Showa a, Eq b, Linorder b,
       Showa b) => Tree_automaton a b ->
                     Ta_relation a ->
                       Sum ([Prelude.Char] -> [Prelude.Char])
                         (Ta_impl_ext a b ());
 generate_ta_cond ta rel =
-  let {
-    (Tree_Automaton _ _ _) = ta;
-  } in bindb (catcha (check_coherent ta rel)
-               (\ x ->
-                 Inl (shows_prec_list Zero_nat
-                        ['a', 'u', 't', 'o', 'm', 'a', 't', 'o', 'n', ' ', 'i',
-                          's', ' ', 'n', 'o', 't', ' ', 'c', 'o', 'h', 'e', 'r',
-                          'e', 'n', 't', ' ', 'w', '.', 'r', '.', 't', '.', ' ',
-                          'r', 'e', 'l', 'a', 't', 'i', 'o', 'n'] .
-                       shows_nl . x)))
-         (\ _ -> Inr (generate_ta ta));
+  bindb (catcha (check_coherent ta rel)
+          (\ x ->
+            Inl (shows_prec_list Zero_nat
+                   ['a', 'u', 't', 'o', 'm', 'a', 't', 'o', 'n', ' ', 'i', 's',
+                     ' ', 'n', 'o', 't', ' ', 'c', 'o', 'h', 'e', 'r', 'e', 'n',
+                     't', ' ', 'w', '.', 'r', '.', 't', '.', ' ', 'r', 'e', 'l',
+                     'a', 't', 'i', 'o', 'n'] .
+                  shows_nl . x)))
+    (\ _ -> Inr (generate_ta ta));
+
+relation_as_list ::
+  forall a. Ta_relation a -> Sum ([Prelude.Char] -> [Prelude.Char]) [(a, a)];
+relation_as_list (Some_Relation rel) = Inr rel;
+relation_as_list Id_Relation = Inr [];
+relation_as_list Decision_Proc =
+  Inl (shows_prec_list Zero_nat
+        ['d', 'e', 'c', 'i', 's', 'i', 'o', 'n', ' ', 'p', 'r', 'o', 'c', 'e',
+          'd', 'u', 'r', 'e', ' ', 'n', 'o', 't', ' ', 'a', 'v', 'a', 'i', 'l',
+          'a', 'b', 'l', 'e', ' ', 'f', 'o', 'r', ' ', 'n', 'o', 'n', '-', 'l',
+          'e', 'f', 't', ' ', 'l', 'i', 'n', 'e', 'a', 'r', ' ', 'T', 'R', 'S',
+          's']);
 
 bounds_condition ::
   forall a b.
@@ -25652,11 +26354,36 @@ rel_checker (Some_Relation rel) =
 rel_checker Id_Relation = rs_subset;
 rel_checker Decision_Proc = rs_subset;
 
+check_det ::
+  forall a b.
+    (Eq a,
+      Eq b) => Tree_automaton a b -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+check_det (Tree_Automaton fin rules eps) =
+  catcha
+    (bindb
+      (check (null eps)
+        (shows_prec_list Zero_nat
+          ['e', 'p', 's', 'i', 'l', 'o', 'n', ' ', 't', 'r', 'a', 'n', 's', 'i',
+            't', 'i', 'o', 'n', 's', ' ', 'n', 'o', 't', ' ', 'a', 'l', 'l',
+            'o', 'w', 'e', 'd']))
+      (\ _ ->
+        check (distinct (map (\ (TA_rule f qs _) -> (f, qs)) (remdups rules)))
+          (shows_prec_list Zero_nat
+            ['s', 'o', 'm', 'e', ' ', 'l', 'h', 's', ' ', 'o', 'c', 'c', 'u',
+              'r', 's', ' ', 't', 'w', 'i', 'c', 'e'])))
+    (\ x ->
+      Inl (shows_prec_list Zero_nat
+             ['p', 'r', 'o', 'b', 'l', 'e', 'm', ' ', 'w', 'h', 'e', 'n', ' ',
+               'e', 'n', 's', 'u', 'r', 'i', 'n', 'g', ' ', 'd', 'e', 't', 'e',
+               'r', 'm', 'i', 'n', 'i', 's', 'm', ' ', 'o', 'f', ' ', 'a', 'u',
+               't', 'o', 'm', 'a', 't', 'a'] .
+            shows_nl . x));
+
 check_bounds ::
   forall a b c.
     (Eq a, Linorder a, Showa a, Card_UNIV b, Cenum b, Ceq b, Corder b, Eq b,
-      Linorder b, Set_impla b, Showa b, Ceq c, Corder c, Eq c, Linorder c,
-      Set_impla c,
+      Linorder b, Set_impl b, Showa b, Ceq c, Corder c, Eq c, Linorder c,
+      Set_impl c,
       Showa c) => Bounds_info a b ->
                     [(Term a c, Term a c)] ->
                       Sum ([Prelude.Char] -> [Prelude.Char]) ();
@@ -25667,7 +26394,19 @@ check_bounds (Bounds_Info typea c qfin preTA rel) r =
         rell = rel_checker rel;
       } in bindb (check_wf_trs r)
              (\ _ ->
-               bindb (check_left_linear_trs r)
+               bindb (if isOK (check_left_linear_trs r) then Inr ()
+                       else bindb (catcha (check_det preTA)
+                                    (\ x ->
+                                      Inl
+(shows_prec_list Zero_nat
+   ['f', 'o', 'r', ' ', 'n', 'o', 'n', ' ', 'l', 'e', 'f', 't', '-', 'l', 'i',
+     'n', 'e', 'a', 'r', ' ', 'T', 'R', 'S', ' ', 'w', 'e', ' ', 'r', 'e', 'q',
+     'u', 'i', 'r', 'e', ' ', 'd', 'e', 't', '.', ' ', 'a', 'u', 't', 'o', 'm',
+     'a', 't', 'o', 'n'] .
+  shows_nl . x)))
+                              (\ _ ->
+                                bindb (relation_as_list rel)
+                                  (check_state_raise_consistent preTA)))
                  (\ _ ->
                    bindb (bounds_condition typea r)
                      (\ _ ->
@@ -25771,14 +26510,14 @@ check_bounds (Bounds_Info typea c qfin preTA rel) r =
 
 bounds_tt ::
   forall a b c d.
-    (Eq b, Linorder b, Showa b, Ceq c, Corder c, Eq c, Linorder c, Set_impla c,
+    (Eq b, Linorder b, Showa b, Ceq c, Corder c, Eq c, Linorder c, Set_impl c,
       Showa c, Card_UNIV d, Cenum d, Ceq d, Corder d, Eq d, Linorder d,
-      Set_impla d,
+      Set_impl d,
       Showa d) => Tp_ops_ext a b c () ->
                     Bounds_info b d ->
                       a -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
 bounds_tt i info tp = let {
-                        a = rulesb i tp;
+                        a = rulesc i tp;
                       } in check_bounds info a;
 
 check_trs_termination_proof_main ::
@@ -25792,7 +26531,7 @@ check_trs_termination_proof_main ::
                                  Sum ([Prelude.Char] -> [Prelude.Char]) ();
 check_trs_termination_proof_main j ia assms i tp R_is_Empty =
   debug (i []) ['R', ' ', 'i', 's', ' ', 'e', 'm', 'p', 't', 'y']
-    (if null (ra j tp) then Inr ()
+    (if null (rb j tp) then Inr ()
       else Inl (i . shows_string
                       [':', ' ', 'R', ' ', 'i', 's', ' ', 'n', 'o', 't', ' ',
                         'e', 'm', 'p', 't', 'y', ' ', 'i', 'n', ' ', 't', 'h',
@@ -25805,7 +26544,7 @@ check_trs_termination_proof_main j ia assms i tp R_is_Empty =
 check_trs_termination_proof_main j ia assms i tp (Rule_Removal redp rR prf) =
   debug (i []) ['R', 'u', 'l', 'e', ' ', 'R', 'e', 'm', 'o', 'v', 'a', 'l']
     (let {
-       r = rulesb j tp;
+       r = rulesc j tp;
        rr = ceta_list_diff r rR;
      } in bindb (catcha (rule_removal_tt j (get_redtriple redp) rr tp)
                   (\ x ->
@@ -26066,8 +26805,8 @@ check_trs_termination_proof_main j ia assms i tp (Switch_Innermost joins prf) =
 check_trs_termination_proof_main j ia assms i tp (Drop_Equality prf) =
   debug (i []) ['D', 'r', 'o', 'p', ' ', 'E', 'q', 'u', 'a', 'l', 'i', 't', 'y']
     (let {
-       tpa = mka j (nfsa j tp) (qa j tp) (ra j tp)
-               (filter (\ (l, r) -> not (equal_term l r)) (rwa j tp));
+       tpa = mkb j (nfsb j tp) (qb j tp) (rb j tp)
+               (filter (\ (l, r) -> not (equal_term l r)) (rwb j tp));
      } in catcha
             (check_trs_termination_proof_main j ia assms
               (i . shows_string ['.', '1']) tpa prf)
@@ -26084,8 +26823,8 @@ check_trs_termination_proof_main j ia assms i tp
     ['R', 'e', 'm', 'o', 'v', 'i', 'n', 'g', ' ', 'n', 'o', 'n', '-', 'a', 'p',
       'p', 'l', 'i', 'c', 'a', 'b', 'l', 'e', ' ', 'r', 'u', 'l', 'e', 's']
     (let {
-       _ = ra j tp;
-     } in bindb (catcha (check_non_applicable_rules (is_QNFa j tp) r)
+       _ = rb j tp;
+     } in bindb (catcha (check_non_applicable_rules (is_QNFb j tp) r)
                   (\ x ->
                     Inl (i . shows_string
                                [':', ' ', 'e', 'r', 'r', 'o', 'r', ' ', 'w',
@@ -26103,7 +26842,7 @@ check_trs_termination_proof_main j ia assms i tp
  'i', 'c', 'a', 'b', 'l', 'e']))))
             (\ _ ->
               let {
-                tpa = delete_R_Rwa j tp r r;
+                tpa = delete_R_Rwb j tp r r;
               } in catcha
                      (check_trs_termination_proof_main j ia assms
                        (i . shows_string ['.', '1']) tpa prf)
@@ -26116,6 +26855,33 @@ check_trs_termination_proof_main j ia assms i tp
                                     'e', 's', ' ', 'r', 'e', 'm', 'o', 'v', 'a',
                                     'l'] .
                                   shows_nl . indent x))));
+check_trs_termination_proof_main j ia assms i tp (Permuting_AFS pi prf) =
+  debug (i [])
+    ['P', 'e', 'r', 'm', 'u', 't', 'i', 'n', 'g', ' ', 's', 'o', 'm', 'e', ' ',
+      'r', 'u', 'l', 'e', 's']
+    (bindb
+      (catcha (argument_filter_tt j pi tp)
+        (\ x ->
+          Inl (i . shows_string
+                     [':', ' ', 'e', 'r', 'r', 'o', 'r', ' ', 'w', 'h', 'e',
+                       'n', ' ', 'p', 'e', 'r', 'm', 'u', 't', 'i', 'n', 'g',
+                       ' ', 'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's', ' ',
+                       'o', 'n', ' '] .
+                     shows_nl .
+                       shows_tp (shows_prec_lab Zero_nat)
+                         (shows_prec_list Zero_nat) j tp .
+                         shows_nl . x)))
+      (\ tpa ->
+        catcha
+          (check_trs_termination_proof_main j ia assms
+            (i . shows_string ['.', '1']) tpa prf)
+          (\ x ->
+            Inl (i . shows_string
+                       [':', ' ', 'e', 'r', 'r', 'o', 'r', ' ', 'b', 'e', 'l',
+                         'o', 'w', ' ', 't', 'h', 'e', ' ', 'p', 'e', 'r', 'm',
+                         'u', 't', 'a', 't', 'i', 'o', 'n', ' ', 'o', 'f', ' ',
+                         'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's'] .
+                       shows_nl . indent x))));
 check_trs_termination_proof_main j ia assms i tpa (Assume_SN tp ass) =
   debug (i [])
     ['T', 'e', 'r', 'm', 'i', 'n', 'a', 't', 'i', 'o', 'n', ' ', 'A', 's', 's',
@@ -27262,6 +28028,8 @@ unlab_to_split_trs (Switch_Innermost a1 p) =
 unlab_to_split_trs (Drop_Equality p) = Drop_Equality (unlab_to_split_trs p);
 unlab_to_split_trs (Remove_Nonapplicable_Rules a1 p) =
   Remove_Nonapplicable_Rules a1 (unlab_to_split_trs p);
+unlab_to_split_trs (Permuting_AFS a1 p) =
+  Permuting_AFS a1 (unlab_to_split_trs p);
 unlab_to_split_trs (Assume_SN a p) =
   Assume_SN a
     (map (map_assm_proof unlab_to_split_trs (fst . unlab_to_split_dp)
@@ -27299,7 +28067,7 @@ unlab_to_split_dp ::
 unlab_to_split_dp P_is_Empty = (P_is_Empty, []);
 unlab_to_split_dp (Dep_Graph_Proc ps) =
   (Dep_Graph_Proc
-     (map (\ (po, a) -> (mapa (fst . unlab_to_split_dp) po, a)) ps),
+     (map (\ (po, a) -> (map_option (fst . unlab_to_split_dp) po, a)) ps),
     []);
 unlab_to_split_dp (Subterm_Criterion_Proc a1 a2 a3 p) =
   updatec (Subterm_Criterion_Proc a1 a2 a3) (unlab_to_split_dp p);
@@ -27392,7 +28160,7 @@ check_cr_proof ::
 check_cr_proof a ia i j r (SN_WCR joins_i prf) =
   debug (ia []) ['S', 'N', '_', 'W', 'C', 'R']
     (let {
-       tp = mka i False [] r [];
+       tp = mkb i False [] r [];
      } in bindb (catcha
                   (check_trs_termination_proof i j a
                     (ia . shows_string ['.', '1']) tp prf)
@@ -27454,52 +28222,10 @@ check_cr_proof a ia i j r (Strongly_Closed n) =
                         [' ', '-', '>', ' '] r .
                         indent x)));
 
-default_list :: forall a. [a];
-default_list = [];
-
-instance Default [a] where {
-  defaulta = default_list;
-};
-
-cEnum_nat :: Maybe ([Nat], ((Nat -> Bool) -> Bool, (Nat -> Bool) -> Bool));
-cEnum_nat = Nothing;
-
-instance Cenum Nat where {
-  cEnum = cEnum_nat;
-};
-
-cEnum_set ::
-  forall a.
-    (Cenum a, Ceq a, Corder a,
-      Set_impla a) => Maybe ([Set a],
-                              ((Set a -> Bool) -> Bool,
-                                (Set a -> Bool) -> Bool));
-cEnum_set =
-  (case cEnum of {
-    Nothing -> Nothing;
-    Just (enum_a, (_, _)) ->
-      Just (map set (sublists enum_a),
-             ((\ p -> all p (map set (sublists enum_a))),
-               (\ p -> any p (map set (sublists enum_a)))));
-  });
-
-instance (Cenum a, Ceq a, Corder a, Set_impla a) => Cenum (Set a) where {
-  cEnum = cEnum_set;
-};
-
-cEnum_lab ::
-  forall a b.
-    Maybe ([Lab a b], ((Lab a b -> Bool) -> Bool, (Lab a b -> Bool) -> Bool));
-cEnum_lab = Nothing;
-
-instance Cenum (Lab a b) where {
-  cEnum = cEnum_lab;
-};
-
 check_dp_loop ::
   forall a b c.
-    (Eq b, Linorder b, Showa b, Ceq c, Corder c, Eq c, Mapping_impla c,
-      Linorder c, Set_impla c,
+    (Eq b, Linorder b, Showa b, Ceq c, Corder c, Eq c, Mapping_impl c,
+      Linorder c, Set_impl c,
       Showa c) => Dpp_ops_ext a b c () ->
                     a -> Dp_loop_prf b c ->
                            Sum ([Prelude.Char] -> [Prelude.Char]) ();
@@ -27527,7 +28253,7 @@ check_dp_loop i dpp (DP_loop_prf s prseq sigma c) =
 
 check_rel_seq ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Term a b, Term a b)] ->
                       [(Pos, ((Term a b, Term a b), (Bool, Term a b)))] ->
@@ -27585,6 +28311,10 @@ shows_p (b, ((f, (c, m)), a)) =
       shows_prec_list Zero_nat [' ', '^', ' ', '('] .
         shows_exp (f, c) .
           shows_prec_list Zero_nat [')'] . shows_prec Zero_nat a;
+
+set_option :: forall a. (Ceq a, Corder a, Set_impl a) => Maybe a -> Set a;
+set_option Nothing = bot_set;
+set_option (Just x2a) = inserta x2a bot_set;
 
 enfc_cand ::
   forall a.
@@ -27670,12 +28400,6 @@ intersect_rules rs =
   intersect_values key
     (map (\ a -> (True, a)) rs ++ map (\ a -> (False, a)) rs);
 
-length_last :: forall a. [a] -> (Nat, a);
-length_last (x : xs) =
-  fold (\ xa (n, _) -> (plus_nat n (Nat_of_num One), xa)) xs
-    (Nat_of_num One, x);
-length_last [] = (Zero_nat, error "undefined");
-
 check_wf_reltrs ::
   forall a b.
     (Showa a, Eq b,
@@ -27692,8 +28416,8 @@ xml_ctrs_input ::
                      [(Term (Lab a [b]) c, Term (Lab a [b]) c)])] ->
                     Xml;
 xml_ctrs_input ctrs =
-  Xml ['c', 't', 'r', 's', 'I', 'n', 'p', 'u', 't'] []
-    [Xml ['c', 'o', 'n', 'd', 'i', 't', 'i', 'o', 'n', 'a', 'l', 'R', 'u', 'l',
+  XML ['c', 't', 'r', 's', 'I', 'n', 'p', 'u', 't'] []
+    [XML ['c', 'o', 'n', 'd', 'i', 't', 'i', 'o', 'n', 'a', 'l', 'R', 'u', 'l',
            'e', 's']
        [] (map xml_crule ctrs) Nothing]
     Nothing;
@@ -27703,7 +28427,7 @@ starts_with t s = take (size_list s) (trim t) == s;
 
 check_modularity_ncr ::
   forall a b.
-    (Cenum a, Ceq a, Corder a, Eq a, Set_impla a, Showa a, Eq b,
+    (Cenum a, Ceq a, Corder a, Eq a, Set_impl a, Showa a, Eq b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Term a b, Term a b)] ->
                       Sum ([Prelude.Char] -> [Prelude.Char]) ();
@@ -27743,6 +28467,11 @@ check_modularity_ncr ra r =
                              ['l', 'h', 's', 's', ' ', 'm', 'u', 's', 't', ' ',
                                'n', 'o', 't', ' ', 'b', 'e', ' ', 'v', 'a', 'r',
                                'i', 'a', 'b', 'l', 'e', 's'])))));
+
+sl_c :: forall a b c d e. Sl_ops_ext a b c d e -> b;
+sl_c (Sl_ops_ext sl_La sl_LSa sl_I sl_C sl_c sl_check_decr sl_L sl_LS sl_lgen
+       sl_LS_gen more)
+  = sl_c;
 
 check_qmodel_rule_ass ::
   forall a b c.
@@ -27795,11 +28524,6 @@ check_qmodel ::
 check_qmodel i c cge r =
   catcha (forallM (check_qmodel_rule i c cge) r) (\ x -> Inl (snd x));
 
-sl_c :: forall a b c d e. Sl_ops_ext a b c d e -> b;
-sl_c (Sl_ops_ext sl_La sl_LSa sl_I sl_C sl_c sl_check_decr sl_L sl_LS sl_lgen
-       sl_LS_gen more)
-  = sl_c;
-
 check_non_join_model ::
   forall a b c d.
     (Showa a, Eq b, Showa b, Eq d,
@@ -27835,9 +28559,7 @@ check_non_join_model cge gen rs rt s t =
                                  shows_prec_list Zero_nat [' ', '=', ' ', '['] .
                                    shows_prec_term Zero_nat s .
                                      shows_prec_list Zero_nat [']']))
-               (\ _ ->
-                 check_qmodel i (sl_C ops) cge
-                   (map (\ (x, y) -> (y, x)) rs ++ rt))))
+               (\ _ -> check_qmodel i (sl_C ops) cge (reverse_rules rs ++ rt))))
     (\ x ->
       Inl (shows_prec_list Zero_nat
              ['p', 'r', 'o', 'b', 'l', 'e', 'm', ' ', 'i', 'n', ' ', 'd', 'i',
@@ -27849,7 +28571,7 @@ check_non_join_model cge gen rs rt s t =
 
 check_non_join_finite_model ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => Sl_variant (Lab a [Nat]) b ->
                     [(Term (Lab a [Nat]) b, Term (Lab a [Nat]) b)] ->
                       [(Term (Lab a [Nat]) b, Term (Lab a [Nat]) b)] ->
@@ -27885,8 +28607,8 @@ usable_rules_reach_U0_impl r t =
 usable_rules_reach_impl ::
   forall a b.
     (Eq a, Cenum b, Ceq b, Corder b, Eq b,
-      Set_impla b) => [(Term a b, Term a b)] ->
-                        Term a b -> [(Term a b, Term a b)];
+      Set_impl b) => [(Term a b, Term a b)] ->
+                       Term a b -> [(Term a b, Term a b)];
 usable_rules_reach_impl r t =
   let {
     u0t = usable_rules_reach_U0_impl r t;
@@ -27905,7 +28627,7 @@ check_non_join_redpair rp rs rt sa t =
   catcha
     (bindb (valid rp)
       (\ _ ->
-        bindb (catcha (forallM (ns rp) (map (\ (x, y) -> (y, x)) rs ++ rt))
+        bindb (catcha (forallM (ns rp) (reverse_rules rs ++ rt))
                 (\ x -> Inl (snd x)))
           (\ _ -> s rp (sa, t))))
     (\ x ->
@@ -27916,30 +28638,6 @@ check_non_join_redpair rp rs rt sa t =
                'i', 'a', ' ', 'd', 'i', 's', 'c', 'r', 'i', 'm', 'i', 'n', 'a',
                't', 'i', 'o', 'n', ' ', 'p', 'a', 'i', 'r', 's'] .
             shows_nl . x));
-
-show_ta_rule ::
-  forall a b.
-    (Showa a, Showa b) => Ta_rule a b -> [Prelude.Char] -> [Prelude.Char];
-show_ta_rule (TA_rule f qs q) =
-  shows_prec Zero_nat f .
-    shows_prec_list Zero_nat qs .
-      shows_prec_list Zero_nat [' ', '-', '>', ' '] . shows_prec Zero_nat q;
-
-shows_prec_ta_rule ::
-  forall a b.
-    (Showa a,
-      Showa b) => Nat -> Ta_rule a b -> [Prelude.Char] -> [Prelude.Char];
-shows_prec_ta_rule d r = show_ta_rule r;
-
-shows_list_ta_rule ::
-  forall a b.
-    (Showa a, Showa b) => [Ta_rule a b] -> [Prelude.Char] -> [Prelude.Char];
-shows_list_ta_rule = shows_list_aux (shows_prec_ta_rule Zero_nat);
-
-instance (Showa a, Showa b) => Showa (Ta_rule a b) where {
-  shows_prec = shows_prec_ta_rule;
-  shows_list = shows_list_ta_rule;
-};
 
 show_ta ::
   forall a b.
@@ -27962,304 +28660,24 @@ shows_prec_tree_automaton ::
       Showa b) => Nat -> Tree_automaton a b -> [Prelude.Char] -> [Prelude.Char];
 shows_prec_tree_automaton d r = show_ta r;
 
-length_last_fusion :: forall a b. Generator a b -> b -> (Nat, a);
-length_last_fusion g s =
-  (if has_next g s
-    then let {
-           (x, sa) = next g s;
-         } in fold_fusion g (\ xa (n, _) -> (plus_nat n (Nat_of_num One), xa))
-                sa (Nat_of_num One, x)
-    else (Zero_nat, error "undefined"));
-
-gen_length_fusion :: forall a b. Generator a b -> Nat -> b -> Nat;
-gen_length_fusion g n s =
-  (if has_next g s
-    then gen_length_fusion g (plus_nat n (Nat_of_num One)) (snd (next g s))
-    else n);
-
-length_fusion :: forall a b. Generator a b -> b -> Nat;
-length_fusion g = gen_length_fusion g Zero_nat;
-
-proper_interval_set_Compl_aux_fusion ::
-  forall a b c.
-    (Card_UNIV a) => (a -> a -> Bool) ->
-                       (Maybe a -> Maybe a -> Bool) ->
-                         Generator a b ->
-                           Generator a c -> Maybe a -> Nat -> b -> c -> Bool;
-proper_interval_set_Compl_aux_fusion less proper_interval g1 g2 ao n s1 s2 =
-  (if has_next g1 s1
-    then let {
-           (x, s1a) = next g1 s1;
-         } in (if has_next g2 s2
-                then let {
-                       (y, s2a) = next g2 s2;
-                     } in (if less x y
-                            then proper_interval ao (Just x) ||
-                                   proper_interval_set_Compl_aux_fusion less
-                                     proper_interval g1 g2 (Just x)
-                                     (plus_nat n (Nat_of_num One)) s1a s2
-                            else (if less y x
-                                   then proper_interval ao (Just y) ||
-  proper_interval_set_Compl_aux_fusion less proper_interval g1 g2 (Just y)
-    (plus_nat n (Nat_of_num One)) s1 s2a
-                                   else proper_interval ao (Just x) &&
-  let {
-    m = minus_nat (of_phantom (card_UNIVa :: Phantom a Nat)) n;
-  } in not (equal_nat (minus_nat m (length_fusion g2 s2a))
-             (Nat_of_num (Bit0 One))) ||
-         not (equal_nat (minus_nat m (length_fusion g1 s1a))
-               (Nat_of_num (Bit0 One)))))
-                else let {
-                       m = minus_nat (of_phantom (card_UNIVa :: Phantom a Nat))
-                             n;
-                       (len_x, xa) = length_last_fusion g1 s1;
-                     } in not (equal_nat m len_x) &&
-                            (if equal_nat m (plus_nat len_x (Nat_of_num One))
-                              then not (proper_interval (Just xa) Nothing)
-                              else True))
-    else (if has_next g2 s2
-           then let {
-                  (_, _) = next g2 s2;
-                  m = minus_nat (of_phantom (card_UNIVa :: Phantom a Nat)) n;
-                  (len_y, y) = length_last_fusion g2 s2;
-                } in not (equal_nat m len_y) &&
-                       (if equal_nat m (plus_nat len_y (Nat_of_num One))
-                         then not (proper_interval (Just y) Nothing) else True)
-           else less_nat (plus_nat n (Nat_of_num One))
-                  (of_phantom (card_UNIVa :: Phantom a Nat))));
-
-proper_interval_Compl_set_aux_fusion ::
-  forall a b c.
-    (a -> a -> Bool) ->
-      (Maybe a -> Maybe a -> Bool) ->
-        Generator a b -> Generator a c -> Maybe a -> b -> c -> Bool;
-proper_interval_Compl_set_aux_fusion less proper_interval g1 g2 ao s1 s2 =
-  has_next g1 s1 &&
-    has_next g2 s2 &&
-      let {
-        (x, s1a) = next g1 s1;
-        (y, s2a) = next g2 s2;
-      } in (if less x y
-             then not (proper_interval ao (Just x)) &&
-                    proper_interval_Compl_set_aux_fusion less proper_interval g1
-                      g2 (Just x) s1a s2
-             else (if less y x
-                    then not (proper_interval ao (Just y)) &&
-                           proper_interval_Compl_set_aux_fusion less
-                             proper_interval g1 g2 (Just y) s1 s2a
-                    else not (proper_interval ao (Just x)) &&
-                           (has_next g2 s2a || has_next g1 s1a)));
-
-proper_interval_set_aux_fusion ::
-  forall a b c.
-    (a -> a -> Bool) ->
-      (Maybe a -> Maybe a -> Bool) ->
-        Generator a b -> Generator a c -> b -> c -> Bool;
-proper_interval_set_aux_fusion less proper_interval g1 g2 s1 s2 =
-  has_next g2 s2 &&
-    let {
-      (y, s2a) = next g2 s2;
-    } in (if has_next g1 s1
-           then let {
-                  (x, s1a) = next g1 s1;
-                } in (if less x y then False
-                       else (if less y x
-                              then proper_interval (Just y) (Just x) ||
-                                     (has_next g2 s2a ||
-                                       not
- (exhaustive_above_fusion proper_interval g1 x s1a))
-                              else proper_interval_set_aux_fusion less
-                                     proper_interval g1 g2 s1a s2a))
-           else has_next g2 s2a || proper_interval (Just y) Nothing);
-
-proper_interval_set_Compl_aux ::
-  forall a.
-    (Card_UNIV a) => (a -> a -> Bool) ->
-                       (Maybe a -> Maybe a -> Bool) ->
-                         Maybe a -> Nat -> [a] -> [a] -> Bool;
-proper_interval_set_Compl_aux less proper_interval ao n (x : xs) (y : ys) =
-  (if less x y
-    then proper_interval ao (Just x) ||
-           proper_interval_set_Compl_aux less proper_interval (Just x)
-             (plus_nat n (Nat_of_num One)) xs (y : ys)
-    else (if less y x
-           then proper_interval ao (Just y) ||
-                  proper_interval_set_Compl_aux less proper_interval (Just y)
-                    (plus_nat n (Nat_of_num One)) (x : xs) ys
-           else proper_interval ao (Just x) &&
-                  let {
-                    m = minus_nat (of_phantom (card_UNIVa :: Phantom a Nat)) n;
-                  } in not (equal_nat (minus_nat m (size_list ys))
-                             (Nat_of_num (Bit0 One))) ||
-                         not (equal_nat (minus_nat m (size_list xs))
-                               (Nat_of_num (Bit0 One)))));
-proper_interval_set_Compl_aux less proper_interval ao n (x : xs) [] =
-  let {
-    m = minus_nat (of_phantom (card_UNIVa :: Phantom a Nat)) n;
-    (len_x, xa) = length_last (x : xs);
-  } in not (equal_nat m len_x) &&
-         (if equal_nat m (plus_nat len_x (Nat_of_num One))
-           then not (proper_interval (Just xa) Nothing) else True);
-proper_interval_set_Compl_aux less proper_interval ao n [] (y : ys) =
-  let {
-    m = minus_nat (of_phantom (card_UNIVa :: Phantom a Nat)) n;
-    (len_y, ya) = length_last (y : ys);
-  } in not (equal_nat m len_y) &&
-         (if equal_nat m (plus_nat len_y (Nat_of_num One))
-           then not (proper_interval (Just ya) Nothing) else True);
-proper_interval_set_Compl_aux less proper_interval ao n [] [] =
-  less_nat (plus_nat n (Nat_of_num One))
-    (of_phantom (card_UNIVa :: Phantom a Nat));
-
-proper_interval_Compl_set_aux ::
-  forall a.
-    (a -> a -> Bool) ->
-      (Maybe a -> Maybe a -> Bool) -> Maybe a -> [a] -> [a] -> Bool;
-proper_interval_Compl_set_aux less proper_interval ao uu [] = False;
-proper_interval_Compl_set_aux less proper_interval ao [] uv = False;
-proper_interval_Compl_set_aux less proper_interval ao (x : xs) (y : ys) =
-  (if less x y
-    then not (proper_interval ao (Just x)) &&
-           proper_interval_Compl_set_aux less proper_interval (Just x) xs
-             (y : ys)
-    else (if less y x
-           then not (proper_interval ao (Just y)) &&
-                  proper_interval_Compl_set_aux less proper_interval (Just y)
-                    (x : xs) ys
-           else not (proper_interval ao (Just x)) &&
-                  (if null ys then not (null xs) else True)));
-
-exhaustive_above :: forall a. (Maybe a -> Maybe a -> Bool) -> a -> [a] -> Bool;
-exhaustive_above proper_interval x (y : ys) =
-  not (proper_interval (Just x) (Just y)) &&
-    exhaustive_above proper_interval y ys;
-exhaustive_above proper_interval x [] = not (proper_interval (Just x) Nothing);
-
-proper_interval_set_aux ::
-  forall a.
-    (a -> a -> Bool) -> (Maybe a -> Maybe a -> Bool) -> [a] -> [a] -> Bool;
-proper_interval_set_aux less proper_interval (x : xs) (y : ys) =
-  (if less x y then False
-    else (if less y x
-           then proper_interval (Just y) (Just x) ||
-                  (not (null ys) || not (exhaustive_above proper_interval x xs))
-           else proper_interval_set_aux less proper_interval xs ys));
-proper_interval_set_aux less proper_interval [] (y : ys) =
-  not (null ys) || proper_interval (Just y) Nothing;
-proper_interval_set_aux less proper_interval xs [] = False;
-
-cproper_interval_set ::
-  forall a.
-    (Card_UNIV a, Ceq a, Cproper_interval a,
-      Set_impla a) => Maybe (Set a) -> Maybe (Set a) -> Bool;
-cproper_interval_set (Just (Complement (RBT_set rbt1))) (Just (RBT_set rbt2)) =
-  (case corder of {
-    Nothing ->
-      error "cproper_interval (Complement RBT_set) RBT_set: corder = None"
-        (\ _ ->
-          cproper_interval_set (Just (Complement (RBT_set rbt1)))
-            (Just (RBT_set rbt2)));
-    Just (_, lt) ->
-      (finite :: Set a -> Bool) (top_set :: Set a) &&
-        proper_interval_Compl_set_aux_fusion lt cproper_interval
-          rbt_keys_generator rbt_keys_generator Nothing (init rbt1) (init rbt2);
-  });
-cproper_interval_set (Just (RBT_set rbt1)) (Just (Complement (RBT_set rbt2))) =
-  (case corder of {
-    Nothing ->
-      error "cproper_interval RBT_set (Complement RBT_set): corder = None"
-        (\ _ ->
-          cproper_interval_set (Just (RBT_set rbt1))
-            (Just (Complement (RBT_set rbt2))));
-    Just (_, lt) ->
-      (finite :: Set a -> Bool) (top_set :: Set a) &&
-        proper_interval_set_Compl_aux_fusion lt cproper_interval
-          rbt_keys_generator rbt_keys_generator Nothing Zero_nat (init rbt1)
-          (init rbt2);
-  });
-cproper_interval_set (Just (RBT_set rbt1)) (Just (RBT_set rbt2)) =
-  (case corder of {
-    Nothing ->
-      error "cproper_interval RBT_set RBT_set: corder = None"
-        (\ _ ->
-          cproper_interval_set (Just (RBT_set rbt1)) (Just (RBT_set rbt2)));
-    Just (_, lt) ->
-      (finite :: Set a -> Bool) (top_set :: Set a) &&
-        proper_interval_set_aux_fusion lt cproper_interval rbt_keys_generator
-          rbt_keys_generator (init rbt1) (init rbt2);
-  });
-cproper_interval_set (Just (Complement a)) (Just (Complement b)) =
-  (case (corder :: Maybe (a -> a -> Bool, a -> a -> Bool)) of {
-    Nothing ->
-      error "cproper_interval Complement Complement: corder = None"
-        (\ _ ->
-          cproper_interval_set (Just (Complement a)) (Just (Complement b)));
-    Just _ -> cproper_interval_set (Just b) (Just a);
-  });
-cproper_interval_set (Just (Complement a)) (Just b) =
-  (case corder of {
-    Nothing ->
-      error "cproper_interval Complement1: corder = None"
-        (\ _ -> cproper_interval_set (Just (Complement a)) (Just b));
-    Just (_, lt) ->
-      (finite :: Set a -> Bool) (top_set :: Set a) &&
-        proper_interval_Compl_set_aux lt cproper_interval Nothing
-          (csorted_list_of_set a) (csorted_list_of_set b);
-  });
-cproper_interval_set (Just a) (Just (Complement b)) =
-  (case corder of {
-    Nothing ->
-      error "cproper_interval Complement2: corder = None"
-        (\ _ -> cproper_interval_set (Just a) (Just (Complement b)));
-    Just (_, lt) ->
-      (finite :: Set a -> Bool) (top_set :: Set a) &&
-        proper_interval_set_Compl_aux lt cproper_interval Nothing Zero_nat
-          (csorted_list_of_set a) (csorted_list_of_set b);
-  });
-cproper_interval_set (Just a) (Just b) =
-  (case corder of {
-    Nothing ->
-      error "cproper_interval: corder = None"
-        (\ _ -> cproper_interval_set (Just a) (Just b));
-    Just (_, lt) ->
-      (finite :: Set a -> Bool) (top_set :: Set a) &&
-        proper_interval_set_aux lt cproper_interval (csorted_list_of_set a)
-          (csorted_list_of_set b);
-  });
-cproper_interval_set (Just a) Nothing = not (is_UNIV a);
-cproper_interval_set Nothing (Just b) = not (is_empty b);
-cproper_interval_set Nothing Nothing = True;
-
-instance (Card_UNIV a, Ceq a, Cproper_interval a,
-           Set_impla a) => Cproper_interval (Set a) where {
-  cproper_interval = cproper_interval_set;
-};
-
 ta_rhs_states ::
   forall a b.
-    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Eq b,
+    (Cenum a, Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Eq b,
       Linorder b) => Ta_ext a b () -> Set a;
 ta_rhs_states ta =
   sup_set (image r_rhs (ta_rules ta))
     (compute_trancl (image r_rhs (ta_rules ta)) (ta_eps ta));
 
-finite_UNIV_set :: forall a. (Finite_UNIV a) => Phantom (Set a) Bool;
-finite_UNIV_set = Phantom (of_phantom (finite_UNIV :: Phantom a Bool));
-
-instance (Finite_UNIV a) => Finite_UNIV (Set a) where {
-  finite_UNIV = finite_UNIV_set;
-};
-
 initial_rel ::
   forall a b c.
     (Card_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Eq b, Linorder b, Ceq c, Corder c, Eq c, Linorder c,
-      Set_impla c) => Ta_ext a b () ->
-                        Set (Term b c, Term b c) -> Set (a, Set a);
+      Set_impl a, Eq b, Linorder b, Ceq c, Corder c, Eq c, Linorder c,
+      Set_impl c) => Ta_ext a b () ->
+                       Set (Term b c, Term b c) -> Set (a, Set a);
 initial_rel ta r =
   let {
     rhs = ta_rhs_states ta;
-    match = ta_match ta rhs;
+    match = ta_matcha ta rhs;
     analyze_rule =
       (\ (l, ra) ->
         let {
@@ -28277,9 +28695,9 @@ initial_rel ta r =
 initial_relation ::
   forall a b c.
     (Card_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Eq b, Linorder b, Ceq c, Corder c, Eq c, Linorder c,
-      Set_impla c) => Ta_ext a b () ->
-                        Set (Term b c, Term b c) -> Maybe (Set (a, a));
+      Set_impl a, Eq b, Linorder b, Ceq c, Corder c, Eq c, Linorder c,
+      Set_impl c) => Ta_ext a b () ->
+                       Set (Term b c, Term b c) -> Maybe (Set (a, a));
 initial_relation ta r =
   let {
     q_qs = initial_rel ta r;
@@ -28290,30 +28708,97 @@ initial_relation ta r =
 decide_coherent_compatible_main ::
   forall a b c.
     (Card_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Eq b, Linorder b, Ceq c, Corder c, Eq c, Linorder c,
-      Set_impla c) => Ta_ext a b () ->
-                        Set (Term b c, Term b c) ->
-                          (Maybe (Set (a, a)) -> Maybe (Set (a, a))) -> Bool;
+      Set_impl a, Eq b, Linorder b, Ceq c, Corder c, Eq c, Linorder c,
+      Set_impl c) => Ta_ext a b () ->
+                       Set (Term b c, Term b c) ->
+                         (Maybe (Set (a, a)) -> Maybe (Set (a, a))) -> Bool;
 decide_coherent_compatible_main ta r normalizer =
   (case normalizer (initial_relation ta r) of {
     Nothing -> False;
     Just rel -> less_eq_set (imagea rel (ta_final ta)) (ta_final ta);
   });
 
+coherent_rule ::
+  forall a b.
+    (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
+      Set_impl a, Eq b,
+      Linorder b) => Set (a, a) ->
+                       Set (Ta_rule a b) -> Ta_rule a b -> Set (a, Maybe a);
+coherent_rule rel rules (TA_rule f qs q) =
+  foldr (sup_set .
+          (\ i ->
+            let {
+              qi = nth qs i;
+              qi_s = image snd (filtera (\ qq -> fst qq == qi) rel);
+              a = sup_seta
+                    (image
+                      (\ qia ->
+                        let {
+                          qsa = list_update qs i qia;
+                          rls = filtera
+                                  (\ (TA_rule g qsaa _) ->
+                                    g == f && qsaa == qsa)
+                                  rules;
+                        } in (if less_eq_set rls
+                                   (set_empty (of_phantom set_impl_ta_rule))
+                               then inserta Nothing bot_set
+                               else image (Just . r_rhs) rls))
+                      qi_s);
+            } in image (\ aa -> (q, aa)) a))
+    (upt Zero_nat (size_list qs)) bot_set;
+
+new_states ::
+  forall a b.
+    (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
+      Set_impl a, Eq b,
+      Linorder b) => Ta_ext a b () -> Set (a, a) -> Set (a, Maybe a);
+new_states ta rel =
+  let {
+    rules = ta_rules ta;
+  } in sup_seta (image (coherent_rule rel rules) rules);
+
+minus_set :: forall a. (Ceq a, Corder a) => Set a -> Set a -> Set a;
+minus_set a b = inf_set a (uminus_set b);
+
+normalize_main ::
+  forall a b.
+    (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
+      Set_impl a, Eq b,
+      Linorder b) => Ta_ext a b () ->
+                       Set (a, a) -> Set (a, a) -> Maybe (Set (a, a));
+normalize_main ta rel accu =
+  let {
+    new = new_states ta rel;
+  } in (if member Nothing (image snd new) then Nothing
+         else let {
+                new_rel = image (\ (x, y) -> (x, the y)) new;
+                new_accu = sup_set accu rel;
+                todo = minus_set new_rel new_accu;
+              } in (if less_eq_set todo bot_set then Just new_accu
+                     else normalize_main ta todo new_accu));
+
+normalizea ::
+  forall a b.
+    (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
+      Set_impl a, Eq b,
+      Linorder b) => Ta_ext a b () -> Maybe (Set (a, a)) -> Maybe (Set (a, a));
+normalizea ta (Just rel) = normalize_main ta rel bot_set;
+normalizea ta Nothing = Nothing;
+
 decide_coherent_compatible ::
   forall a b c.
     (Card_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Eq b, Linorder b, Ceq c, Corder c, Eq c, Linorder c,
-      Set_impla c) => Ta_ext a b () -> Set (Term b c, Term b c) -> Bool;
+      Set_impl a, Eq b, Linorder b, Ceq c, Corder c, Eq c, Linorder c,
+      Set_impl c) => Ta_ext a b () -> Set (Term b c, Term b c) -> Bool;
 decide_coherent_compatible ta r =
   decide_coherent_compatible_main ta r (normalizea ta);
 
 closed_under_rewriting ::
   forall a b c.
     (Card_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Default b, Eq b, Linorder b, Ceq c, Corder c, Eq c,
+      Set_impl a, Default b, Eq b, Linorder b, Ceq c, Corder c, Eq c,
       Linorder c,
-      Set_impla c) => Ta_ext a b () -> Set (Term b c, Term b c) -> Bool;
+      Set_impl c) => Ta_ext a b () -> Set (Term b c, Term b c) -> Bool;
 closed_under_rewriting ta r = decide_coherent_compatible (trim_ta ta) r;
 
 is_Decision_Proc :: forall a. Ta_relation a -> Bool;
@@ -28321,38 +28806,9 @@ is_Decision_Proc Decision_Proc = True;
 is_Decision_Proc Id_Relation = False;
 is_Decision_Proc (Some_Relation v) = False;
 
-instance (Eq a, Eq b) => Eq (Ta_rule a b) where {
-  a == b = equal_ta_rule a b;
-};
-
-check_det ::
-  forall a b.
-    (Eq a,
-      Eq b) => Tree_automaton a b -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
-check_det (Tree_Automaton fin rules eps) =
-  catcha
-    (bindb
-      (check (null eps)
-        (shows_prec_list Zero_nat
-          ['e', 'p', 's', 'i', 'l', 'o', 'n', ' ', 't', 'r', 'a', 'n', 's', 'i',
-            't', 'i', 'o', 'n', 's', ' ', 'n', 'o', 't', ' ', 'a', 'l', 'l',
-            'o', 'w', 'e', 'd']))
-      (\ _ ->
-        check (distinct (map (\ (TA_rule f qs _) -> (f, qs)) (remdups rules)))
-          (shows_prec_list Zero_nat
-            ['s', 'o', 'm', 'e', ' ', 'l', 'h', 's', ' ', 'o', 'c', 'c', 'u',
-              'r', 's', ' ', 't', 'w', 'i', 'c', 'e'])))
-    (\ x ->
-      Inl (shows_prec_list Zero_nat
-             ['p', 'r', 'o', 'b', 'l', 'e', 'm', ' ', 'w', 'h', 'e', 'n', ' ',
-               'e', 'n', 's', 'u', 'r', 'i', 'n', 'g', ' ', 'd', 'e', 't', 'e',
-               'r', 'm', 'i', 'n', 'i', 's', 'm', ' ', 'o', 'f', ' ', 'a', 'u',
-               't', 'o', 'm', 'a', 't', 'a'] .
-            shows_nl . x));
-
 ta_of_ta ::
   forall a b.
-    (Ceq a, Corder a, Eq a, Linorder a, Set_impla a, Eq b,
+    (Ceq a, Corder a, Eq a, Linorder a, Set_impl a, Eq b,
       Linorder b) => Tree_automaton a b -> Ta_ext a b ();
 ta_of_ta (Tree_Automaton fin rules eps) =
   Ta_ext (set fin) (set rules) (set eps) ();
@@ -28360,8 +28816,8 @@ ta_of_ta (Tree_Automaton fin rules eps) =
 tree_aut_trs_closed ::
   forall a b c.
     (Card_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Showa a, Default b, Eq b, Linorder b, Showa b, Ceq c,
-      Corder c, Eq c, Linorder c, Set_impla c,
+      Set_impl a, Showa a, Default b, Eq b, Linorder b, Showa b, Ceq c,
+      Corder c, Eq c, Linorder c, Set_impl c,
       Showa c) => Tree_automaton a b ->
                     Ta_relation a ->
                       [(Term b c, Term b c)] ->
@@ -28444,16 +28900,16 @@ tree_aut_trs_closed ta rel r =
 intersect_ta ::
   forall a b c.
     (Finite_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Ceq b, Corder b, Eq b, Linorder b, Set_impla b,
-      Finite_UNIV c, Cenum c, Ceq c, Cproper_interval c, Eq c, Linorder c,
-      Set_impla c) => Ta_ext a b () -> Ta_ext c b () -> Ta_ext (a, c) b ();
+      Set_impl a, Ceq b, Corder b, Eq b, Linorder b, Set_impl b, Finite_UNIV c,
+      Cenum c, Ceq c, Cproper_interval c, Eq c, Linorder c,
+      Set_impl c) => Ta_ext a b () -> Ta_ext c b () -> Ta_ext (a, c) b ();
 intersect_ta tA1 tA2 = prod_ta tA1 tA2 (productc (ta_final tA1) (ta_final tA2));
 
 non_join_with_ta ::
   forall a b c.
     (Card_UNIV a, Cenum a, Ceq a, Cproper_interval a, Eq a, Linorder a,
-      Set_impla a, Showa a, Ceq b, Corder b, Default b, Eq b, Linorder b,
-      Set_impla b, Showa b, Ceq c, Corder c, Eq c, Linorder c, Set_impla c,
+      Set_impl a, Showa a, Ceq b, Corder b, Default b, Eq b, Linorder b,
+      Set_impl b, Showa b, Ceq c, Corder c, Eq c, Linorder c, Set_impl c,
       Showa c) => Tree_automaton a b ->
                     Ta_relation a ->
                       [(Term b c, Term b c)] ->
@@ -28517,8 +28973,8 @@ non_join_with_ta ta1 rel1 r1 t1 ta2 rel2 r2 t2 =
 check_non_join ::
   forall a b c.
     (Default a, Eq a, Key a, Showa a, Cenum b, Ceq b, Corder b, Eq b,
-      Mapping_impla b, Linorder b, Set_impla b, Showa b, Card_UNIV c, Cenum c,
-      Ceq c, Cproper_interval c, Eq c, Linorder c, Set_impla c,
+      Mapping_impl b, Linorder b, Set_impl b, Showa b, Card_UNIV c, Cenum c,
+      Ceq c, Cproper_interval c, Eq c, Linorder c, Set_impl c,
       Showa c) => [(Term (Lab a [Nat]) b, Term (Lab a [Nat]) b)] ->
                     [(Term (Lab a [Nat]) b, Term (Lab a [Nat]) b)] ->
                       Term (Lab a [Nat]) b ->
@@ -28547,12 +29003,17 @@ check_non_join rs rt s t Diff_NFs =
                     [' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'i', 'n', ' ', 'n',
                       'o', 'r', 'm', 'a', 'l', ' ', 'f', 'o', 'r', 'm']));
       } in bindb (chknf s rs) (\ _ -> chknf t rt));
+check_non_join rs rt s t (Grounding sigma prf) =
+  let {
+    sigmaa = mk_subst Var sigma;
+  } in check_non_join rs rt (subst_apply_term s sigmaa)
+         (subst_apply_term t sigmaa) prf;
 check_non_join rs rt s t (Tcap_Non_Unif grd_subst) =
   let {
     sigma = grd_subst s t;
     cs = capI rs (subst_apply_term s sigma);
     ct = capI rt (subst_apply_term t sigma);
-  } in check (is_none (mergea cs ct))
+  } in check (is_none (merge cs ct))
          (shows_prec_list Zero_nat
             ['c', 'o', 'u', 'l', 'd', ' ', 'n', 'o', 't', ' ', 'i', 'n', 'f',
               'e', 'r', ' ', 't', 'h', 'a', 't', ' '] .
@@ -28616,8 +29077,8 @@ check_non_join rs rt s t (Argument_Filter_NJ pi prf) =
 check_non_cr ::
   forall a b c.
     (Default a, Eq a, Key a, Showa a, Cenum b, Ceq b, Corder b, Eq b,
-      Mapping_impla b, Linorder b, Set_impla b, Showa b, Card_UNIV c, Cenum c,
-      Ceq c, Cproper_interval c, Eq c, Linorder c, Set_impla c,
+      Mapping_impl b, Linorder b, Set_impl b, Showa b, Card_UNIV c, Cenum c,
+      Ceq c, Cproper_interval c, Eq c, Linorder c, Set_impl c,
       Showa c) => [(Term (Lab a [Nat]) b, Term (Lab a [Nat]) b)] ->
                     Term (Lab a [Nat]) b ->
                       [(Pos, ((Term (Lab a [Nat]) b, Term (Lab a [Nat]) b),
@@ -28650,7 +29111,7 @@ check_ncr_proof ::
 check_ncr_proof a ia i j r (SN_NWCR prf) =
   debug (ia []) ['S', 'N', '_', 'N', 'W', 'C', 'R']
     (let {
-       tp = mka i False [] r [];
+       tp = mkb i False [] r [];
      } in bindb (catcha
                   (check_trs_termination_proof i j a
                     (ia . shows_string ['.', '1']) tp prf)
@@ -28723,7 +29184,7 @@ check_ncr_proof a ia i j ra (NCR_Disj_Subtrs r prf) =
 
 check_rel_loop ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => Term a b ->
                     [(Pos, ((Term a b, Term a b), (Bool, Term a b)))] ->
                       [(b, Term a b)] ->
@@ -28737,13 +29198,13 @@ check_rel_loop sa rseq sigma c r s =
 
 check_trs_loop ::
   forall a b c.
-    (Eq b, Linorder b, Showa b, Ceq c, Corder c, Eq c, Mapping_impla c,
-      Linorder c, Set_impla c,
+    (Eq b, Linorder b, Showa b, Ceq c, Corder c, Eq c, Mapping_impl c,
+      Linorder c, Set_impl c,
       Showa c) => Tp_ops_ext a b c () ->
                     a -> Trs_loop_prf b c ->
                            Sum ([Prelude.Char] -> [Prelude.Char]) ();
 check_trs_loop i tp (TRS_loop_prf s rseq sigma c) =
-  check_loop (qa i tp) (nfsa i tp) s rseq sigma c (rulesb i tp);
+  check_loop (qb i tp) (nfsb i tp) s rseq sigma c (rulesc i tp);
 
 prems_ofa ::
   forall a.
@@ -28778,7 +29239,7 @@ prems_ofa step =
     OCDP2 _ p ->
       [(([], ((Zero_nat, (Zero_nat, [])), fst p)),
          ([], ((Zero_nat, (Zero_nat, [])), snd p)))];
-    Wpeq _ p -> [p];
+    WPEQ _ p -> [p];
     Lift _ p -> [p];
     DPOC1_1 _ p rl _ _ ->
       [p, (([], ((Zero_nat, (Zero_nat, [])), fst rl)),
@@ -28816,57 +29277,7 @@ vars_subst_impl sigma =
 mk_tpa ::
   forall a b c d.
     Tp_ops_ext a b c d -> (Bool, ([Term b c], [(Term b c, Term b c)])) -> a;
-mk_tpa i (nfs, (q, r)) = mka i nfs q r [];
-
-corder_ctxt ::
-  forall a b.
-    (Eq a, Linorder a, Eq b,
-      Linorder b) => Maybe (Ctxt a b -> Ctxt a b -> Bool,
-                             Ctxt a b -> Ctxt a b -> Bool);
-corder_ctxt =
-  Just ((\ x y ->
-          ctxt_rec (\ a -> (case a of {
-                             Hole -> False;
-                             More _ _ _ _ -> True;
-                           }))
-            (\ x_0 x_1 x_2 x_3 res_0 a ->
-              (case a of {
-                Hole -> False;
-                More y_0 y_1 y_2 y_3 ->
-                  less x_0 y_0 ||
-                    x_0 == y_0 &&
-                      (less_list x_1 y_1 ||
-                        x_1 == y_1 &&
-                          (res_0 y_2 ||
-                            equal_ctxt x_2 y_2 && less_list x_3 y_3));
-              }))
-            x y ||
-            equal_ctxt x y),
-         ctxt_rec (\ a -> (case a of {
-                            Hole -> False;
-                            More _ _ _ _ -> True;
-                          }))
-           (\ x_0 x_1 x_2 x_3 res_0 a ->
-             (case a of {
-               Hole -> False;
-               More y_0 y_1 y_2 y_3 ->
-                 less x_0 y_0 ||
-                   x_0 == y_0 &&
-                     (less_list x_1 y_1 ||
-                       x_1 == y_1 &&
-                         (res_0 y_2 ||
-                           equal_ctxt x_2 y_2 && less_list x_3 y_3));
-             })));
-
-instance (Eq a, Linorder a, Eq b, Linorder b) => Corder (Ctxt a b) where {
-  corder = corder_ctxt;
-};
-
-n0 :: Pos -> Pos -> Pos -> Nat;
-n0 p q oo =
-  nat (ceiling
-        (divide_rat (of_nat (minus_nat (size_pos oo) (size_pos q)))
-          (of_nat (size_pos p))));
+mk_tpa i (nfs, (q, r)) = mkb i nfs q r [];
 
 show_pat_term ::
   forall a b.
@@ -29009,25 +29420,17 @@ subst_power_impl sigma n =
     else subst_compose_impl sigma
            (subst_power_impl sigma (minus_nat n (Nat_of_num One))));
 
-newtype Tp a b = Tp
-  (Bool,
-    ([Term a b],
-      (Bool,
-        ([(Term a b, Term a b)],
-          ([(Term a b, Term a b)],
-            Rbt (a, Nat) [(Bool, (Term a b, Term a b))])))));
-
 impl_ofc ::
-  forall a b.
-    (Key a,
-      Key b) => Tp a b ->
+  forall b a.
+    (Key b,
+      Key a) => Tp b a ->
                   (Bool,
-                    ([Term a b],
+                    ([Term b a],
                       (Bool,
-                        ([(Term a b, Term a b)],
-                          ([(Term a b, Term a b)],
-                            Rbt (a, Nat) [(Bool, (Term a b, Term a b))])))));
-impl_ofc (Tp x) = x;
+                        ([(Term b a, Term b a)],
+                          ([(Term b a, Term b a)],
+                            Rbt (b, Nat) [(Bool, (Term b a, Term b a))])))));
+impl_ofc (TP x) = x;
 
 q_impl ::
   forall a b.
@@ -29450,6 +29853,11 @@ xml2trs_nontermination_proof xml2name x =
                  'a', 't', 'e', 'g', 'y']
             (wcr_proof xml2name) (xml2trs_nontermination_proof xml2name)
             TRS_Termination_Switch),
+        (['u', 'n', 'c', 'u', 'r', 'r', 'y'],
+          triple ['u', 'n', 'c', 'u', 'r', 'r', 'y'] (uncurry_info xml2name)
+            (singleton ['t', 'r', 's'] (rules xml2name) id)
+            (xml2trs_nontermination_proof xml2name)
+            (\ i r -> TRS_Uncurry (Uncurry_nt_proof i r))),
         (['n', 'o', 'n', 't', 'e', 'r', 'm', 'i', 'n', 'a', 't', 'i', 'o', 'n',
            'A', 's', 's', 'u', 'm', 'p', 't', 'i', 'o', 'n'],
           singleton
@@ -29910,7 +30318,7 @@ xml2complexity_proof xml2name x =
     (options
       [(['r', 'u', 'l', 'e', 'S', 'h', 'i', 'f', 't', 'i', 'n', 'g'],
          triple ['r', 'u', 'l', 'e', 'S', 'h', 'i', 'f', 't', 'i', 'n', 'g']
-           (ordering_constraint_proofa False xml2name)
+           (ordering_constraint_proof False xml2name)
            (singleton ['t', 'r', 's'] (rules xml2name) id)
            (xml2complexity_proof xml2name) Rule_Shift_Complexity),
         (['r', 'e', 'm', 'o', 'v', 'e', 'N', 'o', 'n', 'A', 'p', 'p', 'l', 'i',
@@ -29930,7 +30338,7 @@ xml2cert_problem ::
       Xml ->
         Sum_bot [Prelude.Char]
           (Cert_problem [Prelude.Char] [Nat] [Prelude.Char]);
-xml2cert_problem xml2uname xml2name (Xml name egal cs texta) =
+xml2cert_problem xml2uname xml2name (XML name egal cs texta) =
   (if name ==
         ['c', 'e', 'r', 't', 'i', 'f', 'i', 'c', 'a', 't', 'i', 'o', 'n', 'P',
           'r', 'o', 'b', 'l', 'e', 'm'] &&
@@ -30091,17 +30499,17 @@ xml2cert_problem xml2uname xml2name (Xml name egal cs texta) =
 xml_complexity_measure ::
   forall a b c. (Showa a, Showa b) => Complexity_measure (Lab a [b]) c -> Xml;
 xml_complexity_measure (Derivational_Complexity f) =
-  Xml ['d', 'e', 'r', 'i', 'v', 'a', 't', 'i', 'o', 'n', 'a', 'l', 'C', 'o',
+  XML ['d', 'e', 'r', 'i', 'v', 'a', 't', 'i', 'o', 'n', 'a', 'l', 'C', 'o',
         'm', 'p', 'l', 'e', 'x', 'i', 't', 'y']
     [] [xml_signature f] Nothing;
 xml_complexity_measure (Runtime_Complexity c d) =
-  Xml ['r', 'u', 'n', 't', 'i', 'm', 'e', 'C', 'o', 'm', 'p', 'l', 'e', 'x',
+  XML ['r', 'u', 'n', 't', 'i', 'm', 'e', 'C', 'o', 'm', 'p', 'l', 'e', 'x',
         'i', 't', 'y']
     [] [xml_signature c, xml_signature d] Nothing;
 
 xml_complexity_class :: Complexity_class -> Xml;
 xml_complexity_class (Comp_Poly n) =
-  Xml ['p', 'o', 'l', 'y', 'n', 'o', 'm', 'i', 'a', 'l'] [] []
+  XML ['p', 'o', 'l', 'y', 'n', 'o', 'm', 'i', 'a', 'l'] [] []
     (Just (shows_prec_nat Zero_nat n []));
 
 xml_cert_problem ::
@@ -30125,20 +30533,20 @@ xml_cert_problem (CS_Termination_Proof mu r vb) =
 xml_cert_problem (Relative_TRS_Nontermination_Proof nfs q r s vc) =
   xml_trs_input (Inl q) r (Just s);
 xml_cert_problem (DP_Termination_Proof nfs m p pw q r rw vd) =
-  Xml ['d', 'p', 'I', 'n', 'p', 'u', 't'] []
+  XML ['d', 'p', 'I', 'n', 'p', 'u', 't'] []
     (xml_rules ['t', 'r', 's'] rw :
       xml_rules ['d', 'p', 's'] p :
         xml_strategy (Inl q) ++
-          [Xml ['m', 'i', 'n', 'i', 'm', 'a', 'l'] [] []
+          [XML ['m', 'i', 'n', 'i', 'm', 'a', 'l'] [] []
              (Just (if m then ['t', 'r', 'u', 'e']
                      else ['f', 'a', 'l', 's', 'e']))])
     Nothing;
 xml_cert_problem (DP_Nontermination_Proof nfs m p q r ve) =
-  Xml ['d', 'p', 'I', 'n', 'p', 'u', 't'] []
+  XML ['d', 'p', 'I', 'n', 'p', 'u', 't'] []
     (xml_rules ['t', 'r', 's'] r :
       xml_rules ['d', 'p', 's'] p :
         xml_strategy (Inl q) ++
-          [Xml ['m', 'i', 'n', 'i', 'm', 'a', 'l'] [] []
+          [XML ['m', 'i', 'n', 'i', 'm', 'a', 'l'] [] []
              (Just (if m then ['t', 'r', 'u', 'e']
                      else ['f', 'a', 'l', 's', 'e']))])
     Nothing;
@@ -30147,37 +30555,37 @@ xml_cert_problem (TRS_Confluence_Proof nfs r vf) =
 xml_cert_problem (TRS_Non_Confluence_Proof nfs r vg) =
   xml_trs_input (Inl No_Strategy) r Nothing;
 xml_cert_problem (Completion_Proof e r vh) =
-  Xml ['c', 'o', 'm', 'p', 'l', 'e', 't', 'i', 'o', 'n', 'I', 'n', 'p', 'u',
+  XML ['c', 'o', 'm', 'p', 'l', 'e', 't', 'i', 'o', 'n', 'I', 'n', 'p', 'u',
         't']
     [] [xml_rules ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n', 's'] e,
          xml_rules ['t', 'r', 's'] r]
     Nothing;
 xml_cert_problem (Equational_Proof e eq vi) =
-  Xml ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n', 'a', 'l', 'R', 'e', 'a', 's',
+  XML ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n', 'a', 'l', 'R', 'e', 'a', 's',
         'o', 'n', 'i', 'n', 'g', 'I', 'n', 'p', 'u', 't']
     [] [xml_rules ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n', 's'] e,
-         Xml ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n'] []
+         XML ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n'] []
            [xml_term (fst eq), xml_term (snd eq)] Nothing]
     Nothing;
 xml_cert_problem (Equational_Disproof e eq vj) =
-  Xml ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n', 'a', 'l', 'R', 'e', 'a', 's',
+  XML ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n', 'a', 'l', 'R', 'e', 'a', 's',
         'o', 'n', 'i', 'n', 'g', 'I', 'n', 'p', 'u', 't']
     [] [xml_rules ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n', 's'] e,
-         Xml ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n'] []
+         XML ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n'] []
            [xml_term (fst eq), xml_term (snd eq)] Nothing]
     Nothing;
 xml_cert_problem (Complexity_Proof q r s cm cc vk) =
-  Xml ['c', 'o', 'm', 'p', 'l', 'e', 'x', 'i', 't', 'y', 'I', 'n', 'p', 'u',
+  XML ['c', 'o', 'm', 'p', 'l', 'e', 'x', 'i', 't', 'y', 'I', 'n', 'p', 'u',
         't']
     [] [xml_trs_input (Inl q) r s, xml_complexity_measure cm,
          xml_complexity_class cc]
     Nothing;
 xml_cert_problem (Quasi_Reductive_Proof ctrs vl) = xml_ctrs_input ctrs;
 xml_cert_problem (Unknown_Proof u vm) =
-  Xml ['u', 'n', 'k', 'n', 'o', 'w', 'n', 'I', 'n', 'p', 'u', 't'] [] []
+  XML ['u', 'n', 'k', 'n', 'o', 'w', 'n', 'I', 'n', 'p', 'u', 't'] [] []
     (Just u);
 xml_cert_problem (Unknown_Disproof u vn) =
-  Xml ['u', 'n', 'k', 'n', 'o', 'w', 'n', 'I', 'n', 'p', 'u', 't'] [] []
+  XML ['u', 'n', 'k', 'n', 'o', 'w', 'n', 'I', 'n', 'p', 'u', 't'] [] []
     (Just u);
 
 rules_non_collapsing_impl ::
@@ -30197,35 +30605,21 @@ rules_non_collapsing_impl ::
       Bool;
 rules_non_collapsing_impl (uu, (uv, (uw, (ux, (uy, (uz, (nc, va))))))) = nc;
 
-newtype Dpp a b = Dpp
-  (Bool,
-    (Bool,
-      ([(Term a b, Term a b)],
-        ([(Term a b, Term a b)],
-          ([Term a b],
-            (Bool,
-              (Bool,
-                ([(Term a b, Term a b)],
-                  ([(Term a b, Term a b)],
-                    (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
-                      (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
-                        Bool)))))))))));
-
 impl_ofd ::
-  forall a b.
-    (Linorder a) => Dpp a b ->
+  forall b a.
+    (Linorder b) => Dpp b a ->
                       (Bool,
                         (Bool,
-                          ([(Term a b, Term a b)],
-                            ([(Term a b, Term a b)],
-                              ([Term a b],
+                          ([(Term b a, Term b a)],
+                            ([(Term b a, Term b a)],
+                              ([Term b a],
                                 (Bool,
                                   (Bool,
-                                    ([(Term a b, Term a b)],
-                                      ([(Term a b, Term a b)],
-(Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
-  (Rbt (a, Nat) [(Bool, (Term a b, Term a b))], Bool)))))))))));
-impl_ofd (Dpp x) = x;
+                                    ([(Term b a, Term b a)],
+                                      ([(Term b a, Term b a)],
+(Rbt (b, Nat) [(Bool, (Term b a, Term b a))],
+  (Rbt (b, Nat) [(Bool, (Term b a, Term b a))], Bool)))))))))));
+impl_ofd (DPP x) = x;
 
 rules_non_collapsing :: forall a b. (Linorder a) => Dpp a b -> Bool;
 rules_non_collapsing d = rules_non_collapsing_impl (impl_ofd d);
@@ -30313,29 +30707,29 @@ wwf_qtrs_impl nf r =
 intersect_rules_impl ::
   forall a b.
     (Eq a, Linorder a, Corder b, Eq b,
-      Mapping_impla b) => (Bool,
-                            (Bool,
-                              ([(Term a b, Term a b)],
-                                ([(Term a b, Term a b)],
-                                  ([Term a b],
-                                    (Bool,
-                                      (Bool,
-([(Term a b, Term a b)],
-  ([(Term a b, Term a b)],
-    (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
-      (Rbt (a, Nat) [(Bool, (Term a b, Term a b))], Bool))))))))))) ->
-                            [(Term a b, Term a b)] ->
-                              (Bool,
-                                (Bool,
-                                  ([(Term a b, Term a b)],
-                                    ([(Term a b, Term a b)],
-                                      ([Term a b],
-(Bool,
-  (Bool,
-    ([(Term a b, Term a b)],
-      ([(Term a b, Term a b)],
-        (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
-          (Rbt (a, Nat) [(Bool, (Term a b, Term a b))], Bool)))))))))));
+      Mapping_impl b) => (Bool,
+                           (Bool,
+                             ([(Term a b, Term a b)],
+                               ([(Term a b, Term a b)],
+                                 ([Term a b],
+                                   (Bool,
+                                     (Bool,
+                                       ([(Term a b, Term a b)],
+ ([(Term a b, Term a b)],
+   (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
+     (Rbt (a, Nat) [(Bool, (Term a b, Term a b))], Bool))))))))))) ->
+                           [(Term a b, Term a b)] ->
+                             (Bool,
+                               (Bool,
+                                 ([(Term a b, Term a b)],
+                                   ([(Term a b, Term a b)],
+                                     ([Term a b],
+                                       (Bool,
+ (Bool,
+   ([(Term a b, Term a b)],
+     ([(Term a b, Term a b)],
+       (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
+         (Rbt (a, Nat) [(Bool, (Term a b, Term a b))], Bool)))))))))));
 intersect_rules_impl d ri =
   let {
     (nfs, (mi, (p, (pw, (q, (nfq, (nc, (vR, (vRw, (m, (rm, wwf))))))))))) = d;
@@ -30343,7 +30737,7 @@ intersect_rules_impl d ri =
     vr = list_inter vR vri;
     vrw = list_inter vRw vri;
     ma = intersect_rules ria m;
-    rma = intersect_rules (map (\ (x, y) -> (y, x)) ri) rm;
+    rma = intersect_rules (reverse_rules ri) rm;
     rs = vr ++ vrw ++ map snd (values ma);
   } in (nfs, (mi, (p, (pw, (q, (nfq || nF_subset (map fst rs) q,
                                  (nc || all (\ (_, r) -> not (is_Var r)) rs,
@@ -30353,8 +30747,8 @@ intersect_rules_impl d ri =
 intersect_rulesa ::
   forall a b.
     (Eq a, Linorder a, Corder b, Eq b,
-      Mapping_impla b) => Dpp a b -> [(Term a b, Term a b)] -> Dpp a b;
-intersect_rulesa d rs = Dpp (intersect_rules_impl (impl_ofd d) rs);
+      Mapping_impl b) => Dpp a b -> [(Term a b, Term a b)] -> Dpp a b;
+intersect_rulesa d rs = DPP (intersect_rules_impl (impl_ofd d) rs);
 
 intersect_pairs_impl ::
   forall a b.
@@ -30392,7 +30786,7 @@ intersect_pairs_impl (nfs, (mi, (p, (pw, rest)))) ps =
 intersect_pairs ::
   forall a b.
     (Eq a, Linorder a, Eq b) => Dpp a b -> [(Term a b, Term a b)] -> Dpp a b;
-intersect_pairs d ps = Dpp (intersect_pairs_impl (impl_ofd d) ps);
+intersect_pairs d ps = DPP (intersect_pairs_impl (impl_ofd d) ps);
 
 replace_pair_impl ::
   forall a b.
@@ -30431,7 +30825,7 @@ replace_pair ::
     (Eq a, Linorder a,
       Eq b) => Dpp a b ->
                  (Term a b, Term a b) -> [(Term a b, Term a b)] -> Dpp a b;
-replace_pair d pair ps = Dpp (replace_pair_impl (impl_ofd d) pair ps);
+replace_pair d pair ps = DPP (replace_pair_impl (impl_ofd d) pair ps);
 
 rules_implb ::
   forall a b.
@@ -30470,13 +30864,13 @@ split_rules_impla ::
                    ([(Term a b, Term a b)], [(Term a b, Term a b)]);
 split_rules_impla d rs = partition (membera rs) (rules_implb d);
 
-split_rulesb ::
+split_rulesa ::
   forall a b.
     (Eq a, Linorder a,
       Eq b) => Dpp a b ->
                  [(Term a b, Term a b)] ->
                    ([(Term a b, Term a b)], [(Term a b, Term a b)]);
-split_rulesb d = split_rules_impla (impl_ofd d);
+split_rulesa d = split_rules_impla (impl_ofd d);
 
 pairs_impl ::
   forall a b.
@@ -30525,30 +30919,30 @@ split_pairs d = split_pairs_impl (impl_ofd d);
 delete_R_Rw_impla ::
   forall a b.
     (Eq a, Linorder a, Corder b, Eq b,
-      Mapping_impla b) => (Bool,
-                            (Bool,
-                              ([(Term a b, Term a b)],
-                                ([(Term a b, Term a b)],
-                                  ([Term a b],
-                                    (Bool,
-                                      (Bool,
-([(Term a b, Term a b)],
-  ([(Term a b, Term a b)],
-    (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
-      (Rbt (a, Nat) [(Bool, (Term a b, Term a b))], Bool))))))))))) ->
-                            [(Term a b, Term a b)] ->
-                              [(Term a b, Term a b)] ->
-                                (Bool,
-                                  (Bool,
-                                    ([(Term a b, Term a b)],
-                                      ([(Term a b, Term a b)],
-([Term a b],
-  (Bool,
-    (Bool,
-      ([(Term a b, Term a b)],
-        ([(Term a b, Term a b)],
-          (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
-            (Rbt (a, Nat) [(Bool, (Term a b, Term a b))], Bool)))))))))));
+      Mapping_impl b) => (Bool,
+                           (Bool,
+                             ([(Term a b, Term a b)],
+                               ([(Term a b, Term a b)],
+                                 ([Term a b],
+                                   (Bool,
+                                     (Bool,
+                                       ([(Term a b, Term a b)],
+ ([(Term a b, Term a b)],
+   (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
+     (Rbt (a, Nat) [(Bool, (Term a b, Term a b))], Bool))))))))))) ->
+                           [(Term a b, Term a b)] ->
+                             [(Term a b, Term a b)] ->
+                               (Bool,
+                                 (Bool,
+                                   ([(Term a b, Term a b)],
+                                     ([(Term a b, Term a b)],
+                                       ([Term a b],
+ (Bool,
+   (Bool,
+     ([(Term a b, Term a b)],
+       ([(Term a b, Term a b)],
+         (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
+           (Rbt (a, Nat) [(Bool, (Term a b, Term a b))], Bool)))))))))));
 delete_R_Rw_impla d r rw =
   let {
     (nfs, (mi, (p, (pw, (q, (nfq, (nc, (vR, (vRw, (m, (rm, wwf))))))))))) = d;
@@ -30557,21 +30951,21 @@ delete_R_Rw_impla d r rw =
     vra = list_diff vR vr;
     vrwa = list_diff vRw vrw;
     ma = delete_rules True ra (delete_rules False rwa m);
-    rma = delete_rules True (map (\ (x, y) -> (y, x)) r)
-            (delete_rules False (map (\ (x, y) -> (y, x)) rw) rm);
+    rma = delete_rules True (reverse_rules r)
+            (delete_rules False (reverse_rules rw) rm);
     rs = vra ++ vrwa ++ map snd (values ma);
   } in (nfs, (mi, (p, (pw, (q, (nfq || nF_subset (map fst rs) q,
                                  (nc || all (\ (_, rb) -> not (is_Var rb)) rs,
                                    (vra, (vrwa,
    (ma, (rma, wwf || wwf_qtrs_impl (nF_terms_list q) rs)))))))))));
 
-delete_R_Rwb ::
+delete_R_Rwa ::
   forall a b.
     (Eq a, Linorder a, Corder b, Eq b,
-      Mapping_impla b) => Dpp a b ->
-                            [(Term a b, Term a b)] ->
-                              [(Term a b, Term a b)] -> Dpp a b;
-delete_R_Rwb d r rw = Dpp (delete_R_Rw_impla (impl_ofd d) r rw);
+      Mapping_impl b) => Dpp a b ->
+                           [(Term a b, Term a b)] ->
+                             [(Term a b, Term a b)] -> Dpp a b;
+delete_R_Rwa d r rw = DPP (delete_R_Rw_impla (impl_ofd d) r rw);
 
 delete_P_Pw_impl ::
   forall a b.
@@ -30610,28 +31004,7 @@ delete_P_Pw ::
     (Eq a, Linorder a,
       Eq b) => Dpp a b ->
                  [(Term a b, Term a b)] -> [(Term a b, Term a b)] -> Dpp a b;
-delete_P_Pw d p pw = Dpp (delete_P_Pw_impl (impl_ofd d) p pw);
-
-wwf_rules_impl ::
-  forall a b.
-    (Bool,
-      (Bool,
-        ([(Term a b, Term a b)],
-          ([(Term a b, Term a b)],
-            ([Term a b],
-              (Bool,
-                (Bool,
-                  ([(Term a b, Term a b)],
-                    ([(Term a b, Term a b)],
-                      (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
-                        (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
-                          Bool))))))))))) ->
-      Bool;
-wwf_rules_impl
-  (uu, (uv, (uw, (ux, (uy, (uz, (va, (vb, (vc, (vd, (ve, wwf))))))))))) = wwf;
-
-wwf_rules :: forall a b. (Linorder a) => Dpp a b -> Bool;
-wwf_rules d = wwf_rules_impl (impl_ofd d);
+delete_P_Pw d p pw = DPP (delete_P_Pw_impl (impl_ofd d) p pw);
 
 rules_map_impla ::
   forall a b.
@@ -30658,6 +31031,27 @@ rules_mapa ::
   forall a b. (Linorder a) => Dpp a b -> (a, Nat) -> [(Term a b, Term a b)];
 rules_mapa d = rules_map_impla (impl_ofd d);
 
+wwf_rules_impl ::
+  forall a b.
+    (Bool,
+      (Bool,
+        ([(Term a b, Term a b)],
+          ([(Term a b, Term a b)],
+            ([Term a b],
+              (Bool,
+                (Bool,
+                  ([(Term a b, Term a b)],
+                    ([(Term a b, Term a b)],
+                      (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
+                        (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
+                          Bool))))))))))) ->
+      Bool;
+wwf_rules_impl
+  (uu, (uv, (uw, (ux, (uy, (uz, (va, (vb, (vc, (vd, (ve, wwf))))))))))) = wwf;
+
+wwf_rules :: forall a b. (Linorder a) => Dpp a b -> Bool;
+wwf_rules d = wwf_rules_impl (impl_ofd d);
+
 q_empty_impla ::
   forall a b.
     (Bool,
@@ -30675,12 +31069,12 @@ q_empty_impla ::
       Bool;
 q_empty_impla (uu, (uv, (uw, (ux, (q, uy))))) = null q;
 
-q_emptyb :: forall a b. (Linorder a) => Dpp a b -> Bool;
-q_emptyb d = q_empty_impla (impl_ofd d);
+q_emptya :: forall a b. (Linorder a) => Dpp a b -> Bool;
+q_emptya d = q_empty_impla (impl_ofd d);
 
 is_QNF_impla ::
   forall a b c.
-    (Eq a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Corder b, Eq b, Mapping_impl b,
       Eq c) => (Bool,
                  (Bool,
                    ([(Term a b, Term a b)],
@@ -30696,14 +31090,14 @@ is_QNF_impla ::
                  Term a c -> Bool;
 is_QNF_impla (uu, (uv, (uw, (ux, (q, uy))))) = nF_terms_list q;
 
-is_QNFb ::
+is_QNFa ::
   forall a b.
     (Eq a, Linorder a, Corder b, Eq b,
-      Mapping_impla b) => Dpp a b -> Term a b -> Bool;
-is_QNFb d = is_QNF_impla (impl_ofd d);
+      Mapping_impl b) => Dpp a b -> Term a b -> Bool;
+is_QNFa d = is_QNF_impla (impl_ofd d);
 
-rulesc :: forall a b. (Linorder a) => Dpp a b -> [(Term a b, Term a b)];
-rulesc d = rules_implb (impl_ofd d);
+rulesb :: forall a b. (Linorder a) => Dpp a b -> [(Term a b, Term a b)];
+rulesb d = rules_implb (impl_ofd d);
 
 pairs :: forall a b. (Linorder a) => Dpp a b -> [(Term a b, Term a b)];
 pairs d = pairs_impl (impl_ofd d);
@@ -30737,7 +31131,7 @@ dpp_impl (nfs, (mi, (p, (pw, (q, (uu, (uv, (vr, (vrw, (m, uw)))))))))) =
                    (set (vr ++ rules_with id m),
                      set (vrw ++ rules_with not m)))))));
 
-dppa ::
+dpp ::
   forall a b.
     (Eq a, Linorder a, Eq b,
       Linorder b) => Dpp a b ->
@@ -30748,7 +31142,7 @@ dppa ::
                                (Set (Term a b),
                                  (Set (Term a b, Term a b),
                                    Set (Term a b, Term a b)))))));
-dppa d = dpp_impl (impl_ofd d);
+dpp d = dpp_impl (impl_ofd d);
 
 nfs_impla ::
   forall a b.
@@ -30767,8 +31161,55 @@ nfs_impla ::
       Bool;
 nfs_impla (nfs, uu) = nfs;
 
-nfsb :: forall a b. (Linorder a) => Dpp a b -> Bool;
-nfsb d = nfs_impla (impl_ofd d);
+nfsa :: forall a b. (Linorder a) => Dpp a b -> Bool;
+nfsa d = nfs_impla (impl_ofd d);
+
+mk_impla ::
+  forall a b.
+    (Eq a, Linorder a, Corder b, Eq b,
+      Mapping_impl b) => Bool ->
+                           Bool ->
+                             [(Term a b, Term a b)] ->
+                               [(Term a b, Term a b)] ->
+                                 [Term a b] ->
+                                   [(Term a b, Term a b)] ->
+                                     [(Term a b, Term a b)] ->
+                                       (Bool,
+ (Bool,
+   ([(Term a b, Term a b)],
+     ([(Term a b, Term a b)],
+       ([Term a b],
+         (Bool,
+           (Bool,
+             ([(Term a b, Term a b)],
+               ([(Term a b, Term a b)],
+                 (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
+                   (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
+                     Bool)))))))))));
+mk_impla nfs mi p pw q r rw =
+  let {
+    (vr, ra) = partition (is_Var . fst) r;
+    (vrw, rwa) = partition (is_Var . fst) rw;
+    rs = r ++ rw;
+  } in (nfs, (mi, (p, (pw, (q, (nF_subset (map fst rs) q,
+                                 (all (\ (_, rb) -> not (is_Var rb)) rs,
+                                   (vr, (vrw,
+  (insert_rules True ra (insert_rules False rwa empty),
+    (insert_rules True (reverse_rules r)
+       (insert_rules False (reverse_rules rw) empty),
+      wwf_qtrs_impl (nF_terms_list q) rs)))))))))));
+
+mka ::
+  forall a b.
+    (Eq a, Linorder a, Corder b, Eq b,
+      Mapping_impl b) => Bool ->
+                           Bool ->
+                             [(Term a b, Term a b)] ->
+                               [(Term a b, Term a b)] ->
+                                 [Term a b] ->
+                                   [(Term a b, Term a b)] ->
+                                     [(Term a b, Term a b)] -> Dpp a b;
+mka nfs mi p pw q r rw = DPP (mk_impla nfs mi p pw q r rw);
 
 rw_impla ::
   forall a b.
@@ -30788,8 +31229,8 @@ rw_impla ::
 rw_impla (uu, (uv, (uw, (ux, (uy, (uz, (va, (vb, (vrw, (m, vc)))))))))) =
   vrw ++ rules_with not m;
 
-rwb :: forall a b. (Linorder a) => Dpp a b -> [(Term a b, Term a b)];
-rwb d = rw_impla (impl_ofd d);
+rwa :: forall a b. (Linorder a) => Dpp a b -> [(Term a b, Term a b)];
+rwa d = rw_impla (impl_ofd d);
 
 pw_impl ::
   forall a b.
@@ -30811,53 +31252,6 @@ pw_impl (uu, (uv, (uw, (pw, ux)))) = pw;
 pw :: forall a b. (Linorder a) => Dpp a b -> [(Term a b, Term a b)];
 pw d = pw_impl (impl_ofd d);
 
-mk_impla ::
-  forall a b.
-    (Eq a, Linorder a, Corder b, Eq b,
-      Mapping_impla b) => Bool ->
-                            Bool ->
-                              [(Term a b, Term a b)] ->
-                                [(Term a b, Term a b)] ->
-                                  [Term a b] ->
-                                    [(Term a b, Term a b)] ->
-                                      [(Term a b, Term a b)] ->
-(Bool,
-  (Bool,
-    ([(Term a b, Term a b)],
-      ([(Term a b, Term a b)],
-        ([Term a b],
-          (Bool,
-            (Bool,
-              ([(Term a b, Term a b)],
-                ([(Term a b, Term a b)],
-                  (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
-                    (Rbt (a, Nat) [(Bool, (Term a b, Term a b))],
-                      Bool)))))))))));
-mk_impla nfs mi p pw q r rw =
-  let {
-    (vr, ra) = partition (is_Var . fst) r;
-    (vrw, rwa) = partition (is_Var . fst) rw;
-    rs = r ++ rw;
-  } in (nfs, (mi, (p, (pw, (q, (nF_subset (map fst rs) q,
-                                 (all (\ (_, rb) -> not (is_Var rb)) rs,
-                                   (vr, (vrw,
-  (insert_rules True ra (insert_rules False rwa empty),
-    (insert_rules True (map (\ (x, y) -> (y, x)) r)
-       (insert_rules False (map (\ (x, y) -> (y, x)) rw) empty),
-      wwf_qtrs_impl (nF_terms_list q) rs)))))))))));
-
-mkb ::
-  forall a b.
-    (Eq a, Linorder a, Corder b, Eq b,
-      Mapping_impla b) => Bool ->
-                            Bool ->
-                              [(Term a b, Term a b)] ->
-                                [(Term a b, Term a b)] ->
-                                  [Term a b] ->
-                                    [(Term a b, Term a b)] ->
-                                      [(Term a b, Term a b)] -> Dpp a b;
-mkb nfs mi p pw q r rw = Dpp (mk_impla nfs mi p pw q r rw);
-
 r_impla ::
   forall a b.
     (Linorder a) => (Bool,
@@ -30876,8 +31270,8 @@ r_impla ::
 r_impla (uu, (uv, (uw, (ux, (uy, (uz, (va, (vr, (vb, (m, vc)))))))))) =
   vr ++ rules_with id m;
 
-rb :: forall a b. (Linorder a) => Dpp a b -> [(Term a b, Term a b)];
-rb d = r_impla (impl_ofd d);
+ra :: forall a b. (Linorder a) => Dpp a b -> [(Term a b, Term a b)];
+ra d = r_impla (impl_ofd d);
 
 q_impla ::
   forall a b.
@@ -30896,8 +31290,8 @@ q_impla ::
       [Term a b];
 q_impla (uu, (uv, (uw, (ux, (q, uy))))) = q;
 
-qb :: forall a b. (Linorder a) => Dpp a b -> [Term a b];
-qb d = q_impla (impl_ofd d);
+qa :: forall a b. (Linorder a) => Dpp a b -> [Term a b];
+qa d = q_impla (impl_ofd d);
 
 p_impl ::
   forall a b.
@@ -30941,13 +31335,13 @@ m d = m_impl (impl_ofd d);
 
 dpp_rbt_impl ::
   forall a b.
-    (Eq a, Linorder a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Linorder a, Corder b, Eq b, Mapping_impl b,
       Linorder b) => Dpp_ops_ext (Dpp a b) a b ();
 dpp_rbt_impl =
-  Dpp_ops_ext dppa p pw pairs qb rb rwb rulesc q_emptyb rules_no_left_var
-    rules_non_collapsing is_QNFb nFQ_subset_NF_rulesa rules_mapa
+  Dpp_ops_ext dpp p pw pairs qa ra rwa rulesb q_emptya rules_no_left_var
+    rules_non_collapsing is_QNFa nFQ_subset_NF_rulesa rules_mapa
     reverse_rules_map intersect_pairs replace_pair intersect_rulesa delete_P_Pw
-    delete_R_Rwb split_pairs split_rulesb mkb m nfsb wwf_rules ();
+    delete_R_Rwa split_pairs split_rulesa mka m nfsa wwf_rules ();
 
 nFQ_subset_NF_rules_impl ::
   forall a b.
@@ -31002,20 +31396,21 @@ split_rules tp = split_rules_impl (impl_ofc tp);
 delete_R_Rw_impl ::
   forall a b.
     (Eq a, Linorder a, Corder b, Eq b,
-      Mapping_impla b) => (Bool,
-                            ([Term a b],
-                              (Bool,
-                                ([(Term a b, Term a b)],
-                                  ([(Term a b, Term a b)],
-                                    Rbt (a, Nat)
-                                      [(Bool, (Term a b, Term a b))]))))) ->
-                            [(Term a b, Term a b)] ->
-                              [(Term a b, Term a b)] ->
-                                (Bool,
-                                  ([Term a b],
-                                    (Bool,
-                                      ([(Term a b, Term a b)],
-([(Term a b, Term a b)], Rbt (a, Nat) [(Bool, (Term a b, Term a b))])))));
+      Mapping_impl b) => (Bool,
+                           ([Term a b],
+                             (Bool,
+                               ([(Term a b, Term a b)],
+                                 ([(Term a b, Term a b)],
+                                   Rbt (a, Nat)
+                                     [(Bool, (Term a b, Term a b))]))))) ->
+                           [(Term a b, Term a b)] ->
+                             [(Term a b, Term a b)] ->
+                               (Bool,
+                                 ([Term a b],
+                                   (Bool,
+                                     ([(Term a b, Term a b)],
+                                       ([(Term a b, Term a b)],
+ Rbt (a, Nat) [(Bool, (Term a b, Term a b))])))));
 delete_R_Rw_impl (nfs, (q, (uu, (vR, (vRw, m))))) r rw =
   let {
     (vr, ra) = partition (is_Var . fst) r;
@@ -31029,10 +31424,10 @@ delete_R_Rw_impl (nfs, (q, (uu, (vR, (vRw, m))))) r rw =
 delete_R_Rw ::
   forall a b.
     (Eq a, Key a, Corder b, Eq b, Key b,
-      Mapping_impla b) => Tp a b ->
-                            [(Term a b, Term a b)] ->
-                              [(Term a b, Term a b)] -> Tp a b;
-delete_R_Rw tp r rw = Tp (delete_R_Rw_impl (impl_ofc tp) r rw);
+      Mapping_impl b) => Tp a b ->
+                           [(Term a b, Term a b)] ->
+                             [(Term a b, Term a b)] -> Tp a b;
+delete_R_Rw tp r rw = TP (delete_R_Rw_impl (impl_ofc tp) r rw);
 
 rules_map_impl ::
   forall a b.
@@ -31097,20 +31492,20 @@ q_empty tp = q_empty_impl (impl_ofc tp);
 is_QNF_impl ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => (Bool,
-                            ([Term a b],
-                              (Bool,
-                                ([(Term a b, Term a b)],
-                                  ([(Term a b, Term a b)],
-                                    Rbt (a, Nat)
-                                      [(Bool, (Term a b, Term a b))]))))) ->
-                            Term a b -> Bool;
+      Mapping_impl b) => (Bool,
+                           ([Term a b],
+                             (Bool,
+                               ([(Term a b, Term a b)],
+                                 ([(Term a b, Term a b)],
+                                   Rbt (a, Nat)
+                                     [(Bool, (Term a b, Term a b))]))))) ->
+                           Term a b -> Bool;
 is_QNF_impl (uu, (q, uv)) = nF_terms_list q;
 
 is_QNF ::
   forall a b.
     (Eq a, Key a, Corder b, Eq b, Key b,
-      Mapping_impla b) => Tp a b -> Term a b -> Bool;
+      Mapping_impl b) => Tp a b -> Term a b -> Bool;
 is_QNF tp = is_QNF_impl (impl_ofc tp);
 
 rulesa :: forall a b. (Key a, Key b) => Tp a b -> [(Term a b, Term a b)];
@@ -31131,6 +31526,34 @@ nfs_impl (nfs, uu) = nfs;
 nfs :: forall a b. (Key a, Key b) => Tp a b -> Bool;
 nfs tp = nfs_impl (impl_ofc tp);
 
+mk_impl ::
+  forall a b.
+    (Eq a, Linorder a, Corder b, Eq b,
+      Mapping_impl b) => Bool ->
+                           [Term a b] ->
+                             [(Term a b, Term a b)] ->
+                               [(Term a b, Term a b)] ->
+                                 (Bool,
+                                   ([Term a b],
+                                     (Bool,
+                                       ([(Term a b, Term a b)],
+ ([(Term a b, Term a b)], Rbt (a, Nat) [(Bool, (Term a b, Term a b))])))));
+mk_impl nfs q r rw =
+  let {
+    (vr, ra) = partition (is_Var . fst) r;
+    (vrw, rwa) = partition (is_Var . fst) rw;
+  } in (nfs, (q, (nF_subset (map fst (r ++ rw)) q,
+                   (vr, (vrw, insert_rules True ra
+                                (insert_rules False rwa empty))))));
+
+mk :: forall a b.
+        (Eq a, Key a, Corder b, Eq b, Key b,
+          Mapping_impl b) => Bool ->
+                               [Term a b] ->
+                                 [(Term a b, Term a b)] ->
+                                   [(Term a b, Term a b)] -> Tp a b;
+mk nfs q r rw = TP (mk_impl nfs q r rw);
+
 rw_impl ::
   forall a b.
     (Linorder a) => (Bool,
@@ -31146,44 +31569,13 @@ rw_impl (uu, (uv, (uw, (ux, (vRw, m))))) = vRw ++ rules_with not m;
 rw :: forall a b. (Key a, Key b) => Tp a b -> [(Term a b, Term a b)];
 rw tp = rw_impl (impl_ofc tp);
 
-mk_impl ::
-  forall a b.
-    (Eq a, Linorder a, Corder b, Eq b,
-      Mapping_impla b) => Bool ->
-                            [Term a b] ->
-                              [(Term a b, Term a b)] ->
-                                [(Term a b, Term a b)] ->
-                                  (Bool,
-                                    ([Term a b],
-                                      (Bool,
-([(Term a b, Term a b)],
-  ([(Term a b, Term a b)], Rbt (a, Nat) [(Bool, (Term a b, Term a b))])))));
-mk_impl nfs q r rw =
-  let {
-    (vr, ra) = partition (is_Var . fst) r;
-    (vrw, rwa) = partition (is_Var . fst) rw;
-  } in (nfs, (q, (nF_subset (map fst (r ++ rw)) q,
-                   (vr, (vrw, insert_rules True ra
-                                (insert_rules False rwa empty))))));
-
-mk :: forall a b.
-        (Eq a, Key a, Corder b, Eq b, Key b,
-          Mapping_impla b) => Bool ->
-                                [Term a b] ->
-                                  [(Term a b, Term a b)] ->
-                                    [(Term a b, Term a b)] -> Tp a b;
-mk nfs q r rw = Tp (mk_impl nfs q r rw);
-
 tp_rbt_impl ::
   forall a b.
     (Eq a, Key a, Corder b, Eq b, Key b,
-      Mapping_impla b) => Tp_ops_ext (Tp a b) a b ();
+      Mapping_impl b) => Tp_ops_ext (Tp a b) a b ();
 tp_rbt_impl =
   Tp_ops_ext qreltrs q r rw rulesa q_empty is_QNF nFQ_subset_NF_rules rules_map
     delete_R_Rw split_rules mk nfs ();
-
-instance Countable Prelude.Char where {
-};
 
 string_reversal_complete_rel_tt ::
   forall a b c d.
@@ -31191,15 +31583,15 @@ string_reversal_complete_rel_tt ::
       Showa c) => Tp_ops_ext a b c d ->
                     a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
 string_reversal_complete_rel_tt i tp =
-  bindb (check (q_emptya i tp)
+  bindb (check (q_emptyb i tp)
           (shows_prec_list Zero_nat
             ['Q', ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'e', 'm', 'p', 't',
               'y']))
     (\ _ ->
-      bindb (check_unary_signature (rulesb i tp))
+      bindb (check_unary_signature (rulesc i tp))
         (\ _ ->
-          Inr (mka i False [] (map rev_rule (ra i tp))
-                (map rev_rule (rwa i tp)))));
+          Inr (mkb i default_nfs_nt_trs [] (map rev_rule (rb i tp))
+                (map rev_rule (rwb i tp)))));
 
 check_to_srs_complete ::
   forall a b.
@@ -31241,13 +31633,13 @@ const_to_string_complete_tt ::
                     a -> Const_string_complete_proof b c ->
                            Sum ([Prelude.Char] -> [Prelude.Char]) a;
 const_to_string_complete_tt i tp (Const_string_complete_proof old_new s) =
-  bindb (check (q_emptya i tp)
+  bindb (check (q_emptyb i tp)
           (shows_prec_list Zero_nat
             ['Q', ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'e', 'm', 'p', 't',
               'y']))
     (\ _ ->
-      bindb (check_to_srs_complete old_new (rulesb i tp) s)
-        (\ _ -> Inr (mka i False [] s [])));
+      bindb (check_to_srs_complete old_new (rulesc i tp) s)
+        (\ _ -> Inr (mkb i False [] s [])));
 
 switch_termination_proc ::
   forall a b.
@@ -31298,7 +31690,7 @@ switch_termination_proc i joins_i dpp =
 
 check_instance ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Term a b, Term a b)] ->
                       Sum ([Prelude.Char] -> [Prelude.Char]) ();
@@ -31319,7 +31711,7 @@ check_instance pa p =
 
 instantiation_complete_proc ::
   forall a b c d.
-    (Eq b, Showa b, Corder c, Eq c, Mapping_impla c,
+    (Eq b, Showa b, Corder c, Eq c, Mapping_impl c,
       Showa c) => Dpp_ops_ext a b c d ->
                     a -> Instantiation_complete_proc_prf b c ->
                            Sum ([Prelude.Char] -> [Prelude.Char]) a;
@@ -31357,7 +31749,7 @@ mk_rel_tp ::
     Tp_ops_ext a b c d ->
       (Bool, ([Term b c], ([(Term b c, Term b c)], [(Term b c, Term b c)]))) ->
         a;
-mk_rel_tp i (nfs, (q, (r, rw))) = mka i nfs q r rw;
+mk_rel_tp i (nfs, (q, (r, rw))) = mkb i nfs q r rw;
 
 mk_dppa ::
   forall a b c d.
@@ -31439,8 +31831,8 @@ q_increase_nonterm_dp i dpp (Q_increase_nonterm_dp_prf q) =
 
 dp_q_reduction_nonterm ::
   forall a b c d.
-    (Cenum b, Ceq b, Corder b, Eq b, Set_impla b, Showa b, Corder c, Eq c,
-      Mapping_impla c,
+    (Cenum b, Ceq b, Corder b, Eq b, Set_impl b, Showa b, Corder c, Eq c,
+      Mapping_impl c,
       Showa c) => Dpp_ops_ext a b c d ->
                     a -> Dp_q_reduction_nonterm_prf b c ->
                            Sum ([Prelude.Char] -> [Prelude.Char]) a;
@@ -31622,15 +32014,19 @@ let {
     Inr _ -> Inr (replace_paira i dpp stb [st]);
   });
 
+less_eq_pos :: Pos -> Pos -> Bool;
+less_eq_pos (PCons i q1) (PCons j q2) = equal_nat i j && less_eq_pos q1 q2;
+less_eq_pos (PCons i q1) Empty = False;
+less_eq_pos Empty p = True;
+
 rstep_enum_impl ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(Term a b, Term a b)] ->
-                            Term a b ->
-                              Term a b ->
-                                Pos ->
-                                  [((Term a b, Term a b),
-                                     (b -> Term a b, Pos))];
+      Mapping_impl b) => [(Term a b, Term a b)] ->
+                           Term a b ->
+                             Term a b ->
+                               Pos ->
+                                 [((Term a b, Term a b), (b -> Term a b, Pos))];
 rstep_enum_impl r ta t p =
   concat
     (map_filter
@@ -31657,13 +32053,13 @@ rstep_enum_impl r ta t p =
 narrow_enum_impl ::
   forall a b.
     (Eq a, Corder b, Eq b,
-      Mapping_impla b) => [(Term a b, Term a b)] ->
-                            (Term a b, Term a b) ->
-                              (Term a b, Term a b) ->
-                                Pos ->
-                                  [(b -> Term a b,
-                                     ((Term a b, Term a b),
-                                       (Pos, b -> Term a b)))];
+      Mapping_impl b) => [(Term a b, Term a b)] ->
+                           (Term a b, Term a b) ->
+                             (Term a b, Term a b) ->
+                               Pos ->
+                                 [(b -> Term a b,
+                                    ((Term a b, Term a b),
+                                      (Pos, b -> Term a b)))];
 narrow_enum_impl r sta st p =
   let {
     (s, t) = sta;
@@ -31838,7 +32234,7 @@ pat_dom_renaming_impl p rho =
 check_pat_eqv_prf ::
   forall a b.
     (Eq a, Linorder a, Showa a, Cenum b, Ceq b, Corder b, Eq b, Linorder b,
-      Set_impla b,
+      Set_impl b,
       Showa b) => Pat_eqv_prf a b ->
                     (Term a b, ([(b, Term a b)], [(b, Term a b)])) ->
                       Sum ([Prelude.Char] -> [Prelude.Char])
@@ -31940,8 +32336,8 @@ subst_replace_impl sigma x t = (x, t) : filter (\ (y, _) -> not (y == x)) sigma;
 
 check_pat_rule_prf ::
   forall a b.
-    (Eq a, Linorder a, Showa a, Cenum b, Ceq b, Corder b, Eq b, Mapping_impla b,
-      Linorder b, Set_impla b,
+    (Eq a, Linorder a, Showa a, Cenum b, Ceq b, Corder b, Eq b, Mapping_impl b,
+      Linorder b, Set_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Term a b, Term a b)] ->
                       Pat_rule_prf a b ->
@@ -32459,8 +32855,8 @@ check_pat_rule_prf r p (Pat_Exp_Sigma pat k) =
 
 check_non_loop_prf ::
   forall a b.
-    (Eq a, Linorder a, Showa a, Cenum b, Ceq b, Corder b, Eq b, Mapping_impla b,
-      Linorder b, Set_impla b,
+    (Eq a, Linorder a, Showa a, Cenum b, Ceq b, Corder b, Eq b, Mapping_impl b,
+      Linorder b, Set_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Term a b, Term a b)] ->
                       Non_loop_prf a b ->
@@ -32545,8 +32941,8 @@ check_non_loop_prf r pa (Non_loop_prf pat sigma mu m b p) =
 
 check_non_loop_dp_prf ::
   forall a b c d.
-    (Eq b, Linorder b, Showa b, Cenum c, Ceq c, Corder c, Eq c, Mapping_impla c,
-      Linorder c, Set_impla c,
+    (Eq b, Linorder b, Showa b, Cenum c, Ceq c, Corder c, Eq c, Mapping_impl c,
+      Linorder c, Set_impl c,
       Showa c) => Dpp_ops_ext a b c d ->
                     a -> Non_loop_prf b c ->
                            Sum ([Prelude.Char] -> [Prelude.Char]) ();
@@ -32573,9 +32969,9 @@ rule_removal_nonterm_trs ::
                            Sum ([Prelude.Char] -> [Prelude.Char]) a;
 rule_removal_nonterm_trs i tp (Rule_removal_nonterm_trs_prf r) =
   let {
-    ra = rulesb i tp;
+    ra = rulesc i tp;
     rrm = ceta_list_diff ra r;
-  } in Inr (delete_R_Rwa i tp rrm rrm);
+  } in Inr (delete_R_Rwb i tp rrm rrm);
 
 shows_prec_location :: Nat -> Location -> [Prelude.Char] -> [Prelude.Char];
 shows_prec_location uu A = shows_prec_list Zero_nat ['a', 'b', 'o', 'v', 'e'];
@@ -32626,6 +33022,11 @@ fp_R_decide mu l oo q c t =
             } in set (m1 ++ m2 ++ m3 ++ m4))
         (match_decision mu));
 
+size_pos :: Pos -> Nat;
+size_pos Empty = Zero_nat;
+size_pos (PCons x21 x22) =
+  plus_nat (size_pos x22) (plus_nat Zero_nat (Nat_of_num One));
+
 pos_dec :: Pos -> Pos -> Pos -> Maybe (Nat, Pos);
 pos_dec p q oo =
   (if equal_pos p Empty
@@ -32638,7 +33039,7 @@ pos_dec p q oo =
                       (divide_rat
                         (of_nat (minus_nat (size_pos oo) (size_pos q)))
                         (of_nat (size_pos p))));
-         } in (case pos_suffix oo (append (power p n0) q) of {
+         } in (case pos_suffix oo (append (powera p n0) q) of {
                 Nothing -> Nothing;
                 Just r -> Just (n0, r);
               }));
@@ -32663,12 +33064,12 @@ h_match_probs mu l oo q c t =
   (case pos_dec (hole_pos c) q oo of {
     Nothing ->
       set_empty
-        (of_phantom (set_impl_prod :: Phantom (Term b a, Term b a) Set_impl));
+        (of_phantom (set_impl_prod :: Phantom (Term b a, Term b a) Set_impla));
     Just (n, o) ->
       inserta (subt_at (ctxt_subst c mu n t) o, l)
         (set_empty
           (of_phantom
-            (set_impl_prod :: Phantom (Term b a, Term b a) Set_impl)));
+            (set_impl_prod :: Phantom (Term b a, Term b a) Set_impla)));
   });
 
 fp_H_decide ::
@@ -32681,29 +33082,6 @@ fp_H_decide mu l oo q c t =
 
 decompositions :: Pos -> [(Pos, Pos)];
 decompositions p = map (\ pa -> (pa, the (pos_prefix pa p))) (prefix_list p);
-
-eident_prob_to_ident_prob ::
-  forall a b.
-    (Ctxt a b, (Term a b, (Ctxt a b, Term a b))) -> (Term a b, Term a b);
-eident_prob_to_ident_prob (d, (si, (c, t))) = (ctxt_apply d t, si);
-
-eident_prob_of_semp ::
-  forall a b.
-    (Eq a,
-      Eq b) => (Ctxt a b,
-                 (Term a b, (Ctxt a b, (Term a b, [(Term a b, Term a b)])))) ->
-                 Maybe (Ctxt a b, (Term a b, (Ctxt a b, Term a b)));
-eident_prob_of_semp (d, (l, (c, (t, mp)))) =
-  bind (map_of (map (\ (x, y) -> (y, x)) mp) l)
-    (\ si -> Just (d, (si, (c, t))));
-
-ident_prob_of_semp ::
-  forall a b.
-    (Eq a,
-      Eq b) => (Ctxt a b,
-                 (Term a b, (Ctxt a b, (Term a b, [(Term a b, Term a b)])))) ->
-                 [(Term a b, Term a b)];
-ident_prob_of_semp (d, (l, (c, (t, mp)))) = ident_prob_of_smp mp;
 
 simplify_emp_main ::
   forall a b.
@@ -32779,6 +33157,28 @@ simplify_emp mu_incr emp =
          Just (Just a) -> Inl a;
        });
 
+eident_prob_to_ident_prob ::
+  forall a b.
+    (Ctxt a b, (Term a b, (Ctxt a b, Term a b))) -> (Term a b, Term a b);
+eident_prob_to_ident_prob (d, (si, (c, t))) = (ctxt_apply d t, si);
+
+eident_prob_of_semp ::
+  forall a b.
+    (Eq a,
+      Eq b) => (Ctxt a b,
+                 (Term a b, (Ctxt a b, (Term a b, [(Term a b, Term a b)])))) ->
+                 Maybe (Ctxt a b, (Term a b, (Ctxt a b, Term a b)));
+eident_prob_of_semp (d, (l, (c, (t, mp)))) =
+  bind (map_of (reverse_rules mp) l) (\ si -> Just (d, (si, (c, t))));
+
+ident_prob_of_semp ::
+  forall a b.
+    (Eq a,
+      Eq b) => (Ctxt a b,
+                 (Term a b, (Ctxt a b, (Term a b, [(Term a b, Term a b)])))) ->
+                 [(Term a b, Term a b)];
+ident_prob_of_semp (d, (l, (c, (t, mp)))) = ident_prob_of_smp mp;
+
 ident_prob_of_emp ::
   forall a b.
     (Eq a, Linorder a, Ceq b, Corder b, Eq b,
@@ -32795,13 +33195,6 @@ ident_prob_of_emp mu_incr emp =
     Inr False -> Nothing;
   });
 
-set_impl_ctxt :: forall a b. Phantom (Ctxt a b) Set_impl;
-set_impl_ctxt = Phantom Set_RBT;
-
-instance Set_impla (Ctxt a b) where {
-  set_impl = set_impl_ctxt;
-};
-
 n0b :: Pos -> Pos -> Pos -> Nat;
 n0b p q oo =
   nat (ceiling
@@ -32809,6 +33202,9 @@ n0b p q oo =
           (of_nat
             (minus_nat (plus_nat (size_pos oo) (Nat_of_num One)) (size_pos q)))
           (of_nat (size_pos p))));
+
+less_pos :: Pos -> Pos -> Bool;
+less_pos p q = less_eq_pos p q && not (equal_pos p q);
 
 fp_B_decide ::
   forall a b.
@@ -32820,14 +33216,14 @@ fp_B_decide mu l oo q c t =
              (proper_prefix_list q)
              (set_empty
                (of_phantom
-                 (set_impl_prod :: Phantom (Term a b, Term a b) Set_impl))))
+                 (set_impl_prod :: Phantom (Term a b, Term a b) Set_impla))))
         (match_decision mu)) &&
     not (bex (let {
                 p = hole_pos c;
                 n = (\ pa -> n0b p pa oo);
                 ps = filter
                        (\ (pa, pb) ->
-                         less_pos oo (append pb (power p (n pb))) &&
+                         less_pos oo (append pb (powera p (n pb))) &&
                            less_pos pa p)
                        (remdups (decompositions p));
               } in set (map (\ (pb, pa) ->
@@ -32837,7 +33233,14 @@ fp_B_decide mu l oo q c t =
 (ctxt_subst c (si_subst mu) (n pa) t) (si_subst mu)))))
                          (remdups ps)))
           (\ ep ->
-            bex (seta (ident_prob_of_emp mu ep)) (all (ident_decision mu))));
+            bex (set_option (ident_prob_of_emp mu ep))
+              (all (ident_decision mu))));
+
+n0 :: Pos -> Pos -> Pos -> Nat;
+n0 p q oo =
+  nat (ceiling
+        (divide_rat (of_nat (minus_nat (size_pos oo) (size_pos q)))
+          (of_nat (size_pos p))));
 
 fp_A_decide ::
   forall a b.
@@ -32849,12 +33252,12 @@ fp_A_decide mu l oo q c t =
              Var _ ->
                set_empty
                  (of_phantom
-                   (set_impl_prod :: Phantom (Term a b, Term a b) Set_impl));
+                   (set_impl_prod :: Phantom (Term a b, Term a b) Set_impla));
              Fun _ _ ->
                let {
                  h = hole_pos c;
                  n = n0 h q oo;
-                 hn = power h n;
+                 hn = powera h n;
                  cs = ctxt_subst c (si_subst mu) n t;
                  q_s = bounded_postfixes q (poss_list t);
                  qoo_s =
@@ -32901,99 +33304,10 @@ fp_valid ::
       Corder c) => Set (Ctxt a b, (Term a b, c)) -> Bool;
 fp_valid p = ball p (\ (l, (la, _)) -> not (is_Var (ctxt_apply l la)));
 
-set_impl_location :: Phantom Location Set_impl;
-set_impl_location = Phantom Set_DList;
-
-instance Set_impla Location where {
-  set_impl = set_impl_location;
-};
-
-location_rec :: forall a. a -> a -> a -> a -> Location -> a;
-location_rec f1 f2 f3 f4 H = f1;
-location_rec f1 f2 f3 f4 A = f2;
-location_rec f1 f2 f3 f4 Ba = f3;
-location_rec f1 f2 f3 f4 Ra = f4;
-
-corder_location ::
-  Maybe (Location -> Location -> Bool, Location -> Location -> Bool);
-corder_location =
-  Just ((\ x y ->
-          location_rec
-            (\ a ->
-              (case a of {
-                H -> False;
-                A -> True;
-                Ba -> True;
-                Ra -> True;
-              }))
-            (\ a ->
-              (case a of {
-                H -> False;
-                A -> False;
-                Ba -> True;
-                Ra -> True;
-              }))
-            (\ a ->
-              (case a of {
-                H -> False;
-                A -> False;
-                Ba -> False;
-                Ra -> True;
-              }))
-            (\ a ->
-              (case a of {
-                H -> False;
-                A -> False;
-                Ba -> False;
-                Ra -> False;
-              }))
-            x y ||
-            equal_location x y),
-         location_rec
-           (\ a ->
-             (case a of {
-               H -> False;
-               A -> True;
-               Ba -> True;
-               Ra -> True;
-             }))
-           (\ a ->
-             (case a of {
-               H -> False;
-               A -> False;
-               Ba -> True;
-               Ra -> True;
-             }))
-           (\ a ->
-             (case a of {
-               H -> False;
-               A -> False;
-               Ba -> False;
-               Ra -> True;
-             }))
-           (\ a ->
-             (case a of {
-               H -> False;
-               A -> False;
-               Ba -> False;
-               Ra -> False;
-             })));
-
-instance Corder Location where {
-  corder = corder_location;
-};
-
-ceq_location :: Maybe (Location -> Location -> Bool);
-ceq_location = Just equal_location;
-
-instance Ceq Location where {
-  ceq = ceq_location;
-};
-
 check_fploop ::
   forall a b.
-    (Eq a, Linorder a, Showa a, Ceq b, Corder b, Eq b, Mapping_impla b,
-      Linorder b, Set_impla b,
+    (Eq a, Linorder a, Showa a, Ceq b, Corder b, Eq b, Mapping_impl b,
+      Linorder b, Set_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Ctxt a b, (Term a b, Location))] ->
                       Fp_loop_prf a b ->
@@ -33114,14 +33428,14 @@ string_reversal_complete_tt ::
                     a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
 string_reversal_complete_tt i tp =
   let {
-    r = rulesb i tp;
-  } in bindb (check (q_emptya i tp)
+    r = rulesc i tp;
+  } in bindb (check (q_emptyb i tp)
                (shows_prec_list Zero_nat
                  ['Q', ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'e', 'm', 'p',
                    't', 'y']))
          (\ _ ->
            bindb (check_unary_signature r)
-             (\ _ -> Inr (mka i False [] (map rev_rule r) [])));
+             (\ _ -> Inr (mkb i default_nfs_nt_trs [] (map rev_rule r) [])));
 
 check_dps ::
   forall a b.
@@ -33131,7 +33445,7 @@ check_dps ::
                       [(Term a b, Term a b)] -> Sum (Term a b, Term a b) ();
 check_dps unshp r p =
   let {
-    d = defs_list r;
+    d = defined_list r;
   } in catcha
          (forallM
            (\ x ->
@@ -33163,9 +33477,9 @@ dp_trans_nontermination_tt ::
                              Sum ([Prelude.Char] -> [Prelude.Char]) f;
 dp_trans_nontermination_tt i j tp (DP_trans_nontermination_tt_prf p) =
   let {
-    r = rulesb i tp;
-    q = qa i tp;
-  } in bindb (check (null q || not (nfsa i tp))
+    r = rulesc i tp;
+    q = qb i tp;
+  } in bindb (check (null q || not (nfsb i tp))
                (shows_prec_list Zero_nat
                  ['s', 't', 'r', 'a', 't', 'e', 'g', 'i', 'e', 's', ' ', 'a',
                    'n', 'd', ' ', 'n', 'o', 'r', 'm', 'a', 'l', ' ', 'f', 'o',
@@ -33189,8 +33503,8 @@ switch_termination_tt ::
                       a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
 switch_termination_tt i joins_i tp =
   let {
-    r = rulesb i tp;
-    q = qa i tp;
+    r = rulesc i tp;
+    q = qb i tp;
   } in (case let {
                cp = critical_pairs_impl r r;
              } in bindb (catcha
@@ -33217,7 +33531,7 @@ shows_prec_list Zero_nat
     'R'])))))
          of {
          Inl a -> Inl a;
-         Inr _ -> Inr (mka i (nfsa i tp) [] r []);
+         Inr _ -> Inr (mkb i (nfsb i tp) [] r []);
        });
 
 q_increase_nonterm_trs ::
@@ -33228,10 +33542,10 @@ q_increase_nonterm_trs ::
                            Sum ([Prelude.Char] -> [Prelude.Char]) a;
 q_increase_nonterm_trs i dpp (Q_increase_nonterm_trs_prf q) =
   let {
-    r = rulesb i dpp;
-    qaa = qa i dpp;
-    nfs = nfsa i dpp;
-  } in Inr (mka i nfs (list_union qaa q) r []);
+    r = rulesc i dpp;
+    qa = qb i dpp;
+    nfs = nfsb i dpp;
+  } in Inr (mkb i nfs (list_union qa q) r []);
 
 check_step ::
   forall a.
@@ -33517,7 +33831,7 @@ shows_nl .
                          bb)
                   ba
              b;
-    Wpeq p_new p ->
+    WPEQ p_new p ->
       let {
         (left, right) = p;
         (lefta, righta) = p_new;
@@ -34276,7 +34590,7 @@ check_proof r delta (p : ps) =
                       Phantom
                         (([a], ((Nat, (Nat, [a])), [a])),
                           ([a], ((Nat, (Nat, [a])), [a])))
-                        Set_impl)))))
+                        Set_impla)))))
             ps));
 check_proof r delta [] = Inr ();
 
@@ -34309,7 +34623,7 @@ check_non_loop_srs_proof ra (SE_OC (m, lmr) l r steps) =
                   Phantom
                     (([a], ((Nat, (Nat, [a])), [a])),
                       ([a], ((Nat, (Nat, [a])), [a])))
-                    Set_impl)))
+                    Set_impla)))
             steps));
 check_non_loop_srs_proof ra (SE_DP (left, right) l r steps) =
   bindb (check (membera (map pat_of steps) (left, right))
@@ -34352,7 +34666,7 @@ l2 == l ++ l1 && r2 == r1 ++ r)
   (of_phantom
     (set_impl_prod ::
       Phantom (([a], ((Nat, (Nat, [a])), [a])), ([a], ((Nat, (Nat, [a])), [a])))
-        Set_impl)))
+        Set_impla)))
 steps)))
                          ba)
              b);
@@ -34375,9 +34689,9 @@ check_non_loop_srs_prf ::
                            Sum ([Prelude.Char] -> [Prelude.Char]) ();
 check_non_loop_srs_prf i tp prf =
   let {
-    r = rulesb i tp;
+    r = rulesc i tp;
     s = set (srs_of_trs_impl r);
-  } in bindb (check (null (qa i tp))
+  } in bindb (check (null (qb i tp))
                (shows_prec_list Zero_nat
                  ['s', 't', 'r', 'a', 't', 'e', 'g', 'y', ' ', 'f', 'o', 'r',
                    ' ', 'n', 'o', 'n', '-', 'l', 'o', 'o', 'p', 's', ' ', 'u',
@@ -34390,14 +34704,14 @@ check_not_wwf_qtrs ::
       Showa c) => Tp_ops_ext a b c () ->
                     a -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
 check_not_wwf_qtrs i tp =
-  bindb (check (null (qa i tp) || not (nfsa i tp))
+  bindb (check (null (qb i tp) || not (nfsb i tp))
           (shows_prec_list Zero_nat
             ['s', 't', 'r', 'a', 't', 'e', 'g', 'i', 'e', 's', ' ', 'a', 'n',
               'd', ' ', 'n', 'o', 'r', 'm', 'a', 'l', ' ', 'f', 'o', 'r', 'm',
               ' ', 's', 'u', 'b', 's', 't', 'i', 't', 'u', 't', 'i', 'o', 'n',
               's', ' ', 'p', 'r', 'o', 'b', 'l', 'e', 'm']))
     (\ _ ->
-      check (not (isOK (check_wwf_qtrs (is_QNFa i tp) (rulesb i tp))))
+      check (not (isOK (check_wwf_qtrs (is_QNFb i tp) (rulesc i tp))))
         (shows_string
            ['T', 'h', 'e', ' ', 'Q', '-', 'T', 'R', 'S', ' ', 'i', 's', ' ',
              'w', 'e', 'l', 'l', ' ', 'f', 'o', 'r', 'm', 'e', 'd'] .
@@ -34414,13 +34728,13 @@ check_tp_subsumesa ::
                       a -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
 check_tp_subsumesa i t tp =
   let {
-    (nfsaa, (q, rulesa)) = t;
-    nfs = nfsa i tp;
-    rules = rulesb i tp;
-    qaa = qa i tp;
+    (nfsa, (q, rulesa)) = t;
+    nfs = nfsb i tp;
+    rules = rulesc i tp;
+    qa = qb i tp;
   } in catcha
          (bindb
-           (check (if not (null q) then (if nfs then nfsaa else True) else True)
+           (check (if not (null q) then (if nfs then nfsa else True) else True)
              (shows_prec_list Zero_nat
                ['i', 'n', 'c', 'o', 'm', 'p', 'a', 't', 'i', 'b', 'l', 'e', ' ',
                  's', 'u', 'b', 's', 't', 'i', 't', 'u', 't', 'i', 'o', 'n',
@@ -34431,7 +34745,7 @@ check_tp_subsumesa i t tp =
                      (\ x ->
                        Inl (toomuch ['r', 'u', 'l', 'e'] (shows_rulea x))))
                (\ _ ->
-                 catcha (check_NF_terms_subset q qaa)
+                 catcha (check_NF_terms_subset q qa)
                    (\ x ->
                      Inl (shows_prec_list Zero_nat
                             ['N', 'F', '(', 'Q', ')', ' ', 'd', 'i', 'f', 'f',
@@ -34450,20 +34764,90 @@ check_tp_subsumesa i t tp =
 
 check_non_loop_trs_prf ::
   forall a b c d.
-    (Eq b, Linorder b, Showa b, Cenum c, Ceq c, Corder c, Eq c, Mapping_impla c,
-      Linorder c, Set_impla c,
+    (Eq b, Linorder b, Showa b, Cenum c, Ceq c, Corder c, Eq c, Mapping_impl c,
+      Linorder c, Set_impl c,
       Showa c) => Tp_ops_ext a b c d ->
                     a -> Non_loop_prf b c ->
                            Sum ([Prelude.Char] -> [Prelude.Char]) ();
 check_non_loop_trs_prf i tp prf =
   let {
-    r = rulesb i tp;
-  } in bindb (check (null (qa i tp))
+    r = rulesc i tp;
+  } in bindb (check (null (qb i tp))
                (shows_prec_list Zero_nat
                  ['s', 't', 'r', 'a', 't', 'e', 'g', 'y', ' ', 'f', 'o', 'r',
                    ' ', 'n', 'o', 'n', '-', 'l', 'o', 'o', 'p', 's', ' ', 'u',
                    'n', 's', 'u', 'p', 'p', 'o', 'r', 't', 'e', 'd']))
          (\ _ -> check_non_loop_prf r [] prf);
+
+uncurry_nonterm_tt_check ::
+  forall a b.
+    (Eq b,
+      Showa b) => Tp_ops_ext a b [Prelude.Char] () ->
+                    (b, ([((b, Nat), [b])],
+                          ([(Term b [Prelude.Char], Term b [Prelude.Char])],
+                            [(Term b [Prelude.Char],
+                               Term b [Prelude.Char])]))) ->
+                      ([((b, Nat), [b])] -> b -> Nat -> b) ->
+                        (b -> Nat ->
+                                [((b, Nat), [b])] ->
+                                  Sum ([Prelude.Char] -> [Prelude.Char]) ()) ->
+                          [(Term b [Prelude.Char], Term b [Prelude.Char])] ->
+                            a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
+uncurry_nonterm_tt_check i info fmap check_inj r dpp =
+  let {
+    (a, (sml, (u, e))) = info;
+    ra = rulesc i dpp;
+    nfs = nfsb i dpp;
+    sm = sig_list_to_sig_map a sml fmap;
+    r_eta = e ++ ra;
+    uR = uncurry_rules a sm r_eta;
+  } in (case bindb (check (null (qb i dpp))
+                     (shows_prec_list Zero_nat
+                       ['s', 't', 'r', 'a', 't', 'e', 'g', 'y', ' ', 'n', 'o',
+                         't', ' ', 's', 'u', 'p', 'p', 'o', 'r', 't', 'e', 'd',
+                         ' ', 'f', 'o', 'r', ' ', 'u', 'n', 'c', 'u', 'r', 'r',
+                         'y', 'i', 'n', 'g']))
+               (\ _ ->
+                 let {
+                   s = uncurry_of_sig_list a sml sm;
+                 } in bindb (only_eta_rules e r_eta)
+                        (\ _ ->
+                          bindb (check_inj a (Nat_of_num (Bit0 One)) sml)
+                            (\ _ ->
+                              bindb (catcha (check_CS_subseteq u s)
+                                      (\ x ->
+Inl (shows_prec_list Zero_nat ['r', 'u', 'l', 'e', ' '] .
+      shows_rule (shows_prec Zero_nat) (shows_prec_list Zero_nat)
+        [' ', '-', '>', ' '] x .
+        shows_prec_list Zero_nat
+          [' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', 'n', ' ', 'u', 'n', 'c',
+            'u', 'r', 'r', 'y', ' ', 'r', 'u', 'l', 'e'])))
+                                (\ _ ->
+                                  catcha (check_subseteq r (u ++ uR))
+                                    (\ x ->
+                                      Inl
+(shows_prec_list Zero_nat ['r', 'u', 'l', 'e', ' '] .
+  shows_rule (shows_prec Zero_nat) (shows_prec_list Zero_nat)
+    [' ', '-', '>', ' '] x .
+    shows_prec_list Zero_nat
+      [' ', 'i', 's', ' ', 'n', 'e', 'i', 't', 'h', 'e', 'r', ' ', 'u', 'n',
+        'c', 'u', 'r', 'r', 'i', 'e', 'd', ' ', 'r', 'u', 'l', 'e', 's', ' ',
+        'n', 'o', 'r', ' ', 'u', 'n', 'c', 'u', 'r', 'r', 'y', ' ', 'r', 'u',
+        'l', 'e']))))))
+         of {
+         Inl aa -> Inl aa;
+         Inr _ -> Inr (mkb i nfs [] r []);
+       });
+
+uncurry_nonterm_tt ::
+  forall a b c.
+    (Eq b, Showa b, Eq c,
+      Showa c) => Tp_ops_ext a (Lab b c) [Prelude.Char] () ->
+                    Uncurry_nt_proof b c [Prelude.Char] ->
+                      a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
+uncurry_nonterm_tt i (Uncurry_nt_proof (a, (sml, (u, e))) r) tp =
+  uncurry_nonterm_tt_check i (a, (sml, (u, e))) (fmap a (Nat_of_num (Bit0 One)))
+    check_inj r tp;
 
 rule_removal_nonterm_reltrs ::
   forall a b c.
@@ -34473,9 +34857,9 @@ rule_removal_nonterm_reltrs ::
                            Sum ([Prelude.Char] -> [Prelude.Char]) a;
 rule_removal_nonterm_reltrs i tp (Rule_removal_nonterm_reltrs_prf r s) =
   let {
-    rrm = (if is_none r then [] else ceta_list_diff (ra i tp) (the r));
-    srm = (if is_none s then [] else ceta_list_diff (rwa i tp) (the s));
-  } in Inr (delete_R_Rwa i tp rrm srm);
+    rrm = (if is_none r then [] else ceta_list_diff (rb i tp) (the r));
+    srm = (if is_none s then [] else ceta_list_diff (rwb i tp) (the s));
+  } in Inr (delete_R_Rwb i tp rrm srm);
 
 check_rel_tp_subsumes ::
   forall a b c.
@@ -34490,14 +34874,14 @@ check_rel_tp_subsumes ::
                       a -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
 check_rel_tp_subsumes i t tp =
   let {
-    (nfsaa, (q, (r, rw))) = t;
-    nfs = nfsa i tp;
-    rules = rulesb i tp;
-    raa = ra i tp;
-    qaa = qa i tp;
+    (nfsa, (q, (r, rw))) = t;
+    nfs = nfsb i tp;
+    rules = rulesc i tp;
+    ra = rb i tp;
+    qa = qb i tp;
   } in catcha
          (bindb
-           (check (if not (null q) then (if nfs then nfsaa else True) else True)
+           (check (if not (null q) then (if nfs then nfsa else True) else True)
              (shows_prec_list Zero_nat
                ['i', 'n', 'c', 'o', 'm', 'p', 'a', 't', 'i', 'b', 'l', 'e', ' ',
                  's', 'u', 'b', 's', 't', 'i', 't', 'u', 't', 'i', 'o', 'n',
@@ -34508,11 +34892,11 @@ check_rel_tp_subsumes i t tp =
                      (\ x ->
                        Inl (toomuch ['r', 'u', 'l', 'e'] (shows_rulea x))))
                (\ _ ->
-                 bindb (catcha (check_subseteq r raa)
+                 bindb (catcha (check_subseteq r ra)
                          (\ x ->
                            Inl (toomuch ['r', 'u', 'l', 'e'] (shows_rulea x))))
                    (\ _ ->
-                     catcha (check_NF_terms_subset q qaa)
+                     catcha (check_NF_terms_subset q qa)
                        (\ x ->
                          Inl (shows_prec_list Zero_nat
                                 ['N', 'F', '(', 'Q', ')', ' ', 'd', 'i', 'f',
@@ -34535,13 +34919,13 @@ check_not_wf_reltrs ::
       Showa c) => Tp_ops_ext a b c () ->
                     a -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
 check_not_wf_reltrs i tp =
-  bindb (check (q_emptya i tp)
+  bindb (check (q_emptyb i tp)
           (shows_prec_list Zero_nat
             ['c', 'u', 'r', 'r', 'e', 'n', 't', 'l', 'y', ' ', 'o', 'n', 'l',
               'y', ' ', 'e', 'm', 'p', 't', 'y', ' ', 'Q', ' ', 'i', 's', ' ',
               's', 'u', 'p', 'p', 'o', 'r', 't', 'e', 'd']))
     (\ _ ->
-      check (not (isOK (check_wf_reltrs (ra i tp, rwa i tp))))
+      check (not (isOK (check_wf_reltrs (rb i tp, rwb i tp))))
         (shows_string
            ['T', 'h', 'e', ' ', 'T', 'R', 'S', 's', ' ', 'R', ' ', 'a', 'n',
              'd', ' ', 'S', ' ', 'a', 'r', 'e', ' ', 'w', 'e', 'l', 'l', ' ',
@@ -34553,24 +34937,24 @@ reltrs_as_trs ::
     Tp_ops_ext a b c () -> a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
 reltrs_as_trs i tp =
   let {
-    q = qa i tp;
-    r = ra i tp;
-    nfs = nfsa i tp;
-    a = mka i nfs q r [];
+    q = qb i tp;
+    r = rb i tp;
+    nfs = nfsb i tp;
+    a = mkb i nfs q r [];
   } in Inr a;
 
 check_rel_trs_loop ::
   forall a b c.
-    (Eq b, Showa b, Corder c, Eq c, Mapping_impla c,
+    (Eq b, Showa b, Corder c, Eq c, Mapping_impl c,
       Showa c) => Tp_ops_ext a b c () ->
                     a -> Rel_trs_loop_prf b c ->
                            Sum ([Prelude.Char] -> [Prelude.Char]) ();
 check_rel_trs_loop i tp (Rel_trs_loop_prf s rseq sigma c) =
-  bindb (check (q_emptya i tp)
+  bindb (check (q_emptyb i tp)
           (shows_prec_list Zero_nat
             ['Q', ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'e', 'm', 'p', 't',
               'y']))
-    (\ _ -> check_rel_loop s rseq sigma c (ra i tp) (rwa i tp));
+    (\ _ -> check_rel_loop s rseq sigma c (rb i tp) (rwb i tp));
 
 check_reltrs_nontermination_proof ::
   forall a b c d.
@@ -34912,6 +35296,20 @@ check_trs_nontermination_proof ia j assms i tp (TRS_Q_Increase p prf) =
                          'c', 'r', 'e', 'a', 's', 'e', ' ', 't', 'e', 'c', 'h',
                          'n', 'i', 'q', 'u', 'e'] .
                        shows_nl . indent x))));
+check_trs_nontermination_proof ia j assms i tp (TRS_Uncurry p prf) =
+  debug (i []) ['U', 'n', 'c', 'u', 'r', 'r', 'y', 'i', 'n', 'g']
+    (bindb (uncurry_nonterm_tt ia p tp)
+      (\ tpa ->
+        catcha
+          (check_trs_nontermination_proof ia j assms
+            (i . shows_stringa ['.', '1']) tpa prf)
+          (\ x ->
+            Inl (i . shows_string
+                       [':', ' ', 'e', 'r', 'r', 'o', 'r', ' ', 'b', 'e', 'l',
+                         'o', 'w', ' ', 't', 'h', 'e', ' ', 'u', 'n', 'c', 'u',
+                         'r', 'r', 'y', 'i', 'n', 'g', ' ', 't', 'e', 'c', 'h',
+                         'n', 'i', 'q', 'u', 'e'] .
+                       shows_nl . indent x))));
 check_trs_nontermination_proof ia j assms i tp (TRS_Assume_Not_SN t ass) =
   debug (i [])
     ['F', 'i', 'n', 'i', 't', 'e', 'n', 'e', 's', 's', ' ', 'A', 's', 's', 'u',
@@ -34996,11 +35394,11 @@ check_fp_nontermination_proof ia j assms i (pa, r) (FPTRS_Loop p) =
                    shows_nl . indent x)));
 check_fp_nontermination_proof ia j assms i (pa, r) (FPTRS_Rule_Removal p prf) =
   debug (i []) ['R', 'u', 'l', 'e', ' ', 'R', 'e', 'm', 'o', 'v', 'a', 'l']
-    (bindb (rule_removal_nonterm_trs ia (mka ia False [] r []) p)
+    (bindb (rule_removal_nonterm_trs ia (mkb ia False [] r []) p)
       (\ tp ->
         catcha
           (check_fp_nontermination_proof ia j assms
-            (i . shows_stringa ['.', '1']) (pa, rulesb ia tp) prf)
+            (i . shows_stringa ['.', '1']) (pa, rulesc ia tp) prf)
           (\ x ->
             Inl (i . shows_string
                        [':', ' ', 'e', 'r', 'r', 'o', 'r', ' ', 'b', 'e', 'l',
@@ -35548,7 +35946,7 @@ check_quasi_reductive_proof a ia i j ctrs (Unravel u_info prf) =
                       shows_nl . indent x)))
       (\ r ->
         let {
-          tp = mka i False [] r [];
+          tp = mkb i False [] r [];
         } in catcha
                (check_trs_termination_proof i j a (ia . shows_string ['.', '1'])
                  tp prf)
@@ -35563,7 +35961,7 @@ check_quasi_reductive_proof a ia i j ctrs (Unravel u_info prf) =
 
 check_estep ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     Pos ->
                       (Term a b, Term a b) ->
@@ -35634,7 +36032,7 @@ check_estep e p rule l_to_r s t =
 
 check_conversion ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Pos, ((Term a b, Term a b), (Bool, Term a b)))] ->
                       Term a b ->
@@ -35658,7 +36056,7 @@ check_conversion e ((p, (r, (l_to_r, t))) : c) s u =
 
 check_subsumptions_guided ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [((Term a b, Term a b),
                        [(Pos, ((Term a b, Term a b), (Bool, Term a b)))])] ->
@@ -35678,7 +36076,7 @@ check_subsumptions_guided ea ((e, seq) : convs) =
 
 check_subsumption_guided ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Term a b, Term a b)] ->
                       [((Term a b, Term a b),
@@ -35698,7 +36096,7 @@ check_subsumption_guided ea e convs =
 
 check_subsumption_NF ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Term a b, Term a b)] ->
                       Sum ([Prelude.Char] -> [Prelude.Char]) ();
@@ -35720,7 +36118,7 @@ check_subsumption_NF e r =
 
 check_subsumption ::
   forall a b.
-    (Eq a, Showa a, Corder b, Eq b, Mapping_impla b,
+    (Eq a, Showa a, Corder b, Eq b, Mapping_impl b,
       Showa b) => [(Term a b, Term a b)] ->
                     [(Term a b, Term a b)] ->
                       Maybe [((Term a b, Term a b),
@@ -35749,7 +36147,7 @@ check_completion_proof ::
 check_completion_proof a ia i j e r (SN_WCR_Eq joins_i prf conv1 conv2) =
   debug (ia []) ['S', 'N', '_', 'W', 'C', 'R', '_', 'E', 'q']
     (let {
-       tp = mka i False [] r [];
+       tp = mkb i False [] r [];
      } in bindb (catcha
                   (check_trs_termination_proof i j a
                     (ia . shows_string ['.', '1']) tp prf)
@@ -36153,6 +36551,13 @@ shows_prec_complexity_class d c =
 less_eq_complexity_class :: Complexity_class -> Complexity_class -> Bool;
 less_eq_complexity_class x y = less_eq_nat (degree x) (degree y);
 
+cpx ::
+  forall a b c.
+    Redtriple_ext a b c ->
+      Complexity_measure a b ->
+        Sum ([Prelude.Char] -> [Prelude.Char]) Complexity_class;
+cpx (Redtriple_ext valid s ns nst af mono desc cpx more) = cpx;
+
 rule_shift_complexity_tt ::
   forall a b c.
     (Eq b, Key b, Showa b, Eq c, Key c,
@@ -36164,8 +36569,8 @@ rule_shift_complexity_tt ::
                             a -> Sum ([Prelude.Char] -> [Prelude.Char]) a;
 rule_shift_complexity_tt i rp rdelete cm cc tp =
   let {
-    r = ra i tp;
-    rw = rwa i tp;
+    r = rb i tp;
+    rw = rwb i tp;
     r2 = ceta_list_diff r rdelete;
   } in (case catcha
                (bindb (valid rp)
@@ -36219,10 +36624,10 @@ rule_shift_complexity_tt i rp rdelete cm cc tp =
                          shows_prec_list Zero_nat
                            [' ', 'f', 'r', 'o', 'm', ' ', 't', 'h', 'e', ' ',
                              'f', 'o', 'l', 'l', 'o', 'w', 'i', 'n', 'g'] .
-                           shows_nl . desca rp . shows_nl . x))
+                           shows_nl . desc rp . shows_nl . x))
          of {
          Inl a -> Inl a;
-         Inr _ -> Inr (mka i (nfsa i tp) (qa i tp) r2 (list_union rw rdelete));
+         Inr _ -> Inr (mkb i (nfsb i tp) (qb i tp) r2 (list_union rw rdelete));
        });
 
 check_complexity_proof ::
@@ -36266,7 +36671,7 @@ check_complexity_proof ia i tp cm cc RisEmpty_Complexity =
   debug (ia [])
     ['R', ' ', 'i', 's', ' ', 'e', 'm', 'p', 't', 'y', ' ', 'f', 'o', 'r', ' ',
       'c', 'o', 'm', 'p', 'l', 'e', 'x', 'i', 't', 'y']
-    (check (null (ra i tp))
+    (check (null (rb i tp))
       (ia . shows_string
               [':', ' ', 'R', ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'e', 'm',
                 'p', 't', 'y', ' ', 'i', 'n', ' '] .
@@ -36278,8 +36683,8 @@ check_complexity_proof ia i tp cm cc
     ['R', 'e', 'm', 'o', 'v', 'i', 'n', 'g', ' ', 'n', 'o', 'n', '-', 'a', 'p',
       'p', 'l', 'i', 'c', 'a', 'b', 'l', 'e', ' ', 'r', 'u', 'l', 'e', 's']
     (let {
-       _ = ra i tp;
-     } in bindb (catcha (check_non_applicable_rules (is_QNFa i tp) r)
+       _ = rb i tp;
+     } in bindb (catcha (check_non_applicable_rules (is_QNFb i tp) r)
                   (\ x ->
                     Inl (ia . shows_string
                                 [':', ' ', 'e', 'r', 'r', 'o', 'r', ' ', 'w',
@@ -36296,7 +36701,7 @@ check_complexity_proof ia i tp cm cc
 [' ', 'i', 's', ' ', 'a', 'p', 'p', 'l', 'i', 'c', 'a', 'b', 'l', 'e']))))
             (\ _ ->
               let {
-                tpa = delete_R_Rwa i tp r r;
+                tpa = delete_R_Rwb i tp r r;
               } in catcha
                      (check_complexity_proof (ia . shows_string ['.', '1']) i
                        tpa cm cc prf)
@@ -36332,7 +36737,7 @@ certify_cert_problem ::
                         Cert_problem b [Nat] [Prelude.Char] -> Cert_result;
 certify_cert_problem a i j (TRS_Termination_Proof nfs q r Nothing prf) =
   (case check_trs_termination_proof i j a (shows_stringa ['1'])
-          (mka i nfs (strategy_to_Q q r) r []) prf
+          (mkb i nfs (strategy_to_Q q r) r []) prf
     of {
     Inl err ->
       Error ((shows_string
@@ -36345,7 +36750,7 @@ certify_cert_problem a i j (TRS_Termination_Proof nfs q r Nothing prf) =
   });
 certify_cert_problem a i j (TRS_Termination_Proof nfs q r (Just s) prf) =
   (case check_trs_termination_proof i j a (shows_stringa ['1'])
-          (mka i nfs (strategy_to_Q q r) r s) prf
+          (mkb i nfs (strategy_to_Q q r) r s) prf
     of {
     Inl err ->
       Error ((shows_string
@@ -36359,7 +36764,7 @@ certify_cert_problem a i j (TRS_Termination_Proof nfs q r (Just s) prf) =
   });
 certify_cert_problem a i j (Complexity_Proof q r s_o cm cc prf) =
   (case check_complexity_proof (shows_stringa ['1']) i
-          (mka i True (strategy_to_Q q r) r (rel_rules_of s_o)) cm cc prf
+          (mkb i True (strategy_to_Q q r) r (rel_rules_of s_o)) cm cc prf
     of {
     Inl err ->
       Error ((shows_string
@@ -36372,7 +36777,7 @@ certify_cert_problem a i j (Complexity_Proof q r s_o cm cc prf) =
   });
 certify_cert_problem a i j (TRS_Nontermination_Proof nfs q r prf) =
   (case check_trs_nontermination_proof i j a (shows_stringa ['1'])
-          (mka i nfs (strategy_to_Q q r) r []) prf
+          (mkb i nfs (strategy_to_Q q r) r []) prf
     of {
     Inl err ->
       Error ((shows_string
@@ -36468,7 +36873,7 @@ certify_cert_problem a i j (FP_Nontermination_Proof p r prf) =
   });
 certify_cert_problem a i j (Relative_TRS_Nontermination_Proof nfs q r s prf) =
   (case check_reltrs_nontermination_proof i j a (shows_stringa ['1'])
-          (mka i nfs (strategy_to_Q q r) r s) prf
+          (mkb i nfs (strategy_to_Q q r) r s) prf
     of {
     Inl err ->
       Error ((shows_string
@@ -36628,7 +37033,7 @@ eval_list_haskell [] = returna [];
 xmldoc2cert_problem ::
   Xmldoc ->
     Sum_bot [Prelude.Char] (Cert_problem [Prelude.Char] [Nat] [Prelude.Char]);
-xmldoc2cert_problem (Xmldoc header xml) =
+xmldoc2cert_problem (XMLDOC header xml) =
   debug ['0']
     ['p', 'a', 'r', 's', 'i', 'n', 'g', ' ', 'x', 'm', 'l', ' ', 't', 'o', ' ',
       'c', 'e', 'r', 't', 'i', 'f', 'i', 'c', 'a', 't', 'i', 'o', 'n', ' ', 'p',
