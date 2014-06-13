@@ -40,6 +40,8 @@ module Main(main) where
 
 import qualified Ceta -- the certifier
 
+import qualified Complexity as C
+
 import TPDB.Input (get_trs)
 import TPDB.Pretty
 import TPDB.CPF.Proof.Type as CPF
@@ -55,10 +57,16 @@ main = do
     case args of
         [ outfile, benchfile ] -> handle True outfile benchfile
         [ "-n", outfile, benchfile ] -> handle False outfile benchfile
+        _ -> error $ unlines 
+            [ "usage: ceta-postproc [-n] proof benchmark"
+            , "   -n        : not on starexec (do not remove timestamps)"
+            , "   proof     : pathname for CPF document (with ASCII status in first line)"
+            , "   benchmark : pathname for input problem (XML TPDB format)"
+            ]
 
 data Starexec_Result = CERTIFIED | REJECTED | IGNORED
      deriving (Eq, Show)
-data Original_Result = YES | NO | MAYBE 
+data Original_Result = YES | NO | MAYBE | Bounds C.Bounds
      deriving (Eq, Show)
 data Consistency = CONSISTENT | INPUT_MISMATCH | CLAIM_MISMATCH | PARSE_ERROR
      deriving (Eq, Show)
@@ -71,9 +79,12 @@ handle on_star_exec outfile benchfile = do
     let process = if on_star_exec then remove_timestamp else id
         claim_string : proof = map process $ lines out
         claim = case claim_string of
-              "YES" -> YES
-              "NO"  -> NO
-              _     -> MAYBE
+            "YES" -> YES
+            "NO" -> NO
+            "MAYBE" -> MAYBE
+            _ -> case readsPrec 0 claim_string of
+                  [(b,"")] -> Bounds b
+                  _     -> MAYBE
         problemString = unlines 
                       $ takeWhile ( /= "EOF" ) -- FIXME (issue #1)
                       $ proof
@@ -97,10 +108,8 @@ handle on_star_exec outfile benchfile = do
          $ vcat [ "benchmark:" <+> pretty bench
                 , "proof.input:" <+> pretty ( CPF.trsinput_trs $ CPF.input p ) ]
 
-    case (claim, CPF.proof p) of
-         (YES , CPF.TrsTerminationProof {} ) -> return ()
-         (NO, CPF.TrsNonterminationProof {} ) -> return ()
-         _ -> whine on_star_exec [("starexec-result", "REJECTED")
+    when (not $ matches claim p) 
+        $ whine on_star_exec [("starexec-result", "REJECTED")
                                  ,("original-result", show claim)
                                  ,("consistency", "CLAIM_MISMATCH")] empty
 
@@ -114,6 +123,20 @@ handle on_star_exec outfile benchfile = do
                                           ,("consistency", "CONSISTENT")
                                           ,("certification-result", reason)] $ text msg
 
+matches claim p = case claim of
+    NO -> case CPF.proof p of
+        CPF.TrsNonterminationProof {} -> True
+        CPF.RelativeNonterminationProof {} -> True
+        _ -> False
+    YES -> case CPF.proof p of
+        CPF.TrsTerminationProof {} -> True
+        CPF.RelativeTerminationProof {} -> True
+        _ -> False
+    Bounds b -> case CPF.proof p of
+        CPF.ComplexityProof {} -> C.matches b $ CPF.complexityClass $ CPF.input p
+        _ -> False
+    _ -> False
+    
 
 remove_timestamp :: String -> String
 remove_timestamp = unwords . drop 1 . words
