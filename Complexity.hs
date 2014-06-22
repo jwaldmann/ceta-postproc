@@ -24,7 +24,7 @@ matches :: Bounds -> P.ComplexityClass -> Bool
 matches b c = case upper b of
     Poly { degree = d } -> case d of
          Nothing -> True
-         Just d -> d >= P.polynomial c
+         Just d -> d >= P.degree c
     _ -> True
 
 -- | test all branches of the original grammar:
