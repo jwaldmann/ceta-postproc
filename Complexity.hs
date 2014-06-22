@@ -56,7 +56,7 @@ pair lo up =
                 token "," 
                 u <- quest up readP_Function 
                 return $ Bounds { lower = l, upper = u } )
-    +++ return ( Bounds { lower = lo, upper = up } )
+    <++ return ( Bounds { lower = lo, upper = up } )
 
 quest q p = do { token "?" ; return q } +++ p
 
