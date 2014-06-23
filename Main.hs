@@ -64,12 +64,19 @@ main = do
             , "   benchmark : pathname for input problem (XML TPDB format)"
             ]
 
-data Starexec_Result = CERTIFIED | REJECTED | IGNORED
-     deriving (Eq, Show)
 data Original_Result = YES | NO | MAYBE | Bounds C.Bounds
-     deriving (Eq, Show)
-data Consistency = CONSISTENT | INPUT_MISMATCH | CLAIM_MISMATCH | PARSE_ERROR
-     deriving (Eq, Show)
+     deriving (Eq)
+
+instance Show Original_Result where
+    show r = case r of
+        YES -> "YES" ; NO -> "NO" ; MAYBE -> "MAYBE"
+        Bounds b -> show b
+
+-- data Starexec_Result = CERTIFIED | REJECTED | IGNORED
+--     deriving (Eq, Show)
+
+-- data Consistency = CONSISTENT | INPUT_MISMATCH | CLAIM_MISMATCH | PARSE_ERROR
+--     deriving (Eq, Show)
 
 
 handle on_star_exec outfile benchfile = do
@@ -118,7 +125,7 @@ handle on_star_exec outfile benchfile = do
                                           ,("original-result", show claim)
                                           ,("consistency", "CONSISTENT")
                                           ,("certification-result", reason)] $ text msg
-        Right reason -> whine on_star_exec [("starexec-result", "CERTIFIED")
+        Right reason -> whine on_star_exec [("starexec-result", "CERTIFIED-" ++ show claim)
                                           ,("original-result", show claim)
                                           ,("consistency", "CONSISTENT")
                                           ,("certification-result", reason)] $ text msg
