@@ -100,15 +100,20 @@ handle on_star_exec outfile benchfile = do
 
     when (claim == MAYBE) $ whine on_star_exec [("starexec-result", show claim)] empty
 
+    let accepted claim = show claim
+        rejected claim = "REJECTED-" ++ show claim
+
     ps <- CPF.readCP problemString
     when (length ps /= 1) 
-        $ whine on_star_exec [("starexec-result", "postproc-parse-error")
-                             ,("original-result", show claim) ] empty
+        $ whine on_star_exec [("starexec-result", rejected claim)
+                             ,("original-result", show claim) 
+                             ,("consistency", "CPF_PARSE_ERROR")
+                             ] empty
 
     let [ p ] = ps
 
     when ( bench /= CPF.trsinput_trs ( CPF.input p ) )
-         $ whine on_star_exec [("starexec-result", "REJECTED")
+         $ whine on_star_exec [("starexec-result", rejected claim)
                               ,("original-result", show claim)
                               ,("consistency", "INPUT_MISMATCH")
                               ]
@@ -116,16 +121,16 @@ handle on_star_exec outfile benchfile = do
                 , "proof.input:" <+> pretty ( CPF.trsinput_trs $ CPF.input p ) ]
 
     when (not $ matches claim p) 
-        $ whine on_star_exec [("starexec-result", "REJECTED")
+        $ whine on_star_exec [("starexec-result", rejected claim)
                                  ,("original-result", show claim)
                                  ,("consistency", "CLAIM_MISMATCH")] empty
 
     case cert of
-        Left reason -> whine on_star_exec [("starexec-result", "REJECTED")
+        Left reason -> whine on_star_exec [("starexec-result", rejected claim)
                                           ,("original-result", show claim)
                                           ,("consistency", "CONSISTENT")
                                           ,("certification-result", reason)] $ text msg
-        Right reason -> whine on_star_exec [("starexec-result", "CERTIFIED-" ++ show claim)
+        Right reason -> whine on_star_exec [("starexec-result", accepted claim)
                                           ,("original-result", show claim)
                                           ,("consistency", "CONSISTENT")
                                           ,("certification-result", reason)] $ text msg
