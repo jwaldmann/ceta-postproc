@@ -155,7 +155,7 @@ remove_timestamp = unwords . drop 1 . words
 
 whine :: Bool -> [(String,String)] -> Doc -> IO ()
 whine on_star_exec keyvals doc = do
-    putStrLn $ unlines $ map (\(k,v) -> k ++ "=" ++ v) keyvals
+    putStrLn $ unlines $ map (\(k,v) -> k ++ "=" ++ show v) keyvals
     error $ if on_star_exec then "" else show doc
 
 certify a problemString = 
