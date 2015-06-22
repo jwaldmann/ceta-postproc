@@ -1,6 +1,6 @@
 -- | syntax and semantics see
 -- http://cl-informatik.uibk.ac.at/users/georg/cbr/competition/rules.php
-
+--
 -- there are several problems with this definition:
 -- * it is wrong (uses big-oh for lower bounds, instead of big-omega)
 -- * it is not expressible enough (it cannot express "at least quadratic, but not known to be terminating")

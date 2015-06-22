@@ -21,5 +21,5 @@ Output is on stdout
 * consistency=CONSISTENT/INPUT_MISMATCH/CLAIM_MISMATCH/PARSE_ERROR
 * certification-result=CERTIFIED/REJECTED/UNSUPPORTED/UNKNOWN_ERROR
 
-CeTA (C) Christian Sternagel and Rene Thiemann 2009-2013,
+CeTA (C) Christian Sternagel and Rene Thiemann 2009-2015,
 postprocessor modifications (C) Johannes Waldmann 2014
