@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                ceta-postproc
-version:             0.2.0.0
+version:             2.20.1
 synopsis:            CeTA as postprocessor for starexec, using CeTA 2.20 (for Competition 2015)
 -- description:         
 homepage:            https://github.com/jwaldmann/ceta-postproc
