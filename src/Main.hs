@@ -44,8 +44,8 @@ import qualified Complexity as C
 
 import TPDB.Input (get_trs)
 import TPDB.Pretty
-import TPDB.CPF.Proof.Type as CPF
-import TPDB.CPF.Proof.Read as CPF
+import qualified TPDB.CPF.Proof.Type as CPF
+import qualified TPDB.CPF.Proof.Read as CPF
 
 import System.Environment -- for getArgs
 import System.IO -- for file reading
@@ -155,8 +155,10 @@ remove_timestamp = unwords . drop 1 . words
 
 whine :: Bool -> [(String,String)] -> Doc -> IO ()
 whine on_star_exec keyvals doc = do
-    putStrLn $ unlines $ map (\(k,v) -> k ++ "=" ++ show v) keyvals
-    error $ if on_star_exec then "" else show doc
+    hPutStrLn stdout $ unlines $ map (\(k,v) -> k ++ "=" ++ show v) keyvals
+    hFlush stdout
+    hPutStrLn stderr $ if on_star_exec then "" else show doc
+    System.Exit.exitSuccess
 
 certify a problemString = 
     case Ceta.certify_proof a problemString of
