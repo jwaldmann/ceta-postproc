@@ -84,14 +84,14 @@ handle on_star_exec outfile benchfile = do
     
     out <- readFile outfile
     let process = if on_star_exec then remove_timestamp else id
-        claim_string : proof = map process $ lines out
-        claim = case claim_string of
-            "YES" -> YES
-            "NO" -> NO
-            "MAYBE" -> MAYBE
-            _ -> case readsPrec 0 claim_string of
-                  [(b,"")] -> Bounds b
-                  _     -> MAYBE
+        (claim, proof) = case map process $ lines out of
+            [] -> (MAYBE, [])
+            "YES" : proof -> (YES, proof)
+            "NO" : proof -> (NO, proof)
+            "MAYBE" : _ -> (MAYBE, [])
+            claim_string : proof -> case readsPrec 0 claim_string of
+                  [(b,"")] -> (Bounds b, proof)
+                  _     -> (MAYBE, [])
         problemString = unlines 
                       $ takeWhile ( /= "EOF" ) -- FIXME (issue #1)
                       $ proof
@@ -157,8 +157,8 @@ whine :: Bool -> [(String,String)] -> Doc -> IO ()
 whine on_star_exec keyvals doc = do
     hPutStrLn stdout $ unlines $ map (\(k,v) -> k ++ "=" ++ show v) keyvals
     hFlush stdout
-    hPutStrLn stderr $ if on_star_exec then "" else show doc
-    System.Exit.exitSuccess
+    if on_star_exec then System.Exit.exitSuccess else error $ show doc
+    
 
 certify a problemString = 
     case Ceta.certify_proof a problemString of
