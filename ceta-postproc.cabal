@@ -1,5 +1,5 @@
 name:                ceta-postproc
-version:             2.27.1
+version:             2.27.3
 synopsis:            CeTA as postprocessor for starexec, using CeTA 2.27 (for Competition 2016)
 -- description:         
 homepage:            https://github.com/jwaldmann/ceta-postproc

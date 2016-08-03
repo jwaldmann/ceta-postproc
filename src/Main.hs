@@ -55,7 +55,7 @@ import Control.Monad ( when )
 main = do 
     args <- getArgs
     case args of
-        [ outfile, benchfile ] -> handle True outfile benchfile
+        [ outfile, benchfile, extradir ] -> handle True outfile benchfile
         [ "-n", outfile, benchfile ] -> handle False outfile benchfile
         _ -> error $ unlines 
             [ "usage: ceta-postproc [-n] proof benchmark"
