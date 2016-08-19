@@ -11,7 +11,7 @@ note: contrary to what the spec says,
 the first file contains stdin and stderr merged,
 and prepended with timestamps.
 
-these modifications (C) Johannes Waldmann 2014
+these modifications (C) Johannes Waldmann 2014, 2015, 2016
 
 original copyright notice follows:
 -}
@@ -55,8 +55,8 @@ import Control.Monad ( when )
 main = do 
     args <- getArgs
     case args of
-        [ outfile, benchfile, extradir ] -> handle True outfile benchfile
         [ "-n", outfile, benchfile ] -> handle False outfile benchfile
+        [ outfile, benchfile, extradir ] -> handle True outfile benchfile
         _ -> error $ unlines 
             [ "usage: ceta-postproc [-n] proof benchmark"
             , "   -n        : not on starexec (do not remove timestamps)"
