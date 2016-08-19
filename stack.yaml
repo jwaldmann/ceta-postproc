@@ -7,7 +7,7 @@ packages:
     commit: b6bd8ddc33925b4ead089bc6573db0e4b6e2ab4d
 - location:
     git: https://github.com/jwaldmann/haskell-tpdb
-    commit: c3eeb7b36733d057c52297c064f90ec5100c62f0
+    commit: 5b89e1916c55653e5ed2b2525b0294fafc7e1d55
 
 extra-deps:
 - HaXml-1.25.3

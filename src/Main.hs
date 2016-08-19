@@ -42,8 +42,10 @@ import qualified Ceta -- the certifier
 
 import qualified Complexity as C
 
+import qualified TPDB.Data as D
 import TPDB.XTC.Read ( readProblems )
 import TPDB.Pretty
+import TPDB.Plain.Write ()
 import qualified TPDB.CPF.Proof.Type as CPF
 import qualified TPDB.CPF.Proof.Read as CPF
 
@@ -51,6 +53,7 @@ import System.Environment -- for getArgs
 import System.IO -- for file reading
 import System.Exit -- for error codes
 import Control.Monad ( when )
+import qualified Data.Set as S
 
 main = do 
     args <- getArgs
@@ -80,12 +83,12 @@ instance Show Original_Result where
 
 
 handle on_star_exec outfile benchfile = do
-    benches <- TPDB.XTC.readProblems benchfile
+    benches <- TPDB.XTC.Read.readProblems benchfile
     when (length benches /= 1)
       $ whine on_star_exec
       [ ("starexec-result","REJECTED")
       , ("consistency","XTC_PARSE_ERROR")
-      ]
+      ] empty
     let [bench] = benches
     
     out <- readFile outfile
@@ -118,18 +121,24 @@ handle on_star_exec outfile benchfile = do
 
     let [ p ] = ps
 
-    when ( bench /= CPF.trsinput_trs ( CPF.input p ) )
-         $ whine on_star_exec [("starexec-result", rejected claim)
+    case consistent bench $ CPF.input p  of
+      Left msg -> whine on_star_exec [("starexec-result", rejected claim)
                               ,("original-result", show claim)
                               ,("consistency", "INPUT_MISMATCH")
                               ]
-         $ vcat [ "benchmark:" <+> pretty bench
-                , "proof.input:" <+> pretty ( CPF.trsinput_trs $ CPF.input p ) ]
+         $ vcat [ msg
+                , "benchmark:" <+> pretty bench
+                , "proof.input:" <+> pretty ( CPF.input p )
+                ]
+      Right () -> return ()
 
     when (not $ matches claim p) 
         $ whine on_star_exec [("starexec-result", rejected claim)
                                  ,("original-result", show claim)
-                                 ,("consistency", "CLAIM_MISMATCH")] empty
+                                 ,("consistency", "CLAIM_MISMATCH")]
+        $ vcat [ text $ show claim
+               -- , pretty p
+               ]
 
     case cert of
         Left reason -> whine on_star_exec [("starexec-result", rejected claim)
@@ -141,6 +150,34 @@ handle on_star_exec outfile benchfile = do
                                           ,("consistency", "CONSISTENT")
                                           ,("certification-result", reason)] $ text msg
 
+consistent :: D.Problem CPF.Identifier CPF.Identifier
+           -> CPF.CertificationProblemInput
+           -> Either Doc ()
+consistent p i = 
+  if D.trs p /= CPF.trsinput_trs i
+  then Left "trs are not equal"
+  else case i of
+    CPF.TrsInput {} -> do
+      return () -- FIXME: absence of strategy, theory, startterm
+    CPF.ComplexityInput {} -> do
+      -- FIXME: absence of strategy, theory, startterm
+      case (D.startterm p , CPF.complexityMeasure i) of
+       ( Just D.Startterm_Full  , CPF.DerivationalComplexity ) -> return ()
+       ( Just D.Startterm_Constructor_based , CPF.RuntimeComplexity ) -> return ()
+       (s, m) -> Left $ text $ show (s,m)
+    CPF.ACRewriteSystem {} -> do
+      -- FIXME: absence of strategy, startterm
+      let D.Signature fs = D.full_signature p
+          mkid f = D.mk 0 (D.fs_name f) 
+          as = S.fromList $ map mkid $ filter (\f -> D.fs_theory f `elem` [Just D.A, Just D.AC] ) fs
+          cs = S.fromList $ map mkid $ filter (\f -> D.fs_theory f `elem` [Just D.C, Just D.AC] ) fs
+          mustbeq msg s t =
+            if s == t then return ()
+            else Left $ vcat [ msg <+> "not equal" , pretty $ S.toList s, pretty $ S.toList t ]
+      mustbeq "asymbols" as (S.fromList $ CPF.asymbols i)
+      mustbeq "csymbols" cs (S.fromList $ CPF.csymbols i)
+      return ()
+
 matches claim p = case claim of
     NO -> case CPF.proof p of
         CPF.TrsNonterminationProof {} -> True
@@ -149,6 +186,7 @@ matches claim p = case claim of
     YES -> case CPF.proof p of
         CPF.TrsTerminationProof {} -> True
         CPF.RelativeTerminationProof {} -> True
+        CPF.ACTerminationProof {} -> True
         _ -> False
     Bounds b -> case CPF.proof p of
         CPF.ComplexityProof {} -> C.matches b $ CPF.complexityClass $ CPF.input p
