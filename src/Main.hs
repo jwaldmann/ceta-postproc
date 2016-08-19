@@ -42,7 +42,7 @@ import qualified Ceta -- the certifier
 
 import qualified Complexity as C
 
-import TPDB.Input (get_trs)
+import TPDB.XTC.Read ( readProblems )
 import TPDB.Pretty
 import qualified TPDB.CPF.Proof.Type as CPF
 import qualified TPDB.CPF.Proof.Read as CPF
@@ -80,7 +80,13 @@ instance Show Original_Result where
 
 
 handle on_star_exec outfile benchfile = do
-    bench <- TPDB.Input.get_trs benchfile
+    benches <- TPDB.XTC.readProblems benchfile
+    when (length benches /= 1)
+      $ whine on_star_exec
+      [ ("starexec-result","REJECTED")
+      , ("consistency","XTC_PARSE_ERROR")
+      ]
+    let [bench] = benches
     
     out <- readFile outfile
     let process = if on_star_exec then remove_timestamp else id
