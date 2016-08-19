@@ -23,7 +23,7 @@ user-message: ! 'Warning (added by new or init): Specified resolver could not sa
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: ghc-8.0.1
+resolver: nightly-2016-08-18
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -45,24 +45,17 @@ resolver: ghc-8.0.1
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
+- location:
+    git: https://github.com/jwaldmann/wl-pprint-text
+    commit: b6bd8ddc33925b4ead089bc6573db0e4b6e2ab4d
+- location:
+    git: https://github.com/jwaldmann/haskell-tpdb
+    commit: c3eeb7b36733d057c52297c064f90ec5100c62f0
+
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- HUnit-1.3.1.1
 - HaXml-1.25.3
-- hashable-1.2.4.0
-- hxt-9.3.1.15
-- hxt-charproperties-9.2.0.1
-- hxt-regex-xmlschema-9.2.0.2
-- hxt-unicode-9.0.2.4
-- mtl-2.2.1
-- network-uri-2.6.1.0
-- parsec-3.1.11
-- polyparse-1.12
-- random-1.1
-- text-1.2.2.1
-- tpdb-1.3.3
-- wl-pprint-text-1.1.0.4
 
 # Override default flag values for local packages and extra-deps
 flags: {}
@@ -70,20 +63,3 @@ flags: {}
 # Extra package databases containing global packages
 extra-package-dbs: []
 
-# Control whether we use the GHC we find on the path
-# system-ghc: true
-# 
-# Require a specific version of stack, using version ranges
-# require-stack-version: -any # Default
-# require-stack-version: ">=1.1"
-# 
-# Override the architecture used by stack, especially useful on Windows
-# arch: i386
-# arch: x86_64
-# 
-# Extra directories used by stack for building
-# extra-include-dirs: [/path/to/dir]
-# extra-lib-dirs: [/path/to/dir]
-# 
-# Allow a newer minor version of GHC than the snapshot specifies
-# compiler-check: newer-minor
