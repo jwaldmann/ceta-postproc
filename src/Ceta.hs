@@ -48592,11 +48592,11 @@ xml2complexity_proof xml2name x =
                     (xml_do
                       ['u', 's', 'a', 'b', 'l', 'e', 'R', 'u', 'l', 'e', 's']
                       (xml_take (rules xml2name) (\ xa -> xml_return (id xa))))
-                    (\ _ ->
+                    (\ ur ->
                       xml_take (xml2complexity_proof xml2name)
                         (\ prf ->
                           xml_return
-                            (Rule_Shift_Complexity rp del Nothing prf)))))))
+                            (Rule_Shift_Complexity rp del ur prf)))))))
         (xml_or
           (xml_do ['u', 's', 'a', 'b', 'l', 'e', 'R', 'u', 'l', 'e', 's']
             (xml_take
