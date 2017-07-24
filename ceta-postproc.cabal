@@ -1,6 +1,6 @@
 name:                ceta-postproc
-version:             2.27.4
-synopsis:            CeTA as postprocessor for starexec, using CeTA 2.27 (for Competition 2016)
+version:             2.30.0
+synopsis:            CeTA as postprocessor for starexec, using CeTA 2.27 (for Competition 2017)
 -- description:         
 homepage:            https://github.com/jwaldmann/ceta-postproc
 license:             LGPL-3
@@ -16,9 +16,9 @@ cabal-version:       >=1.10
 executable ceta-postproc
   hs-source-dirs:         src
   main-is:             Main.hs
-  other-modules:       Ceta, Complexity, IArray
+  other-modules:       Ceta, Array, Data_Bits, IArray, Uint, Uint32
   other-extensions:    EmptyDataDecls, RankNTypes, ScopedTypeVariables
-  build-depends:       base, array, tpdb >=1.3.3, containers
+  build-depends:       base, array
   default-language:    Haskell2010
   ghc-options: -rtsopts
 
