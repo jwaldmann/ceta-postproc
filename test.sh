@@ -4,7 +4,7 @@ stack install
 
 cepp () {
     echo ================= $1 $2
-    ceta-postproc --nostar $1 $2
+    ceta-postproc $1 $2
 }
 
 echo "must work:"
