@@ -35,7 +35,7 @@ main = getArgs >>= \ args -> do
       , "arguments for this call: " ++ show args
       ]
   case chop_claim claim_proofString of
-    Nothing -> terminate_with Nothing [ ("starexec-result", "MISSING-CLAIM") ]
+    Nothing -> terminate_with Nothing [ ("starexec-result", "MAYBE") ]
     Just (claim, proofString) -> do
         start False (Just problemString) claim proofString
 
