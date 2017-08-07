@@ -6,6 +6,7 @@ License: LGPL (see file COPYING.LESSER)
 module Main (main) where
 
 import Ceta -- the certifier
+import qualified Claim
 import System.Environment -- for getArgs
 import System.IO -- for file reading
 import System.Exit -- for error codes
@@ -36,20 +37,30 @@ main = getArgs >>= \ args -> do
       ]
   case chop_claim claim_proofString of
     Nothing -> terminate_with Nothing [ ("starexec-result", "MAYBE") ]
-    Just (claim, proofString) -> do
-        start False (Just problemString) claim proofString
+    Just (claimString, proofString) -> do
+        case Claim.parse claimString of
+          Right claim -> start False (Just problemString) claim proofString
+          Left  _   -> terminate_with Nothing [ ("starexec-result", "INVALID-CLAIM:" ++ claimString) ] 
 
-start a problemString claim proofString = do
-  let (cr, mmsg) = case certify_proof a problemString {- claim -} proofString of
-         Sumbot (Inr (Certified prf)) -> ("CERTIFIED" ++ prf, Nothing )
-         Sumbot (Inr (Error message)) -> ("REJECTED", Just message)
-         Sumbot (Inr (Unsupported message)) -> ("UNSUPPORTED", Just message)
-         Sumbot (Inl message) -> ("UNKNOWN-ERROR", Just message)
-  case mmsg of
-    Nothing -> terminate_with mmsg
-      [ ("starexec-result", claim), ("certification-result", cr) ]
-    Just msg -> terminate_with mmsg
-      [ ("starexec-result", cr ++ "-" ++ claim), ("certification-result", cr) ]
+start a problemString claim proofString = case cetaify claim of
+  Nothing -> 
+    terminate_with Nothing [ ("starexec-result", "UNSUPPORTED-CLAIM:" ++ show claim) ]
+  Just cc -> 
+    let (cr, mmsg) = case certify_proof a problemString cc proofString of
+           Certified  -> ("CERTIFIED", Nothing )
+           Error message -> ("REJECTED", Just message)
+           Unsupported message -> ("UNSUPPORTED", Just message)
+    in case mmsg of
+      Nothing -> terminate_with mmsg
+        [ ("starexec-result", show claim), ("certification-result", cr) ]
+      Just msg -> terminate_with mmsg
+        [ ("starexec-result", cr ++ "-" ++ show claim), ("certification-result", cr) ]
+
+cetaify c = case c of
+  Claim.YES -> Just $ Inl Terminating
+  Claim.NO  -> Just $ Inl Nonterminating
+  Claim.WORST_CASE Claim.None (Claim.Some (Claim.O d)) -> Just $ Inl $ Upperbound $ Nat d
+  _ -> Nothing
 
 terminate_with mmsg env = do
   hPutStrLn stdout $ unlines $ map (\(k,v) -> k ++ "=" ++ show v ) env
