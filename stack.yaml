@@ -1,4 +1,4 @@
-resolver: lts-8.23
+resolver: nightly-2017-08-15
 
 packages:
 - '.'
@@ -6,4 +6,3 @@ packages:
 flags: {}
 
 extra-package-dbs: []
-
