@@ -39,6 +39,7 @@ main = getArgs >>= \ args -> do
     Nothing -> terminate_with Nothing [ ("starexec-result", "MAYBE") ]
     Just (claimString, proofString) -> do
         case Claim.parse claimString of
+          Right Claim.MAYBE -> terminate_with Nothing [ ("starexec-result", "MAYBE") ]
           Right claim -> start False problemString claim proofString
           Left  _   -> terminate_with Nothing [ ("starexec-result", "INVALID-CLAIM:" ++ claimString) ] 
 
