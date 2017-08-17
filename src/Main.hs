@@ -13,6 +13,8 @@ import System.Exit -- for error codes
 
 import qualified Data.List
 import qualified Data.Char
+import System.Clock
+import Text.Printf
 
 main = getArgs >>= \ args -> do
   (problemString, claim_proofString) <- case args of
@@ -53,16 +55,17 @@ readProblemFile fname =
 start a problemString claim proofString = case cetaify claim of
   Nothing -> 
     terminate_with Nothing [ ("starexec-result", "UNSUPPORTED-CLAIM:" ++ show claim) ]
-  Just cc -> 
+  Just cc -> do
     let (cr, mmsg) = case certify_proof a problemString cc proofString of
            Certified  -> ("CERTIFIED", Nothing )
            Error message -> ("REJECTED", Just message)
            Unsupported message -> ("UNSUPPORTED", Just message)
-    in case mmsg of
+    dt <- timed_whnf (length cr)
+    case mmsg of
       Nothing -> terminate_with mmsg
-        [ ("starexec-result", show claim), ("certification-result", cr) ]
+        [ ("starexec-result", show claim), ("certification-result", cr), ("certification-time", format_time dt) ]
       Just msg -> terminate_with mmsg
-        [ ("starexec-result", cr ++ "-" ++ show claim), ("certification-result", cr) ]
+        [ ("starexec-result", cr ++ "-" ++ show claim), ("certification-result", cr), ("certification-time", format_time dt) ]
 
 cetaify c = case c of
   Claim.YES -> Just $ Inl Terminating
@@ -75,6 +78,14 @@ terminate_with mmsg env = do
   hFlush stdout
   maybe (return ()) ( hPutStrLn stderr ) mmsg
   System.Exit.exitSuccess 
+
+timed_whnf x = do
+  start <- getTime Realtime
+  end <- seq x $ getTime Realtime
+  return $ toNanoSecs $ diffTimeSpec end start
+
+format_time dt =
+  printf "%.1f" $ ( fromIntegral dt * 1e-9 :: Double )
 
 separator_length = 80
 separator = replicate separator_length '-'
