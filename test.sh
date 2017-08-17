@@ -15,6 +15,7 @@ cepp data/z042.cpf data/z042.xml
 cepp data/AC28.cpf data/AC28.xml
 cepp data/3.39.cpf data/3.39.xml
 cepp data/AG01-3.24.cpf data/AG01-3.24.xml
+cepp data/Fibonacci.jar-obl-8.cpf data/Fibonacci.jar-obl-8.smt2
 
 echo "must fail:"
 
