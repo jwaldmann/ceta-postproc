@@ -1,8 +1,8 @@
 {-# LANGUAGE EmptyDataDecls, RankNTypes, ScopedTypeVariables #-}
 
 module
-  Ceta(Num, Nat(..), Term, Sum(..), Lab, Xml, Xml_error, Claim(..), Input,
-        Sum_bot(..), Proof, Cert_result(..), Tp, Dpp, Ac_dpp, Tp_ops_ext,
+  Ceta(Num, Nat, nat_of_integer, Term, Sum(..), Lab, Xml, Xml_error, Claim(..),
+        Input, Sum_bot(..), Proof, Cert_result(..), Tp, Dpp, Ac_dpp, Tp_ops_ext,
         Dpp_ops_ext, Ac_tp_ops_ext, Ac_dpp_ops_ext, version, certify_proof)
   where {
 
@@ -11143,6 +11143,9 @@ data Tree_automaton a b = Tree_Automaton [a] [Ta_rule a b] [(a, a)];
 data Complexity_measure a b = Derivational_Complexity [(a, Nat)]
   | Runtime_Complexity [(a, Nat)] [(a, Nat)];
 
+data Equation_literal a b = Equation (Term a b, Term a b)
+  | Inequality (Term a b, Term a b);
+
 newtype Complexity_class = Comp_Poly Nat;
 
 data Fp_strategy a b = Outermost | Context_Sensitive [((a, Nat), [Nat])]
@@ -11159,7 +11162,7 @@ data Input a b =
   | CPX_input (Strategy a b) [(Term a b, Term a b)] [(Term a b, Term a b)]
       (Complexity_measure a b) Complexity_class
   | COMP_input [(Term a b, Term a b)] [(Term a b, Term a b)]
-  | EQ_input [(Term a b, Term a b)] (Term a b, Term a b)
+  | EQ_input [(Term a b, Term a b)] (Equation_literal a b)
   | FP_TRS_input (Fp_strategy a b) [(Term a b, Term a b)]
   | CTRS_input [((Term a b, Term a b), [(Term a b, Term a b)])]
   | TA_input (Tree_automaton [Prelude.Char] a) [(Term a b, Term a b)]
@@ -11474,7 +11477,9 @@ data Cr_proof a b c = SN_WCR (Join_info (Lab a b)) (Trs_termination_proof a b c)
       [[(Pos, ((Term (Lab a b) c, Term (Lab a b) c),
                 (Bool, Term (Lab a b) c)))]]
       (Cr_proof a b c)
-  | Parallel_Closed (Maybe Nat);
+  | Parallel_Closed (Maybe Nat)
+  | Critical_Pair_Closing_System [(Term (Lab a b) c, Term (Lab a b) c)]
+      (Trs_termination_proof a b c) Nat;
 
 data Comp_res = LESS | EQUAL | GREATER;
 
@@ -11769,7 +11774,11 @@ data Completion_proof a b c =
 
 data Equational_disproof a b c =
   Completion_and_Normalization_Different [(Term (Lab a b) c, Term (Lab a b) c)]
-    (Completion_proof a b c);
+    (Completion_proof a b c)
+  | Convertible_Instance
+      [((Term (Lab a b) c, Term (Lab a b) c),
+         [(Pos, ((Term (Lab a b) c, Term (Lab a b) c),
+                  (Bool, Term (Lab a b) c)))])];
 
 data Ao_infeasibility_proof a b =
   AO_Infeasibility_Proof (Infeasibility_proof a b)
@@ -15550,8 +15559,8 @@ hvf_top a n (Var uu) = False;
 
 version :: [Prelude.Char];
 version =
-  ['2', '.', '3', '0', ' ', '[', 'h', 'g', ':', ' ', 'e', '0', 'c', '8', '7',
-    'd', '8', '6', '2', 'c', 'e', 'd', ']'];
+  ['2', '.', '3', '1', ' ', '[', 'h', 'g', ':', ' ', '1', 'c', '1', 'e', '7',
+    '7', 'd', '7', '0', '6', '6', '0', ']'];
 
 status :: forall a. Status a -> (a, Nat) -> [Nat];
 status (Abs_status x) = x;
@@ -16796,6 +16805,15 @@ replace_impl a bs m =
 doc_of_string :: [Prelude.Char] -> Sum [Prelude.Char] Xmldoc;
 doc_of_string s = bindb (parse_doc s) (\ (doc, _) -> Inr doc);
 
+special_map :: [Prelude.Char] -> Maybe [Prelude.Char];
+special_map =
+  map_of
+    [(['q', 'u', 'o', 't'], ['\"']), (['#', '3', '4'], ['\"']),
+      (['a', 'm', 'p'], ['&']), (['#', '3', '8'], ['&']),
+      (['a', 'p', 'o', 's'], ['\'']), (['#', '3', '9'], ['\'']),
+      (['l', 't'], ['<']), (['#', '6', '0'], ['<']), (['g', 't'], ['>']),
+      (['#', '6', '2'], ['>'])];
+
 pat_eqv_prf ::
   forall a.
     (Showa a) => ((Xml, ([([Prelude.Char], [Prelude.Char])],
@@ -17693,6 +17711,10 @@ symbols xml2name tagname =
               (\ b -> xml_return (a, b)))))
       xml_return);
 
+map_xml_text :: ([Prelude.Char] -> [Prelude.Char]) -> Xml -> Xml;
+map_xml_text f (XML t asa cs) = XML t asa (map (map_xml_text f) cs);
+map_xml_text f (XML_text txt) = XML_text (f txt);
+
 orig_term :: forall a b. (a -> Maybe b) -> Term a b -> Term a b;
 orig_term m (Var x) = Var x;
 orig_term m (Fun f []) = (case m f of {
@@ -18339,18 +18361,33 @@ strategy xml2name =
         (xml_change (innermostLhss xml2name) (xml_return . Innermost_Q)))
       xml_return);
 
+extract_special ::
+  [Prelude.Char] -> [Prelude.Char] -> Maybe ([Prelude.Char], [Prelude.Char]);
+extract_special acc [] = Nothing;
+extract_special acc (x : xs) =
+  (if x == ';' then map_option (\ s -> (s, xs)) (special_map (reverse acc))
+    else extract_special (x : acc) xs);
+
+normalize_special :: [Prelude.Char] -> [Prelude.Char];
+normalize_special [] = [];
+normalize_special (x : xs) =
+  (if x == '&' then (case extract_special [] xs of {
+                      Nothing -> ['&'] ++ normalize_special xs;
+                      Just (spec, ys) -> spec ++ normalize_special ys;
+                    })
+    else x : normalize_special xs);
+
 parse_xmlfile ::
   forall a.
     ((Xml, ([([Prelude.Char], [Prelude.Char])],
              (Bool, ([[Prelude.Char]], [[Prelude.Char]])))) ->
       Sum (Xml_error [Prelude.Char]) a) ->
       [Prelude.Char] -> Sum [Prelude.Char] a;
-parse_xmlfile p str = (case doc_of_string str of {
-                        Inl a -> Inl a;
-                        Inr a -> let {
-                                   (XMLDOC _ aa) = a;
-                                 } in parse_xml p aa;
-                      });
+parse_xmlfile p str =
+  (case doc_of_string str of {
+    Inl a -> Inl a;
+    Inr (XMLDOC _ xml) -> parse_xml p (map_xml_text normalize_special xml);
+  });
 
 right :: forall a b. a -> Sum_bot b a;
 right x = Sumbot (Inr x);
@@ -20967,12 +21004,20 @@ xml2equational_input xml2name =
     (xml_take
       (xml_do ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n', 's']
         (xml_take (rules xml2name) xml_return))
-      (\ a ->
+      (\ eqs ->
         xml_take
-          (xml_do ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n']
-            (xml_take (term xml2name)
-              (\ aa -> xml_take (term xml2name) (\ b -> xml_return (aa, b)))))
-          (\ b -> xml_return (EQ_input a b))));
+          (xml_or
+            (xml_do ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n']
+              (xml_take (term xml2name)
+                (\ a ->
+                  xml_take (term xml2name)
+                    (\ b -> xml_return (Equation (a, b))))))
+            (xml_do ['i', 'n', 'e', 'q', 'u', 'a', 'l', 'i', 't', 'y']
+              (xml_take (term xml2name)
+                (\ a ->
+                  xml_take (term xml2name)
+                    (\ b -> xml_return (Inequality (a, b)))))))
+          (\ goal -> xml_return (EQ_input eqs goal))));
 
 xml2completion_input ::
   forall a.
@@ -25662,69 +25707,86 @@ xml2cr_proof xml2name x =
                 (xml_return . Parallel_Closed))
               (xml_or
                 (xml_do
-                  ['r', 'u', 'l', 'e', 'L', 'a', 'b', 'e', 'l', 'i', 'n', 'g']
-                  (xml_take (rule_labeling_function xml2name)
+                  ['c', 'r', 'i', 't', 'i', 'c', 'a', 'l', 'P', 'a', 'i', 'r',
+                    'C', 'l', 'o', 's', 'i', 'n', 'g', 'S', 'y', 's', 't', 'e',
+                    'm']
+                  (xml_take
+                    (xml_do ['t', 'r', 's']
+                      (xml_take (rules xml2name) (\ xa -> xml_return (id xa))))
                     (\ a ->
-                      xml_take (joinable_critical_pairs xml2name)
-                        (\ b -> xml_return (Rule_Labeling a b Nothing)))))
+                      xml_take (xml2trs_termination_proof xml2name)
+                        (\ b ->
+                          xml_take (xml_nat ['n', 'r', 'S', 't', 'e', 'p', 's'])
+                            (\ c ->
+                              xml_return
+                                (Critical_Pair_Closing_System a b c))))))
                 (xml_or
                   (xml_do
-                    ['d', 'e', 'c', 'r', 'e', 'a', 's', 'i', 'n', 'g', 'D', 'i',
-                      'a', 'g', 'r', 'a', 'm', 's']
-                    (xml_take_optional (xml2trs_termination_proof xml2name)
+                    ['r', 'u', 'l', 'e', 'L', 'a', 'b', 'e', 'l', 'i', 'n', 'g']
+                    (xml_take (rule_labeling_function xml2name)
                       (\ a ->
-                        xml_take
-                          (xml_or
-                            (xml_do
-                              ['r', 'u', 'l', 'e', 'L', 'a', 'b', 'e', 'l', 'i',
-                                'n', 'g']
-                              (xml_take (rule_labeling_function xml2name)
-                                (\ rl ->
-                                  xml_take (joinable_critical_pairs xml2name)
-                                    (\ js ->
-                                      (case a of {
-Nothing -> xml_return (Rule_Labeling rl js Nothing);
-Just prf ->
-  xml_return (add_source_lab_proof (Rule_Labeling rl js Nothing) Nothing prf);
-                                      })))))
-                            (xml_do
-                              ['r', 'u', 'l', 'e', 'L', 'a', 'b', 'e', 'l', 'i',
-                                'n', 'g', 'C', 'o', 'n', 'v']
-                              (xml_take (rule_labeling_function xml2name)
-                                (\ rl ->
-                                  xml_take (convertible_critical_peaks xml2name)
-                                    (\ cs ->
-                                      (case a of {
-Nothing -> xml_return (Rule_Labeling_Conv rl cs Nothing);
-Just prf ->
-  xml_take (xml_nat ['n', 'r', 'S', 't', 'e', 'p', 's'])
-    (\ n ->
-      xml_return
-        (add_source_lab_proof (Rule_Labeling_Conv rl cs Nothing) (Just n) prf));
-                                      }))))))
-                          xml_return)))
-                  (xml_do
-                    ['r', 'e', 'd', 'u', 'n', 'd', 'a', 'n', 't', 'R', 'u', 'l',
-                      'e', 's']
-                    (xml_take
-                      (xml_do ['t', 'r', 's']
-                        (xml_take (rules xml2name)
-                          (\ xa -> xml_return (id xa))))
-                      (\ trs ->
-                        xml_take (xml_nat ['n', 'r', 'S', 't', 'e', 'p', 's'])
-                          (\ n ->
-                            xml_take_default []
+                        xml_take (joinable_critical_pairs xml2name)
+                          (\ b -> xml_return (Rule_Labeling a b Nothing)))))
+                  (xml_or
+                    (xml_do
+                      ['d', 'e', 'c', 'r', 'e', 'a', 's', 'i', 'n', 'g', 'D',
+                        'i', 'a', 'g', 'r', 'a', 'm', 's']
+                      (xml_take_optional (xml2trs_termination_proof xml2name)
+                        (\ a ->
+                          xml_take
+                            (xml_or
                               (xml_do
-                                ['c', 'o', 'n', 'v', 'e', 'r', 's', 'i', 'o',
-                                  'n', 's']
-                                (xml_take_many_sub [] zero_nat Infinity_enat
-                                  (conversion xml2name)
-                                  (\ a -> xml_return (map snd a))))
-                              (\ cs ->
-                                xml_take (xml2cr_proof xml2name)
-                                  (\ prf ->
-                                    xml_return
-                                      (Redundant_Rules trs n cs prf)))))))))))))
+                                ['r', 'u', 'l', 'e', 'L', 'a', 'b', 'e', 'l',
+                                  'i', 'n', 'g']
+                                (xml_take (rule_labeling_function xml2name)
+                                  (\ rl ->
+                                    xml_take (joinable_critical_pairs xml2name)
+                                      (\ js ->
+(case a of {
+  Nothing -> xml_return (Rule_Labeling rl js Nothing);
+  Just prf ->
+    xml_return (add_source_lab_proof (Rule_Labeling rl js Nothing) Nothing prf);
+})))))
+                              (xml_do
+                                ['r', 'u', 'l', 'e', 'L', 'a', 'b', 'e', 'l',
+                                  'i', 'n', 'g', 'C', 'o', 'n', 'v']
+                                (xml_take (rule_labeling_function xml2name)
+                                  (\ rl ->
+                                    xml_take
+                                      (convertible_critical_peaks xml2name)
+                                      (\ cs ->
+(case a of {
+  Nothing -> xml_return (Rule_Labeling_Conv rl cs Nothing);
+  Just prf ->
+    xml_take (xml_nat ['n', 'r', 'S', 't', 'e', 'p', 's'])
+      (\ n ->
+        xml_return
+          (add_source_lab_proof (Rule_Labeling_Conv rl cs Nothing) (Just n)
+            prf));
+}))))))
+                            xml_return)))
+                    (xml_do
+                      ['r', 'e', 'd', 'u', 'n', 'd', 'a', 'n', 't', 'R', 'u',
+                        'l', 'e', 's']
+                      (xml_take
+                        (xml_do ['t', 'r', 's']
+                          (xml_take (rules xml2name)
+                            (\ xa -> xml_return (id xa))))
+                        (\ trs ->
+                          xml_take (xml_nat ['n', 'r', 'S', 't', 'e', 'p', 's'])
+                            (\ n ->
+                              xml_take_default []
+                                (xml_do
+                                  ['c', 'o', 'n', 'v', 'e', 'r', 's', 'i', 'o',
+                                    'n', 's']
+                                  (xml_take_many_sub [] zero_nat Infinity_enat
+                                    (conversion xml2name)
+                                    (\ a -> xml_return (map snd a))))
+                                (\ cs ->
+                                  xml_take (xml2cr_proof xml2name)
+                                    (\ prf ->
+                                      xml_return
+(Redundant_Rules trs n cs prf))))))))))))))
       (\ xa -> xml_return (id xa)))
     x;
 
@@ -27065,6 +27127,52 @@ xml2state_map xml2name =
           (\ a -> xml_take (term xml2name) (\ b -> xml_return (a, b)))))
       (\ a -> xml_return (\ x -> the (map_of a x))));
 
+is_root_step ::
+  forall a b.
+    (Eq a, Ccompare b, Eq b,
+      Mapping_impl b) => [(Term a b, Term a b)] -> Term a b -> Term a b -> Bool;
+is_root_step r s t =
+  any (\ (l, ra) -> (case match s l of {
+                      Nothing -> False;
+                      Just sigma -> equal_term (subst_apply_term ra sigma) t;
+                    }))
+    r;
+
+is_par_rstep ::
+  forall a b.
+    (Eq a, Ccompare b, Eq b,
+      Mapping_impl b) => [(Term a b, Term a b)] -> Term a b -> Term a b -> Bool;
+is_par_rstep r (Var x) (Var y) = x == y;
+is_par_rstep r (Fun f ss) (Fun g ts) =
+  equal_term (Fun f ss) (Fun g ts) ||
+    (is_root_step r (Fun f ss) (Fun g ts) ||
+      (if f == g && equal_nat (size_list ss) (size_list ts)
+        then list_all2 (is_par_rstep r) ss ts else False));
+is_par_rstep r (Fun v va) (Var vb) = is_root_step r (Fun v va) (Var vb);
+is_par_rstep r (Var vb) (Fun v va) = is_root_step r (Var vb) (Fun v va);
+
+reachable_terms ::
+  forall a b.
+    (Eq a, Ccompare b, Eq b,
+      Mapping_impl b) => [(Term a b, Term a b)] ->
+                           Term a b -> Nat -> [Term a b];
+reachable_terms r s n =
+  (if equal_nat n zero_nat then [s]
+    else let {
+           ts = reachable_terms r s (minus_nat n one_nat);
+         } in remdups (ts ++ concatMap (rewrite r) ts));
+
+is_critical_pair_closing_cp ::
+  forall a b.
+    (Eq a, Ccompare b, Eq b,
+      Mapping_impl b) => [(Term a b, Term a b)] ->
+                           Nat -> (Bool, (Term a b, Term a b)) -> Bool;
+is_critical_pair_closing_cp c n (False, (s, t)) =
+  not (is_none (find (is_par_rstep c t) (reachable_terms c s n)));
+is_critical_pair_closing_cp c n (True, (s, t)) =
+  not (is_none
+        (find (membera (reachable_terms c s n)) (reachable_terms c t n)));
+
 critical_pairs_impl ::
   forall a.
     (Eq a) => [(Term a [Prelude.Char], Term a [Prelude.Char])] ->
@@ -27095,20 +27203,80 @@ critical_pairs_impl p r =
         (poss_list l))
     p;
 
+check_left_linear_trs ::
+  forall a b.
+    (Showa a, Ceq b, Ccompare b, Set_impl b,
+      Showa b) => [(Term a b, Term a b)] ->
+                    Sum ([Prelude.Char] -> [Prelude.Char]) ();
+check_left_linear_trs trs =
+  catch_errora
+    (catch_errora
+      (forallM (\ x -> (if linear_term (fst x) then Inr () else Inl x)) trs)
+      (\ x -> Inl (snd x)))
+    (\ _ ->
+      Inl (((shows_prec_list zero_nat trs . shows_nl) .
+             shows_prec_list zero_nat
+               ['i', 's', ' ', 'n', 'o', 't', ' ', 'l', 'e', 'f', 't', '-', 'l',
+                 'i', 'n', 'e', 'a', 'r']) .
+            shows_nl));
+
 indent ::
   ([Prelude.Char] -> [Prelude.Char]) -> [Prelude.Char] -> [Prelude.Char];
 indent p s = concatMap (\ c -> (if c == '\n' then ['\n', ' '] else [c])) (p s);
 
-reachable_terms ::
-  forall a b.
-    (Eq a, Ccompare b, Eq b,
-      Mapping_impl b) => [(Term a b, Term a b)] ->
-                           Term a b -> Nat -> [Term a b];
-reachable_terms r s n =
-  (if equal_nat n zero_nat then [s]
-    else let {
-           ts = reachable_terms r s (minus_nat n one_nat);
-         } in remdups (ts ++ concatMap (rewrite r) ts));
+check_critical_pair_closing ::
+  forall a.
+    (Eq a,
+      Showa a) => [(Term a [Prelude.Char], Term a [Prelude.Char])] ->
+                    [(Term a [Prelude.Char], Term a [Prelude.Char])] ->
+                      Nat -> Sum ([Prelude.Char] -> [Prelude.Char]) ();
+check_critical_pair_closing r c n =
+  catch_errora
+    (bindb (check_left_linear_trs r)
+      (\ _ ->
+        bindb (catch_errora (check_subseteq c r)
+                (\ _ ->
+                  Inl (shows_prec_list zero_nat
+                        ['C', ' ', 'n', 'o', 't', ' ', 'a', ' ', 's', 'u', 'b',
+                          's', 'y', 's', 't', 'e', 'm', ' ', 'o', 'f', ' ',
+                          'R'])))
+          (\ _ ->
+            catch_errora
+              (forallM
+                (\ (b, (s, t)) ->
+                  check (is_critical_pair_closing_cp c n (b, (s, t)))
+                    (shows_prec_list zero_nat
+                       ['t', 'h', 'e', ' ', 'c', 'r', 'i', 't', 'i', 'c', 'a',
+                         'l', ' ', 'p', 'a', 'i', 'r', ' '] .
+                      shows_term (shows_prec zero_nat)
+                        (shows_prec_list zero_nat) s .
+                        shows_prec_list zero_nat
+                          [' ', '<', '-', ' ', '.', ' ', '-', '>', ' '] .
+                          shows_term (shows_prec zero_nat)
+                            (shows_prec_list zero_nat) t .
+                            shows_prec_list zero_nat
+                              [' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'c', 'l',
+                                'o', 's', 'e', 'd', ' ', 'w', 'i', 't', 'h',
+                                'i', 'n', ' '] .
+                              shows_prec_nat zero_nat n .
+                                shows_prec_list zero_nat
+                                  [' ', 's', 't', 'e', 'p', 's', '.']))
+                (critical_pairs_impl r r))
+              (\ x -> Inl (snd x)))))
+    (\ x ->
+      Inl (x . shows_nl .
+                 shows_prec_list zero_nat
+                   ['h', 'e', 'n', 'c', 'e', ' ', 't', 'h', 'e', ' ', 'f', 'o',
+                     'l', 'l', 'o', 'w', 'i', 'n', 'g', ' ', 'T', 'R', 'S', ' ',
+                     'i', 's', ' ', 'n', 'o', 't', ' ', 'c', 'r', 'i', 't', 'i',
+                     'c', 'a', 'l', ' ', 'p', 'a', 'i', 'r', ' ', 'c', 'l', 'o',
+                     's', 'i', 'n', 'g', ' '] .
+                   shows_nl .
+                     shows_trs (shows_prec zero_nat) (shows_prec_list zero_nat)
+                       ['r', 'e', 'w', 'r', 'i', 't', 'e', ' ', 's', 'y', 's',
+                         't', 'e', 'm', ':']
+                       [' ', '-', '>', ' '] r .
+                       indent x));
 
 check_strongly_closed ::
   forall a.
@@ -27196,30 +27364,6 @@ parallel_rewrite r (Fun f ss) =
     (root_rewrite r (Fun f ss) ++
       map (Fun f) (product_lists (map (parallel_rewrite r) ss)));
 
-is_root_step ::
-  forall a b.
-    (Eq a, Ccompare b, Eq b,
-      Mapping_impl b) => [(Term a b, Term a b)] -> Term a b -> Term a b -> Bool;
-is_root_step r s t =
-  any (\ (l, ra) -> (case match s l of {
-                      Nothing -> False;
-                      Just sigma -> equal_term (subst_apply_term ra sigma) t;
-                    }))
-    r;
-
-is_par_rstep ::
-  forall a b.
-    (Eq a, Ccompare b, Eq b,
-      Mapping_impl b) => [(Term a b, Term a b)] -> Term a b -> Term a b -> Bool;
-is_par_rstep r (Var x) (Var y) = x == y;
-is_par_rstep r (Fun f ss) (Fun g ts) =
-  equal_term (Fun f ss) (Fun g ts) ||
-    (is_root_step r (Fun f ss) (Fun g ts) ||
-      (if f == g && equal_nat (size_list ss) (size_list ts)
-        then list_all2 (is_par_rstep r) ss ts else False));
-is_par_rstep r (Fun v va) (Var vb) = is_root_step r (Fun v va) (Var vb);
-is_par_rstep r (Var vb) (Fun v va) = is_root_step r (Var vb) (Fun v va);
-
 is_parallel_closed_cp ::
   forall a b.
     (Eq a, Ccompare b, Eq b,
@@ -27230,23 +27374,6 @@ is_parallel_closed_cp r (Just n) (True, (s, t)) =
   not (is_none (find (is_par_rstep r t) (reachable_terms r s n)));
 is_parallel_closed_cp r Nothing (True, (s, t)) =
   not (is_none (find (is_par_rstep r t) (parallel_rewrite r s)));
-
-check_left_linear_trs ::
-  forall a b.
-    (Showa a, Ceq b, Ccompare b, Set_impl b,
-      Showa b) => [(Term a b, Term a b)] ->
-                    Sum ([Prelude.Char] -> [Prelude.Char]) ();
-check_left_linear_trs trs =
-  catch_errora
-    (catch_errora
-      (forallM (\ x -> (if linear_term (fst x) then Inr () else Inl x)) trs)
-      (\ x -> Inl (snd x)))
-    (\ _ ->
-      Inl (((shows_prec_list zero_nat trs . shows_nl) .
-             shows_prec_list zero_nat
-               ['i', 's', ' ', 'n', 'o', 't', ' ', 'l', 'e', 'f', 't', '-', 'l',
-                 'i', 'n', 'e', 'a', 'r']) .
-            shows_nl));
 
 check_parallel_closed ::
   forall a.
@@ -41964,6 +42091,34 @@ check_cr_proof a ia i j r (Parallel_Closed n) =
                         't', 'e', 'm', ':']
                       [' ', '-', '>', ' '] r .
                       indent x)));
+check_cr_proof a ia i j r (Critical_Pair_Closing_System c prf n) =
+  debug (ia [])
+    ['C', 'r', 'i', 't', 'i', 'c', 'a', 'l', '-', 'P', 'a', 'i', 'r', '-', 'C',
+      'l', 'o', 's', 'i', 'n', 'g', ' ', 'S', 'y', 's', 't', 'e', 'm']
+    (let {
+       tp = mkc i False [] c [];
+     } in bindb (catch_errora
+                  (check_trs_termination_proof i j a
+                    (ia . shows_string ['.', '1']) tp prf)
+                  (\ x ->
+                    Inl (ia . shows_string
+                                [':', ' ', 'e', 'r', 'r', 'o', 'r', ' ', 'b',
+                                  'e', 'l', 'o', 'w', ' ', 's', 't', 'r', 'o',
+                                  'n', 'g', ' ', 'n', 'o', 'r', 'm', 'a', 'l',
+                                  'i', 'z', 'a', 't', 'i', 'o', 'n', ' ', 'o',
+                                  'f', ' ', 'C', 'P', 'C', 'S'] .
+                                shows_nl . indent x)))
+            (\ _ ->
+              catch_errora (check_critical_pair_closing r c n)
+                (\ x ->
+                  Inl (ia . shows_prec_list zero_nat
+                              ['e', 'r', 'r', 'o', 'r', ' ', 'w', 'h', 'e', 'n',
+                                ' ', 'c', 'l', 'o', 's', 'i', 'n', 'g', ' ',
+                                'c', 'r', 'i', 't', 'i', 'c', 'a', 'l', ' ',
+                                'p', 'a', 'i', 'r', 's', ' ', 'o', 'f', ' '] .
+                              shows_tp (shows_prec_lab zero_nat)
+                                (shows_prec_list zero_nat) i tp .
+                                shows_nl . indent x))));
 
 edges_to_adj_fun :: forall a. (Eq a, Key a) => [(a, a)] -> a -> [a];
 edges_to_adj_fun e =
@@ -49469,6 +49624,31 @@ check_subsumptions_guided ea ((e, seq) : convs) =
                     shows_nl . x)))
     (\ _ -> check_subsumptions_guided (e : ea) convs);
 
+check_convertible_instance ::
+  forall a b.
+    (Eq a, Showa a, Ccompare b, Eq b, Mapping_impl b,
+      Showa b) => (Term a b, Term a b) ->
+                    [(Term a b, Term a b)] ->
+                      [((Term a b, Term a b),
+                         [(Pos, ((Term a b, Term a b), (Bool, Term a b)))])] ->
+                        Sum ([Prelude.Char] -> [Prelude.Char]) ();
+check_convertible_instance eq e convs =
+  bindb (catch_errora
+          (existsM
+            (\ c ->
+              check (instance_rule (fst c) eq)
+                (shows_string
+                   ['n', 'o', 't', ' ', 'a', 'n', ' ', 'i', 'n', 's', 't', 'a',
+                     'n', 'c', 'e', ' ', 'o', 'f', ' '] .
+                  shows_rule (shows_prec zero_nat) (shows_prec zero_nat)
+                    [' ', '=', ' '] eq))
+            convs)
+          (\ _ ->
+            Inl (shows_prec_list zero_nat
+                  [' ', 'n', 'o', ' ', 'i', 'n', 's', 't', 'a', 'n', 'c', 'e',
+                    ' ', 'f', 'o', 'u', 'n', 'd'])))
+    (\ _ -> check_subsumptions_guided e convs);
+
 check_subsumption_guided ::
   forall a b.
     (Eq a, Showa a, Ccompare b, Eq b, Mapping_impl b,
@@ -49600,11 +49780,10 @@ check_equational_disproof ::
                         Dpp_ops_ext c (Lab b [Nat]) [Prelude.Char] () ->
                           [(Term (Lab b [Nat]) [Prelude.Char],
                              Term (Lab b [Nat]) [Prelude.Char])] ->
-                            (Term (Lab b [Nat]) [Prelude.Char],
-                              Term (Lab b [Nat]) [Prelude.Char]) ->
+                            Equation_literal (Lab b [Nat]) [Prelude.Char] ->
                               Equational_disproof b [Nat] [Prelude.Char] ->
                                 Sum ([Prelude.Char] -> [Prelude.Char]) ();
-check_equational_disproof a ia i j e eq
+check_equational_disproof a ia i j e (Equation eq)
   (Completion_and_Normalization_Different r p) =
   debug (ia [])
     ['C', 'o', 'm', 'p', 'l', 'e', 't', 'i', 'o', 'n', '_', 'a', 'n', 'd', '_',
@@ -49651,6 +49830,21 @@ check_equational_disproof a ia i j e eq
                                     shows_term (shows_prec_lab zero_nat)
                                       (shows_prec_list zero_nat) sa));
              })));
+check_equational_disproof a ia i j e (Inequality eq)
+  (Convertible_Instance convs) =
+  debug (ia [])
+    ['C', 'o', 'n', 'v', 'e', 'r', 't', 'i', 'b', 'l', 'e', '_', 'I', 'n', 's',
+      't', 'a', 'n', 'c', 'e']
+    (check_convertible_instance eq e convs);
+check_equational_disproof a ia i j e (Inequality v)
+  (Completion_and_Normalization_Different va vb) =
+  Inl (shows_string
+        ['u', 'n', 's', 'u', 'p', 'p', 'o', 'r', 't', 'e', 'd', ' ', 'd', 'i',
+          's', 'p', 'r', 'o', 'o', 'f']);
+check_equational_disproof a ia i j e (Equation va) (Convertible_Instance v) =
+  Inl (shows_string
+        ['u', 'n', 's', 'u', 'p', 'p', 'o', 'r', 't', 'e', 'd', ' ', 'd', 'i',
+          's', 'p', 'r', 'o', 'o', 'f']);
 
 match_crule ::
   forall a b.
@@ -53858,24 +54052,24 @@ check_equational_proof ::
                         Dpp_ops_ext c (Lab b [Nat]) [Prelude.Char] () ->
                           [(Term (Lab b [Nat]) [Prelude.Char],
                              Term (Lab b [Nat]) [Prelude.Char])] ->
-                            (Term (Lab b [Nat]) [Prelude.Char],
-                              Term (Lab b [Nat]) [Prelude.Char]) ->
+                            Equation_literal (Lab b [Nat]) [Prelude.Char] ->
                               Equational_proof b [Nat] [Prelude.Char] ->
                                 Sum ([Prelude.Char] -> [Prelude.Char]) ();
-check_equational_proof a ia i j e eq (Equational_Proof_Tree p) =
+check_equational_proof a ia i j e (Equation eq) (Equational_Proof_Tree p) =
   debug (ia [])
     ['E', 'q', 'u', 'a', 't', 'i', 'o', 'n', 'a', 'l', '_', 'P', 'r', 'o', 'o',
       'f', '_', 'T', 'r', 'e', 'e']
     (check_eq_proof e p eq);
-check_equational_proof a ia i j e eq (Conversion eseq) =
+check_equational_proof a ia i j e (Equation eq) (Conversion eseq) =
   debug (ia []) ['C', 'o', 'n', 'v', 'e', 'r', 's', 'i', 'o', 'n']
     (check_conversiona e eseq (fst eq) (snd eq));
-check_equational_proof a ia i j e eq (Conversion_With_History convs) =
-  debug (ia [])
-    ['C', 'o', 'n', 'v', 'e', 'r', 's', 'i', 'o', 'n', ' ', 'w', 'i', 't', 'h',
-      ' ', 'H', 'i', 's', 't', 'o', 'r', 'y']
-    (check_single_subsumption eq e convs);
-check_equational_proof a ia i j e eq (Completion_and_Normalization r p) =
+check_equational_proof a ia i j e (Equation eq) (Conversion_With_History convs)
+  = debug (ia [])
+      ['C', 'o', 'n', 'v', 'e', 'r', 's', 'i', 'o', 'n', ' ', 'w', 'i', 't',
+        'h', ' ', 'H', 'i', 's', 't', 'o', 'r', 'y']
+      (check_single_subsumption eq e convs);
+check_equational_proof a ia i j e (Equation eq)
+  (Completion_and_Normalization r p) =
   debug (ia [])
     ['C', 'o', 'm', 'p', 'l', 'e', 't', 'i', 'o', 'n', '_', 'a', 'n', 'd', '_',
       'N', 'o', 'r', 'm', 'a', 'l', 'i', 'z', 'a', 't', 'i', 'o', 'n']
@@ -53920,6 +54114,11 @@ check_equational_proof a ia i j e eq (Completion_and_Normalization r p) =
                                       'n', 'o', 'r', 'm', 'a', 'l', ' ', 'f',
                                       'o', 'r', 'm', 's']));
              })));
+check_equational_proof uu uv uw ux uy (Inequality v) va =
+  Inl (shows_string
+        ['u', 'n', 's', 'u', 'p', 'p', 'o', 'r', 't', 'e', 'd', ' ', 'e', 'q',
+          'u', 'a', 't', 'i', 'o', 'n', 'a', 'l', ' ', 'p', 'r', 'o', 'o', 'f',
+          ' ']);
 
 check_dp_termination_proof ::
   forall a b c.
@@ -60533,16 +60732,22 @@ xml2equational_disproof xml2name =
     ['e', 'q', 'u', 'a', 't', 'i', 'o', 'n', 'a', 'l', 'D', 'i', 's', 'p', 'r',
       'o', 'o', 'f']
     (xml_take
-      (xml_do
-        ['c', 'o', 'm', 'p', 'l', 'e', 't', 'i', 'o', 'n', 'A', 'n', 'd', 'N',
-          'o', 'r', 'm', 'a', 'l', 'i', 'z', 'a', 't', 'i', 'o', 'n']
-        (xml_take
-          (xml_do ['t', 'r', 's']
-            (xml_take (rules xml2name) (\ x -> xml_return (id x))))
-          (\ a ->
-            xml_take (xml2completion_proof xml2name)
-              (\ b ->
-                xml_return (Completion_and_Normalization_Different a b)))))
+      (xml_or
+        (xml_do
+          ['c', 'o', 'm', 'p', 'l', 'e', 't', 'i', 'o', 'n', 'A', 'n', 'd', 'N',
+            'o', 'r', 'm', 'a', 'l', 'i', 'z', 'a', 't', 'i', 'o', 'n']
+          (xml_take
+            (xml_do ['t', 'r', 's']
+              (xml_take (rules xml2name) (\ x -> xml_return (id x))))
+            (\ a ->
+              xml_take (xml2completion_proof xml2name)
+                (\ b ->
+                  xml_return (Completion_and_Normalization_Different a b)))))
+        (xml_do
+          ['c', 'o', 'n', 'v', 'e', 'r', 't', 'i', 'b', 'l', 'e', 'I', 'n', 's',
+            't', 'a', 'n', 'c', 'e']
+          (xml_take (subsumption_proof xml2name)
+            (\ x -> xml_return (Convertible_Instance x)))))
       (\ x -> xml_return (id x)));
 
 xml2unknown_disproof ::
