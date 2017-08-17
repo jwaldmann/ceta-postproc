@@ -18,11 +18,11 @@ main = getArgs >>= \ args -> do
   (problemString, claim_proofString) <- case args of
     [ cpf, xtc ] -> do
       -- not on star-exec, don't need to strip intro
-      problemString <- readFile xtc
+      problemString <- readProblemFile xtc
       claim_proofString <- readFile cpf
       return (problemString, claim_proofString)
     [ cpf, xtc, extradir ] -> do
-      problemString <- readFile xtc
+      problemString <- readProblemFile xtc
       readFile cpf >>= \ s -> case strip_intro s of
         Nothing -> do
           terminate_with Nothing [ ("starexec-result", "MISSING-INTRO") ]
@@ -39,9 +39,16 @@ main = getArgs >>= \ args -> do
     Nothing -> terminate_with Nothing [ ("starexec-result", "MAYBE") ]
     Just (claimString, proofString) -> do
         case Claim.parse claimString of
-          Right claim -> start False (Just problemString) claim proofString
+          Right claim -> start False problemString claim proofString
           Left  _   -> terminate_with Nothing [ ("starexec-result", "INVALID-CLAIM:" ++ claimString) ] 
 
+-- Ceta cannot parse the problem statement for ITS termination, so it will ignore it (!)
+-- https://github.com/jwaldmann/ceta-postproc/issues/16
+readProblemString fname =
+  if Data.List.isSuffixOf ".smt2" fname
+  then return Nothing
+  else Just <$> readFile fname
+  
 start a problemString claim proofString = case cetaify claim of
   Nothing -> 
     terminate_with Nothing [ ("starexec-result", "UNSUPPORTED-CLAIM:" ++ show claim) ]
