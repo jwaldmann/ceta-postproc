@@ -61,11 +61,15 @@ start a problemString claim proofString = case cetaify claim of
            Error message -> ("REJECTED", Just message)
            Unsupported message -> ("UNSUPPORTED", Just message)
     dt <- timed_whnf (length cr)
+    let common = [ ("certification-result", cr)
+                 , ("certification-time", format_time dt)
+                 , ("output-size", show $ length proofString)
+                 ]
     case mmsg of
-      Nothing -> terminate_with mmsg
-        [ ("starexec-result", show claim), ("certification-result", cr), ("certification-time", format_time dt) ]
-      Just msg -> terminate_with mmsg
-        [ ("starexec-result", cr ++ "-" ++ show claim), ("certification-result", cr), ("certification-time", format_time dt) ]
+      Nothing ->
+        terminate_with mmsg $ ("starexec-result", show claim) : common
+      Just msg ->
+        terminate_with mmsg $ ("starexec-result", cr ++ "-" ++ show claim) : common
 
 cetaify c = case c of
   Claim.YES -> Just $ Inl Terminating
