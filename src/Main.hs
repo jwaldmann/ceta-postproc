@@ -45,7 +45,7 @@ main = getArgs >>= \ args -> do
 
 -- Ceta cannot parse the problem statement for ITS termination, so it will ignore it (!)
 -- https://github.com/jwaldmann/ceta-postproc/issues/16
-readProblemString fname =
+readProblemFile fname =
   if Data.List.isSuffixOf ".smt2" fname
   then return Nothing
   else Just <$> readFile fname
