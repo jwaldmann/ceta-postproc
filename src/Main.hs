@@ -67,7 +67,7 @@ start a problemString claim proofString = case cetaify claim of
 cetaify c = case c of
   Claim.YES -> Just $ Inl Terminating
   Claim.NO  -> Just $ Inl Nonterminating
-  Claim.WORST_CASE Claim.None (Claim.Some (Claim.O d)) -> Just $ Inl $ Upperbound $ Nat d
+  Claim.WORST_CASE Claim.None (Claim.Some (Claim.O d)) -> Just $ Inl $ Upperbound $ nat_of_integer d
   _ -> Nothing
 
 terminate_with mmsg env = do
