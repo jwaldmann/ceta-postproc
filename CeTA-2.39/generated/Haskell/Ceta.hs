@@ -3,7 +3,9 @@
 module
   Ceta(Nat, Char, Term, Sum(..), Lab, Xml, Xml_error, Claim(..), Input, Sum_bot,
         Proof, Cert_result(..), Tp, Dpp, Ac_dpp, Tp_ops_ext, Dpp_ops_ext,
-        Ac_tp_ops_ext, Ac_dpp_ops_ext, explode, version, certify_proof)
+        Ac_tp_ops_ext, Ac_dpp_ops_ext, explode, version, certify_proof,
+        nat_of_integer
+      )
   where {
 
 import Prelude ((==), (/=), (<), (<=), (>=), (>), (+), (-), (*), (/), (**),
