@@ -1,11 +1,11 @@
 name:                ceta-postproc
-version:             2.30.2
-synopsis:            CeTA as postprocessor for starexec, using CeTA 2.27 (for Competition 2017)
+version:             2.39.0
+synopsis:            CeTA as postprocessor for starexec, using CeTA 2.39 (for Competition 2020)
 -- description:         
 homepage:            https://github.com/jwaldmann/ceta-postproc
 license:             LGPL-3
 license-file:        LICENSE
-author:              Christian Sternagel, Rene Thiemann, Johannes Waldmann
+author:              Christian Sternagel, Rene Thiemann, Akihisa Yamada, Johannes Waldmann
 maintainer:          johannes.waldmann@htwk-leipzig.de
 -- copyright:           
 category:            Math
@@ -13,12 +13,15 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
+library
+  hs-source-dirs: CeTA-2.39/generated/Haskell
+  exposed-modules:   Ceta, Array, Data_Bits, IArray, Uint, Uint32, Uint64
+  build-depends: base, array
+
 executable ceta-postproc
   hs-source-dirs:         src
   main-is:             Main.hs
-  other-modules:       Claim, Ceta, Array, Data_Bits, IArray, Uint, Uint32
-  other-extensions:    EmptyDataDecls, RankNTypes, ScopedTypeVariables
-  build-depends:       base, array, parsec, clock
-  default-language:    Haskell2010
+  other-modules: Claim
+  build-depends:       base, ceta-postproc, parsec, clock
   ghc-options: -rtsopts
 

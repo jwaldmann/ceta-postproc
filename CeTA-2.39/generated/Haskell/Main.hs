@@ -13,17 +13,17 @@ import System.Exit -- for error codes
 
 main = getArgs >>= parse False
 
-parse _ ("--version":_) = do putStrLn Main.version
+parse _ ("--version":_) = do putStrLn "2.39"
 parse _ ("--allow-assumptions":args) = parse True args
 parse flag [xtc,claim,cpf] = do
   problemString <- readFile xtc
   claimString <- readFile claim
   proofString <- readFile cpf
-  start flag (Just problemString) (Inr claimString) proofString
+  start flag (Just (explode problemString)) (Inr (explode claimString)) (explode proofString)
 
 parse flag [cpf] = do
   problemString <- readFile cpf
-  start flag Nothing (Inl Anything) problemString
+  start flag Nothing (Inl Anything) (explode problemString)
 
 parse _ _ = do
   hPutStrLn stderr usage
@@ -48,5 +48,4 @@ usage = "usage: ceta [[--allow-assumptions] certificate | --version]\n\
         \  A \"certificate\" is an XML file in certification problem format (CPF).\n\
         \  \n\
         \  --allow-assumptions    Allow (axiomatic) assumptions in the certificate.\n\
-        \  --version              Print the version number."
-version = "2.31"
+        \  --version              Print the version number (+ mercurial id)."

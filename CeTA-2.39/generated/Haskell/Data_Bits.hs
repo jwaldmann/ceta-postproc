@@ -1,4 +1,3 @@
-{-# LANGUAGE EmptyDataDecls, RankNTypes, ScopedTypeVariables #-}
 
 module Data_Bits where {
 

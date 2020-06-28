@@ -45,18 +45,20 @@ main = getArgs >>= \ args -> do
           Right claim -> start False problemString claim proofString
           Left  _   -> terminate_with Nothing [ ("starexec-result", "INVALID-CLAIM:" ++ claimString) ] 
 
--- Ceta cannot parse the problem statement for ITS termination, so it will ignore it (!)
+-- | Ceta cannot parse the problem statement for ITS termination, so it will ignore it (!)
 -- https://github.com/jwaldmann/ceta-postproc/issues/16
+readProblemFile :: FilePath -> IO (Maybe String)
 readProblemFile fname =
   if Data.List.isSuffixOf ".smt2" fname
   then return Nothing
   else Just <$> readFile fname
-  
+
+start :: Bool -> Maybe String -> Claim.Claim -> String -> IO ()
 start a problemString claim proofString = case cetaify claim of
   Nothing -> 
     terminate_with Nothing [ ("starexec-result", "UNSUPPORTED-CLAIM:" ++ show claim) ]
   Just cc -> do
-    let (cr, mmsg) = case certify_proof a problemString cc proofString of
+    let (cr, mmsg) = case certify_proof a (explode <$> problemString) cc (explode proofString) of
            Certified  -> ("CERTIFIED", Nothing )
            Error message -> ("REJECTED", Just message)
            Unsupported message -> ("UNSUPPORTED", Just message)
