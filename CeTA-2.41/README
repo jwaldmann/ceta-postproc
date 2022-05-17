@@ -1,0 +1,53 @@
+Contents
+========
+ 1) Files & Directories
+ 2) Compilation
+ 3) Dependencies
+
+
+Files & Directories
+===================
+Following files are included in the distribution:
+
+- COPYING: The GNU GPL license.
+- COPYING.LESSER: The GNU LGPL license (based on the GPL).
+- Makefile: GNU make build rules for CeTA.
+- README: This file.
+- generated: Contains all source files that have been automatically
+  extracted from IsaFoR (for Haskell).
+- src: Contains sources that are not automatically generated.
+- examples: Contains example problems and proofs.
+- xml: Contains all XML related files.
+
+
+Compilation
+===========
+In order to compile CeTA you need: 
+
+ * GHC (the Haskell compiler)
+
+To build CeTA on your own, just type
+
+  make 
+
+This will create the binary 'ceta.' To test the binary on some proofs, use
+
+  make test
+
+To manually call ceta use something like
+
+  ./ceta examples/div.proof.xml
+
+If you want to generate the CeTA sources from the IsaFoR formalization, you
+need mercurial (hg). Download the IsaFoR mercurial repository via
+
+  hg clone -r v2.37 http://cl2-informatik.uibk.ac.at/rewriting/mercurial.cgi/IsaFoR
+
+and follow the instructions in the accompanying README or README_devel file.
+
+
+Dependencies
+============
+IsaFoR:   v2.37
+Isabelle: Isabelle-2019
+AFP:      afp-2019-06-11
