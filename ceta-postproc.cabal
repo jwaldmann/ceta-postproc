@@ -1,6 +1,6 @@
 name:                ceta-postproc
-version:             2.41.0
-synopsis:            CeTA as postprocessor for starexec, using CeTA 2.41
+version:             2.42.0
+synopsis:            CeTA as postprocessor for starexec, using CeTA 2.42
 -- description:         
 homepage:            https://github.com/jwaldmann/ceta-postproc
 license:             LGPL-3
@@ -14,7 +14,7 @@ extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
-  hs-source-dirs: CeTA-2.41/generated/Haskell
+  hs-source-dirs: CeTA-2.42/generated/Haskell
   exposed-modules:   Ceta, Array, Data_Bits, IArray, Uint, Uint32, Uint64
   build-depends: base, array
 
