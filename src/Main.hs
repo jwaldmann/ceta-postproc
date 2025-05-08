@@ -58,8 +58,8 @@ start a problemString claim proofString = case cetaify claim of
   Nothing -> 
     terminate_with Nothing [ ("starexec-result", "UNSUPPORTED-CLAIM:" ++ show claim) ]
   Just cc -> do
-    let (cr, mmsg) = case certify_proof a (explode <$> problemString) cc (explode proofString) of
-           Certified  -> ("CERTIFIED", Nothing )
+    let (cr, mmsg) = case certify_proof a (explode <$> problemString) (explode <$> Just cc) (explode <$> Just "Termination") (explode proofString) of
+           Certified -> ("CERTIFIED", Nothing )
            Error message -> ("REJECTED", Just message)
            Unsupported message -> ("UNSUPPORTED", Just message)
     dt <- timed_whnf (length cr)
@@ -74,9 +74,9 @@ start a problemString claim proofString = case cetaify claim of
         terminate_with mmsg $ ("starexec-result", cr ++ "-" ++ show claim) : common
 
 cetaify c = case c of
-  Claim.YES -> Just $ Inl Terminating
-  Claim.NO  -> Just $ Inl Nonterminating
-  Claim.WORST_CASE Claim.None (Claim.Some (Claim.O d)) -> Just $ Inl $ Upperbound $ nat_of_integer d
+  Claim.YES -> Just "YES"
+  Claim.NO  -> Just "NO"
+  -- Claim.WORST_CASE Claim.None (Claim.Some (Claim.O d)) -> Just $ Inl $ Upperbound_Poly $ nat_of_integer d
   _ -> Nothing
 
 terminate_with mmsg env = do
